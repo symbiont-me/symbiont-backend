@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "symbiont"
+version = "0.1.0"
+description = ""
+authors = ["lonehegelian <thelonehegelian@protonmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = {extras = ["all"], version = "^0.109.2"}
+psycopg2-binary = "^2.9.9"
+python-dotenv = "^1.0.1"
+firebase-admin = "^6.4.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
