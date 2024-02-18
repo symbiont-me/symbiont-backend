@@ -1,24 +1,19 @@
 from fastapi import BackgroundTasks, FastAPI, UploadFile, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from google.cloud.firestore_v1.transforms import Sentinel
 from pydantic import BaseModel
 from firebase_admin import initialize_app, firestore, auth, credentials, storage
 from typing import List
 from pydantic.networks import HttpUrl
-from google.cloud.firestore_v1 import ArrayUnion
 from enum import Enum
 from typing import Optional
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_openai import OpenAI
-from getpass import getpass
 import os
 from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 from typing import AsyncGenerator
-from google.cloud.firestore import SERVER_TIMESTAMP
 from datetime import datetime
-
+from google.cloud.firestore import ArrayUnion
 
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
@@ -270,11 +265,10 @@ class ChatRequest(BaseModel):
     studyId: str
 
 
-# TODO use this
 class ChatMessage(BaseModel):
     role: str
     content: str
-    createdAt: Sentinel
+    createdAt: datetime
 
 
 @app.post("/chat")
@@ -317,11 +311,10 @@ def save_chat_message_to_db(chat_message: str, studyId: str, role: str):
     db = firestore.client()
     doc_ref = db.collection("studies_").document(studyId)
     if not doc_ref.get().exists:
-        # TODO throw error
         raise HTTPException(status_code=404, detail="No such document!")
     new_chat_message = ChatMessage(
-        role=role, content=chat_message, createdAt=SERVER_TIMESTAMP
-    )
+        role=role, content=chat_message, createdAt=datetime.now()
+    ).model_dump()
     doc_ref.update({"chatMessages": ArrayUnion([new_chat_message])})
 
 
