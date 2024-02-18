@@ -1,5 +1,6 @@
-from fastapi import FastAPI, UploadFile, HTTPException, Header, Depends
+from fastapi import BackgroundTasks, FastAPI, UploadFile, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from google.cloud.firestore_v1.transforms import Sentinel
 from pydantic import BaseModel
 from firebase_admin import initialize_app, firestore, auth, credentials, storage
 from typing import List
@@ -7,9 +8,27 @@ from pydantic.networks import HttpUrl
 from google.cloud.firestore_v1 import ArrayUnion
 from enum import Enum
 from typing import Optional
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from langchain_openai import OpenAI
+from getpass import getpass
+import os
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
+from dotenv import load_dotenv
+from typing import AsyncGenerator
+from google.cloud.firestore import SERVER_TIMESTAMP
+from datetime import datetime
 
-# from .fb.storage import save_file
+
+load_dotenv()
+api_key = os.getenv("OPENAI_API_KEY")
+
+
+class LLMModel(str, Enum):
+    GPT_3_5_TURBO = "gpt-3.5-turbo"
+    GPT_3_5_TURBO_INSTRUCT = "gpt-3.5-turbo-instruct"
+    GPT_4 = "gpt-4"
+    LLAMA = "llama"
 
 
 app = FastAPI()
@@ -148,7 +167,6 @@ async def get_study(studyId: str):
 async def update_text(text: TextUpdateRequest):
     # TODO verify user has access to study
     db = firestore.client()
-    print(text.studyId)
     study_ref = db.collection("studies_").document(text.studyId)
     study = study_ref.get()
     if study.exists:
@@ -219,7 +237,6 @@ async def get_resources(studyId: str):
 
 @app.post("/upload-resource/")
 async def upload_resource(file: UploadFile):
-
     save_file(file)
     return {"message": "File uploaded successfully"}
 
@@ -248,7 +265,65 @@ async def get_user_studies(decoded_token: dict = Depends(verify_token)):
         )
 
 
+class ChatRequest(BaseModel):
+    message: str
+    studyId: str
+
+
+# TODO use this
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    createdAt: Sentinel
+
+
+@app.post("/chat")
+async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
+    message = chat.message
+    studyId = chat.studyId
+
+    background_tasks.add_task(
+        save_chat_message_to_db,
+        chat_message=message,
+        studyId=studyId,
+        role="user",
+    )
+    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0, max_tokens=250)
+    prompt = message
+
+    # NOTE a bit slow
+    async def generate_llm_response() -> AsyncGenerator[str, None]:
+        """
+        This asynchronous generator function streams the response from the language model (LLM) in chunks.
+        For each chunk received from the LLM, it appends the chunk to the 'llm_response' string and yields
+        the chunk to the caller. After all chunks have been received and yielded, it schedules a background task
+        to save the complete response to the database as a chat message from the 'bot' role.
+        """
+        llm_response = ""
+        async for chunk in llm.astream(prompt):
+            llm_response += chunk
+            yield chunk
+        background_tasks.add_task(
+            save_chat_message_to_db,
+            chat_message=llm_response,
+            studyId=studyId,
+            role="bot",
+        )
+
+    return StreamingResponse(generate_llm_response())
+
+
+def save_chat_message_to_db(chat_message: str, studyId: str, role: str):
+    db = firestore.client()
+    doc_ref = db.collection("studies_").document(studyId)
+    if not doc_ref.get().exists:
+        # TODO throw error
+        raise HTTPException(status_code=404, detail="No such document!")
+    new_chat_message = ChatMessage(
+        role=role, content=chat_message, createdAt=SERVER_TIMESTAMP
+    )
+    doc_ref.update({"chatMessages": ArrayUnion([new_chat_message])})
+
+
 # TODO for the library
-
-
 # @app.post("get-user-resources")
