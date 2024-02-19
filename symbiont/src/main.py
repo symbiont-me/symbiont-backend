@@ -1,3 +1,4 @@
+from re import A
 from fastapi import BackgroundTasks, FastAPI, UploadFile, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,7 +7,7 @@ from typing import List
 from pydantic.networks import HttpUrl
 from enum import Enum
 from fastapi.responses import JSONResponse, StreamingResponse
-from langchain_openai import OpenAI
+from langchain_openai import OpenAI, OpenAIEmbeddings
 import os
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
@@ -17,12 +18,27 @@ from .utils import (
     make_file_identifier,
     verify_token,
 )
-
+from pinecone import Pinecone
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import NLTKTextSplitter
+from hashlib import md5
 
 load_dotenv()
+
 api_key = os.getenv("OPENAI_API_KEY")
+pinecone_api_key = os.getenv("PINECONE_API_KEY")
+pinecone_index = os.getenv("PINECONE_INDEX")
+pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
+
 
 app = FastAPI()
+
+pc = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
+index = pc.Index("symbiont-me")
+
+if index is None:
+    raise Exception("Pinecone index not found")
+
 
 origins = [
     "http://localhost",
@@ -42,6 +58,128 @@ app.add_middleware(
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 cred = credentials.Certificate("src/serviceAccountKey.json")
 initialize_app(cred, {"storageBucket": "symbiont-e7f06.appspot.com"})
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#       Firebase Storage
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def download_from_firebase_storage(file_key: str) -> str:
+    bucket = storage.bucket()
+    blob = bucket.blob(file_key)
+    if not os.path.exists("temp"):
+        os.makedirs("temp")
+    save_path = f"temp/{file_key}"
+    blob.download_to_filename(save_path)
+    return save_path
+
+
+def delete_local_file(file_path: str):
+    os.remove(file_path)
+
+
+# ~~~~~~~~~~~~~~~~~~~~
+#       PINECONE
+# ~~~~~~~~~~~~~~~~~~~~
+
+test_pdf = "1712.01210v1.pdf"
+
+
+class PdfPage(BaseModel):
+    page_content: str
+    metadata: dict = {"source": str, "page": 0}
+    type: str = "Document"
+
+
+class EmbeddingModels(str, Enum):
+    TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
+
+
+class PineconeRecord(BaseModel):
+    id: str
+    values: List[float]
+    metadata: dict = {"text": str, "pageNumber": 0}
+
+
+def embed_document(doc: PdfPage) -> PineconeRecord:
+    embeddings = OpenAIEmbeddings(
+        model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE, dimensions=1536
+    )
+    vec = embeddings.embed_query(doc.page_content)
+    hash = md5(doc.page_content.encode("utf-8")).hexdigest()
+    return PineconeRecord(id=hash, values=vec)
+
+
+def prepare_resource_for_pinecone(file_identifier: str):
+    file_path = download_from_firebase_storage(file_identifier)
+    if file_path is not None and file_path.endswith(".pdf"):
+        loader = PyPDFLoader(file_path)
+        pages = [
+            PdfPage(**page.dict()) for page in loader.load_and_split()
+        ]  # Convert each page to PdfPage like as syntax in TypeScript
+
+        docs = []
+        for page in pages:
+            prepared_pages = prepare_pdf_for_pinecone(page)
+            docs.extend(prepared_pages)
+        vecs = [embed_document(doc) for doc in docs]
+        upload_vecs_to_pinecone(vecs, file_identifier)
+        delete_local_file(file_path)
+
+
+def upload_vecs_to_pinecone(vecs: List[PineconeRecord], file_identifier: str):
+    client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
+    index = client.Index("symbiont-me")
+    formatted_vecs = [(vec.id, vec.values) for vec in vecs]
+
+    if index is None:
+        raise Exception("Pinecone index not found")
+    index.upsert(vectors=formatted_vecs, namespace=file_identifier)
+    print("Uploaded to Pinecone")
+
+
+def truncate_string_by_bytes(string, num_bytes):
+    encoded_string = string.encode("utf-8")
+    truncated_string = encoded_string[:num_bytes]
+    return truncated_string.decode("utf-8", "ignore")
+
+
+def prepare_pdf_for_pinecone(pdf_page: PdfPage) -> List[PdfPage]:
+    """
+    Prepares a PDF page for uploading to Pinecone by performing several steps:
+    1. Removes newline characters from the page content.
+    2. Truncates the page content to a maximum of 10,000 bytes to ensure it fits Pinecone's requirements.
+    3. Splits the truncated text into smaller segments using an NLTK-based text splitter.
+    4. Creates a new PdfPage object for each text segment, preserving the original metadata and type.
+
+    Args:
+        pdf_page (PdfPage): A PdfPage object containing the content and metadata of a single PDF page.
+
+    Returns:
+        List[PdfPage]: A list of PdfPage objects, each representing a segment of the original page content.
+    """
+    page_content = pdf_page.page_content.replace("\n", "")
+    page_content = truncate_string_by_bytes(page_content, 10000)
+    text_splitter = NLTKTextSplitter()
+    split_texts = text_splitter.split_text(page_content)
+    docs = [
+        PdfPage(
+            page_content=split_text,
+            metadata={
+                "source": pdf_page.metadata["source"],
+                "page": pdf_page.metadata["page"],
+            },
+            type=pdf_page.type,
+        )
+        for split_text in split_texts
+    ]
+    return docs
+
+    # print(pdf_page.page_content)
+
+
+prepare_resource_for_pinecone(test_pdf)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -226,8 +364,7 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
             identifier = make_file_identifier(file.filename)
             blob = bucket.blob(identifier)
             file_content = file.file.read()
-            blob.upload_from_string(
-                file_content, content_type=blob.content_type)
+            blob.upload_from_string(file_content, content_type=blob.content_type)
             url = blob.media_link
             if url:
                 return FileUploadResponse(
@@ -324,8 +461,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         studyId=studyId,
         role="user",
     )
-    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT,
-                 temperature=0, max_tokens=250)
+    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0, max_tokens=250)
     prompt = message
 
     # NOTE a bit slow
@@ -355,6 +491,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
 async def get_chat_messages(studyId: str):
     db = firestore.client()
     doc_ref = db.collection("studies_").document(studyId)
+
     doc_snapshot = doc_ref.get()
     if doc_snapshot.exists:
         study_data = doc_snapshot.to_dict()
