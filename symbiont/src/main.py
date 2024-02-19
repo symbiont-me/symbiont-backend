@@ -65,7 +65,7 @@ initialize_app(cred, {"storageBucket": "symbiont-e7f06.appspot.com"})
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def download_from_firebase_storage(file_key: str) -> str:
+async def download_from_firebase_storage(file_key: str) -> str:
     bucket = storage.bucket()
     blob = bucket.blob(file_key)
     if not os.path.exists("temp"):
@@ -75,7 +75,7 @@ def download_from_firebase_storage(file_key: str) -> str:
     return save_path
 
 
-def delete_local_file(file_path: str):
+async def delete_local_file(file_path: str):
     os.remove(file_path)
 
 
@@ -83,9 +83,8 @@ def delete_local_file(file_path: str):
 #       PINECONE
 # ~~~~~~~~~~~~~~~~~~~~
 
-test_pdf = "20240219040159_1712.01210v1.pdf"
 
-
+# TODO move to a separate file
 class PdfPage(BaseModel):
     page_content: str
     metadata: dict = {"source": str, "page": 0}
@@ -102,33 +101,31 @@ class PineconeRecord(BaseModel):
     metadata: dict = {"text": str, "pageNumber": 0}
 
 
-def embed_document(doc: PdfPage) -> PineconeRecord:
+async def embed_document(doc: PdfPage) -> PineconeRecord:
     embeddings = OpenAIEmbeddings(
         model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE, dimensions=1536
     )
-    vec = embeddings.embed_query(doc.page_content)
+    vec = await embeddings.aembed_query(doc.page_content)
     hash = md5(doc.page_content.encode("utf-8")).hexdigest()
     return PineconeRecord(id=hash, values=vec)
 
 
-def prepare_resource_for_pinecone(file_identifier: str):
-    file_path = download_from_firebase_storage(file_identifier)
+async def prepare_resource_for_pinecone(file_identifier: str):
+    file_path = await download_from_firebase_storage(file_identifier)
     if file_path is not None and file_path.endswith(".pdf"):
         loader = PyPDFLoader(file_path)
-        pages = [
-            PdfPage(**page.dict()) for page in loader.load_and_split()
-        ]  # Convert each page to PdfPage like as syntax in TypeScript
+        pages = [PdfPage(**page.dict()) for page in loader.load_and_split()]
 
         docs = []
         for page in pages:
-            prepared_pages = prepare_pdf_for_pinecone(page)
+            prepared_pages = await prepare_pdf_for_pinecone(page)
             docs.extend(prepared_pages)
-        vecs = [embed_document(doc) for doc in docs]
-        upload_vecs_to_pinecone(vecs, file_identifier)
-        delete_local_file(file_path)
+        vecs = [await embed_document(doc) for doc in docs]
+        await upload_vecs_to_pinecone(vecs, file_identifier)
+        await delete_local_file(file_path)
 
 
-def upload_vecs_to_pinecone(vecs: List[PineconeRecord], file_identifier: str):
+async def upload_vecs_to_pinecone(vecs: List[PineconeRecord], file_identifier: str):
     client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
     index = client.Index("symbiont-me")
     formatted_vecs = [(vec.id, vec.values) for vec in vecs]
@@ -145,20 +142,7 @@ def truncate_string_by_bytes(string, num_bytes):
     return truncated_string.decode("utf-8", "ignore")
 
 
-def prepare_pdf_for_pinecone(pdf_page: PdfPage) -> List[PdfPage]:
-    """
-    Prepares a PDF page for uploading to Pinecone by performing several steps:
-    1. Removes newline characters from the page content.
-    2. Truncates the page content to a maximum of 10,000 bytes to ensure it fits Pinecone's requirements.
-    3. Splits the truncated text into smaller segments using an NLTK-based text splitter.
-    4. Creates a new PdfPage object for each text segment, preserving the original metadata and type.
-
-    Args:
-        pdf_page (PdfPage): A PdfPage object containing the content and metadata of a single PDF page.
-
-    Returns:
-        List[PdfPage]: A list of PdfPage objects, each representing a segment of the original page content.
-    """
+async def prepare_pdf_for_pinecone(pdf_page: PdfPage) -> List[PdfPage]:
     page_content = pdf_page.page_content.replace("\n", "")
     page_content = truncate_string_by_bytes(page_content, 10000)
     text_splitter = NLTKTextSplitter()
@@ -392,7 +376,7 @@ async def add_resource(resource: StudyResource):
     study = study_ref.get()
     if study.exists:
         study_ref.update({"resources": ArrayUnion([resource.model_dump()])})
-        prepare_resource_for_pinecone(resource.identifier)
+        await prepare_resource_for_pinecone(resource.identifier)
         return 201
     else:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
