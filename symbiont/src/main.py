@@ -83,7 +83,7 @@ def delete_local_file(file_path: str):
 #       PINECONE
 # ~~~~~~~~~~~~~~~~~~~~
 
-test_pdf = "1712.01210v1.pdf"
+test_pdf = "20240219040159_1712.01210v1.pdf"
 
 
 class PdfPage(BaseModel):
@@ -175,11 +175,6 @@ def prepare_pdf_for_pinecone(pdf_page: PdfPage) -> List[PdfPage]:
         for split_text in split_texts
     ]
     return docs
-
-    # print(pdf_page.page_content)
-
-
-prepare_resource_for_pinecone(test_pdf)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -397,6 +392,7 @@ async def add_resource(resource: StudyResource):
     study = study_ref.get()
     if study.exists:
         study_ref.update({"resources": ArrayUnion([resource.model_dump()])})
+        prepare_resource_for_pinecone(resource.identifier)
         return 201
     else:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
