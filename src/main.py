@@ -14,20 +14,16 @@ from dotenv import load_dotenv
 from typing import AsyncGenerator
 from datetime import datetime
 from google.cloud.firestore import ArrayUnion
+from .utils import (
+    make_file_identifier,
+    verify_token,
+)
+
 
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 
-
-class LLMModel(str, Enum):
-    GPT_3_5_TURBO = "gpt-3.5-turbo"
-    GPT_3_5_TURBO_INSTRUCT = "gpt-3.5-turbo-instruct"
-    GPT_4 = "gpt-4"
-    LLAMA = "llama"
-
-
 app = FastAPI()
-# CORS policy
 
 origins = [
     "http://localhost",
@@ -41,42 +37,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#       FIREBASE INIT
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 cred = credentials.Certificate("src/serviceAccountKey.json")
 initialize_app(cred, {"storageBucket": "symbiont-e7f06.appspot.com"})
 
 
-def remove_non_ascii(text):
-    return "".join(i for i in text if ord(i) < 128)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#       MODELS
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def replace_space_with_underscore(text):
-    return text.replace(" ", "_")
+class LLMModel(str, Enum):
+    GPT_3_5_TURBO = "gpt-3.5-turbo"
+    GPT_3_5_TURBO_INSTRUCT = "gpt-3.5-turbo-instruct"
+    GPT_4 = "gpt-4"
+    LLAMA = "llama"
 
 
-def clean_filename(text):
-    return remove_non_ascii(replace_space_with_underscore(text))
-
-
-def save_file(file: UploadFile):
-    bucket = storage.bucket()
-    file.filename = clean_filename(file.filename)
-    blob = bucket.blob(file.filename)
-    file_content = file.file.read()
-    blob.upload_from_string(file_content, content_type=blob.content_type)
-    url = blob.media_link
-    # TODO return identifier
-    return url
-
-
-async def verify_token(authorization: Optional[str] = Header(None)):
-    if authorization is None:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    try:
-        id_token = authorization.split("Bearer ")[1]
-        decoded_token = auth.verify_id_token(id_token)
-        return decoded_token
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
+class FileUploadResponse(BaseModel):
+    file_key: str
+    file_name: str
+    url: str
 
 
 class ReourceCategory(str, Enum):
@@ -130,9 +114,57 @@ class AddChatMessageRequest(BaseModel):
     role: str
 
 
+class StudyResource(BaseModel):
+    studyId: str
+    name: str
+    url: str
+    identifier: str
+    category: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    studyId: str
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    createdAt: datetime
+
+
 @app.get("/")
 async def read_root():
     return {"Hello": "World"}
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#       USER STUDIES
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+@app.post("/get-user-studies")
+async def get_user_studies(decoded_token: dict = Depends(verify_token)):
+    try:
+        userId = decoded_token["uid"]
+        db = firestore.client()
+        studies_ref = db.collection("studies_")
+        query = studies_ref.where("userId", "==", userId)
+        studies = query.stream()
+
+        # Create a list of dictionaries, each containing the studyId and the study's data
+        studies_data = [
+            {"id": study.id, **(study.to_dict() or {})} for study in studies
+        ]
+        return {"studies": studies_data}
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message": "An error occurred while fetching user studies.",
+                "details": str(e),
+            },
+        )
 
 
 @app.post("/create-study/")
@@ -158,6 +190,11 @@ async def get_study(studyId: str):
         return {"message": "No such document!", "study": {}}
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#       STUDY TEXT
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 @app.post("/update-text/")
 async def update_text(text: TextUpdateRequest):
     # TODO verify user has access to study
@@ -172,21 +209,81 @@ async def update_text(text: TextUpdateRequest):
         return {"message": "No such document!"}
 
 
-@app.post("/add-resource/")
-async def add_resource(resource: UploadResource):
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#       UPLOAD OF RESOURCE
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def delete_resource_from_storage(identifier: str):
+    bucket = storage.bucket()
+    blob = bucket.blob(identifier)
+    blob.delete()
+
+
+def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
+    if file.filename:
+        try:
+            bucket = storage.bucket()
+            identifier = make_file_identifier(file.filename)
+            blob = bucket.blob(identifier)
+            file_content = file.file.read()
+            blob.upload_from_string(file_content, content_type=blob.content_type)
+            url = blob.media_link
+            if url:
+                return FileUploadResponse(
+                    file_key=identifier, file_name=file.filename, url=url
+                )
+            else:
+                raise HTTPException(
+                    status_code=500, detail="Failed to get the file URL."
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        raise HTTPException(status_code=400, detail="Filename is missing.")
+
+
+# TODO handle file types
+# TODO verify user that user is logged in
+# TODO make this into a single endpoint that takes in the file and the studyId, uploads and saves the resource to the database
+@app.post("/upload-resource/")
+async def upload_resource(file: UploadFile):
+    return_obj = upload_to_firebase_storage(file)
+    return return_obj
+
+
+@app.post("/add-resource-to-db")
+async def add_resource(resource: StudyResource):
     # TODO verfications
-    # TODO upload to storage
     db = firestore.client()
     study_ref = db.collection("studies_").document(resource.studyId)
     study = study_ref.get()
     if study.exists:
         study_ref.update({"resources": ArrayUnion([resource.model_dump()])})
-        return {"message": "Resource uploaded successfully"}
+        return 201
     else:
-        print("No such document!")
-        return {"message": "No such document!"}
+        # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
+        delete_resource_from_storage(resource.identifier)
+        return {"message": "No such document!"}, 404
 
 
+# NOTE filter by catergory on the frontend
+@app.post("/get-resources")
+async def get_resources(studyId: str):
+    # TODO verify auth
+    db = firestore.client()
+    doc_ref = db.collection("studies_").document(studyId)
+    doc_snapshot = doc_ref.get()
+    if doc_snapshot.exists:
+        study_data = doc_snapshot.to_dict()
+        if study_data and "resources" in study_data:
+            return {"resources": study_data["resources"]}
+    return {"resources": []}
+
+
+####################################################
+#                   CHAT                           #
+####################################################
 @app.post("/chat-messages")
 async def chat_messages(studyId: str):
     # TODO verify user has access to study
@@ -214,61 +311,6 @@ async def send_chat_message(chat_message: AddChatMessageRequest):
         doc_ref.update({"chat.user": ArrayUnion([chat_message.message])})
 
     return {"message": "Chat message added successfully"}
-
-
-# NOTE filter by catergory on the frontend
-@app.post("/get-resources")
-async def get_resources(studyId: str):
-    # TODO verify auth
-    db = firestore.client()
-    doc_ref = db.collection("studies_").document(studyId)
-    doc_snapshot = doc_ref.get()
-    if doc_snapshot.exists:
-        study_data = doc_snapshot.to_dict()
-        if study_data and "resources" in study_data:
-            return {"resources": study_data["resources"]}
-    return {"resources": []}
-
-
-@app.post("/upload-resource/")
-async def upload_resource(file: UploadFile):
-    save_file(file)
-    return {"message": "File uploaded successfully"}
-
-
-@app.post("/get-user-studies")
-async def get_user_studies(decoded_token: dict = Depends(verify_token)):
-    try:
-        userId = decoded_token["uid"]
-        db = firestore.client()
-        studies_ref = db.collection("studies_")
-        query = studies_ref.where("userId", "==", userId)
-        studies = query.stream()
-
-        # Create a list of dictionaries, each containing the studyId and the study's data
-        studies_data = [
-            {"id": study.id, **(study.to_dict() or {})} for study in studies
-        ]
-        return {"studies": studies_data}
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "message": "An error occurred while fetching user studies.",
-                "details": str(e),
-            },
-        )
-
-
-class ChatRequest(BaseModel):
-    message: str
-    studyId: str
-
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-    createdAt: datetime
 
 
 @app.post("/chat")
