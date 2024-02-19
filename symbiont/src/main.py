@@ -93,6 +93,7 @@ class PdfPage(BaseModel):
 
 class EmbeddingModels(str, Enum):
     TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
+    TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
 
 
 class PineconeRecord(BaseModel):
@@ -103,7 +104,7 @@ class PineconeRecord(BaseModel):
 
 async def embed_document(doc: PdfPage) -> PineconeRecord:
     embeddings = OpenAIEmbeddings(
-        model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE, dimensions=1536
+        model=EmbeddingModels.TEXT_EMBEDDING_ADA_002, dimensions=1536
     )
     vec = await embeddings.aembed_query(doc.page_content)
     hash = md5(doc.page_content.encode("utf-8")).hexdigest()
