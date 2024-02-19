@@ -5,7 +5,6 @@ from firebase_admin import initialize_app, firestore, auth, credentials, storage
 from typing import List
 from pydantic.networks import HttpUrl
 from enum import Enum
-from typing import Optional
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_openai import OpenAI
 import os
@@ -227,7 +226,8 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
             identifier = make_file_identifier(file.filename)
             blob = bucket.blob(identifier)
             file_content = file.file.read()
-            blob.upload_from_string(file_content, content_type=blob.content_type)
+            blob.upload_from_string(
+                file_content, content_type=blob.content_type)
             url = blob.media_link
             if url:
                 return FileUploadResponse(
@@ -324,7 +324,8 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         studyId=studyId,
         role="user",
     )
-    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0, max_tokens=250)
+    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT,
+                 temperature=0, max_tokens=250)
     prompt = message
 
     # NOTE a bit slow
@@ -349,6 +350,19 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
     return StreamingResponse(generate_llm_response())
 
 
+# TODO add user verification dependency
+@app.post("/get-chat-messages")
+async def get_chat_messages(studyId: str):
+    db = firestore.client()
+    doc_ref = db.collection("studies_").document(studyId)
+    doc_snapshot = doc_ref.get()
+    if doc_snapshot.exists:
+        study_data = doc_snapshot.to_dict()
+        if study_data and "chatMessages" in study_data:
+            return {"chatMessages": study_data["chatMessages"]}
+    return {"chatMessages": []}
+
+
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str):
     db = firestore.client()
     doc_ref = db.collection("studies_").document(studyId)
@@ -359,6 +373,8 @@ def save_chat_message_to_db(chat_message: str, studyId: str, role: str):
     ).model_dump()
     doc_ref.update({"chatMessages": ArrayUnion([new_chat_message])})
 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~
 
 # TODO for the library
 # @app.post("get-user-resources")
