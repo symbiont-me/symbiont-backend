@@ -22,6 +22,10 @@ from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter
 from hashlib import md5
+import time
+import codecs
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 
 load_dotenv()
 
@@ -32,6 +36,7 @@ pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
 
 
 app = FastAPI()
+
 
 pc = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
 index = pc.Index("symbiont-me")
@@ -134,6 +139,7 @@ async def prepare_resource_for_pinecone(file_identifier: str):
 
 
 async def upload_vecs_to_pinecone(vecs: List[PineconeRecord], file_identifier: str):
+    # TODO don't initialize Pinecone client here
     client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
     index = client.Index("symbiont-me")
     formatted_vecs = [(vec.id, vec.values, vec.metadata) for vec in vecs]
