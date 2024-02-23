@@ -526,8 +526,25 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         studyId=studyId,
         role="user",
     )
-    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0, max_tokens=250)
-    prompt = message
+    llm = OpenAI(
+        model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75, max_tokens=1500
+    )
+    context = ""
+    if resource_identifier:
+        context = get_chat_context(message, resource_identifier)
+
+    base_prompt = (
+        "The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness. "
+        "AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation. "
+        "AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.\n\n"
+        "START DOCUMENT BLOCK\n\n" + context + "\n\nEND OF DOCUMENT BLOCK\n\n"
+        "If the context does not provide the answer to the question or the context is empty, the AI assistant will say, "
+        "\"I'm sorry, but I don't know the answer to that question\". "
+        "AI assistant will not invent anything that is not drawn directly from the context. "
+        "AI will keep answers short and to the point. "
+        "AI will return the response in valid Markdown format."
+    )
+    prompt = f"${base_prompt}${message}"
 
     # NOTE a bit slow
     async def generate_llm_response() -> AsyncGenerator[str, None]:
