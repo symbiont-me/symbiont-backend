@@ -235,7 +235,7 @@ class LLMModel(str, Enum):
 
 
 class FileUploadResponse(BaseModel):
-    file_key: str
+    identifier: str
     file_name: str
     url: str
 
@@ -291,17 +291,10 @@ class AddChatMessageRequest(BaseModel):
     role: str
 
 
-class StudyResource(BaseModel):
-    studyId: str
-    name: str
-    url: str
-    identifier: str
-    category: str
-
-
 class ChatRequest(BaseModel):
     message: str
     studyId: str
+    resource_identifier: str | None
 
 
 class ChatMessage(BaseModel):
@@ -423,25 +416,48 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
 # TODO handle file types
 # TODO verify user that user is logged in
 # TODO make this into a single endpoint that takes in the file and the studyId, uploads and saves the resource to the database
-@app.post("/upload-resource/")
-async def upload_resource(file: UploadFile):
-    return_obj = upload_to_firebase_storage(file)
-    return return_obj
+# TODO REMOVE
+# @app.post("/upload-resource/")
+# async def upload_resource(file: UploadFile):
+#     return_obj = upload_to_firebase_storage(file)
+#     return return_obj
 
 
-@app.post("/add-resource-to-db")
-async def add_resource(resource: StudyResource):
+class StudyResource(BaseModel):
+    studyId: str
+    name: str
+    url: str
+    identifier: str
+    category: str
+
+
+class ResourceUpload(BaseModel):
+    studyId: str
+
+
+@app.post("/upload-resource")
+async def add_resource(file: UploadFile, studyId: str):
     # TODO verfications
+    # TODO return category based on file type
+    upload_result = upload_to_firebase_storage(file)
+    study_resource = StudyResource(
+        studyId=studyId,
+        identifier=upload_result.identifier,
+        name=str(file.file.name),
+        url=upload_result.url,
+        category="pdf",  # TODO get category from file type
+    )
+
     db = firestore.client()
-    study_ref = db.collection("studies_").document(resource.studyId)
+    study_ref = db.collection("studies_").document(studyId)
     study = study_ref.get()
     if study.exists:
-        study_ref.update({"resources": ArrayUnion([resource.model_dump()])})
-        await prepare_resource_for_pinecone(resource.identifier)
+        study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+        await prepare_resource_for_pinecone(study_resource.identifier)
         return 201
     else:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
-        delete_resource_from_storage(resource.identifier)
+        delete_resource_from_storage(study_resource.identifier)
         return {"message": "No such document!"}, 404
 
 
@@ -495,6 +511,7 @@ async def send_chat_message(chat_message: AddChatMessageRequest):
 async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
     message = chat.message
     studyId = chat.studyId
+    resource_identifier = chat.resource_identifier
 
     background_tasks.add_task(
         save_chat_message_to_db,
