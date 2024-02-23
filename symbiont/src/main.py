@@ -96,14 +96,14 @@ class EmbeddingModels(str, Enum):
 # TODO move to a separate file
 class PdfPage(BaseModel):
     page_content: str
-    metadata: dict = {"source": str, "page": 0}
+    metadata: dict = {"source": str, "page": 0, "text": str}
     type: str = "Document"
 
 
 class PineconeRecord(BaseModel):
     id: str
     values: List[float]
-    metadata: dict = {"text": str, "pageNumber": 0}
+    metadata: dict = {"text": str, "source": str, "pageNumber": 0}
 
 
 async def embed_document(doc: PdfPage) -> PineconeRecord:
