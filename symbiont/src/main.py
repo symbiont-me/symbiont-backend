@@ -106,13 +106,15 @@ class PineconeRecord(BaseModel):
     metadata: dict = {"text": str, "source": str, "pageNumber": 0}
 
 
+# Initialize the OpenAIEmbeddings object, will use the same object for embedding tasks
+embed = OpenAIEmbeddings(model=EmbeddingModels.TEXT_EMBEDDING_3_SMALL, dimensions=1536)
+
+
 async def embed_document(doc: PdfPage) -> PineconeRecord:
-    embeddings = OpenAIEmbeddings(
-        model=EmbeddingModels.TEXT_EMBEDDING_ADA_002, dimensions=1536
-    )
-    vec = await embeddings.aembed_query(doc.page_content)
+
+    vec = await embed.aembed_query(doc.page_content)
     hash = md5(doc.page_content.encode("utf-8")).hexdigest()
-    return PineconeRecord(id=hash, values=vec)
+    return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
 
 
 async def prepare_resource_for_pinecone(file_identifier: str):
@@ -126,6 +128,7 @@ async def prepare_resource_for_pinecone(file_identifier: str):
             prepared_pages = await prepare_pdf_for_pinecone(page)
             docs.extend(prepared_pages)
         vecs = [await embed_document(doc) for doc in docs]
+
         await upload_vecs_to_pinecone(vecs, file_identifier)
         await delete_local_file(file_path)
 
