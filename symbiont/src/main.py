@@ -35,6 +35,9 @@ app = FastAPI()
 
 pc = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
 index = pc.Index("symbiont-me")
+# wait for index to be initialized
+while not pc.describe_index("symbiont-me").status["ready"]:
+    time.sleep(1)
 
 if index is None:
     raise Exception("Pinecone index not found")
