@@ -180,6 +180,49 @@ async def prepare_pdf_for_pinecone(pdf_page: PdfPage) -> List[PdfPage]:
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#       Vector Search
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def get_query_embedding(query: str) -> List[float]:
+    vec = embed.embed_query(query)
+    return vec
+
+
+def search_pinecone_index(query: str, file_identifier: str):
+    # TODO don't initialize Pinecone client here
+    client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
+    index = client.Index("symbiont-me")
+
+    if index is None:
+        raise Exception("Pinecone index not found")
+
+    query_embedding = get_query_embedding(query)
+    query_matches = index.query(
+        vector=query_embedding,
+        top_k=2,
+        namespace=file_identifier,
+        include_metadata=True,
+    )
+    return query_matches
+
+
+def get_chat_context(query: str, file_identifier: str):
+    result = search_pinecone_index(query, file_identifier)
+    context = ""
+    for match in result.matches:
+        context += match.metadata["text"] + " "
+    # TODO return an object with matches for detailed footnoting
+    return context
+
+
+# test_query = "What is zcash?"
+# test_namespace = "20240223213906_1902.07337v1.pdf"
+# get_query_embedding(test_query)
+# search_pinecone_index(test_query, test_namespace)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       MODELS
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
