@@ -365,7 +365,7 @@ async def get_study(studyId: str):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-@app.post("/update-text/")
+@app.post("/update-text")
 async def update_text(text: TextUpdateRequest):
     # TODO verify user has access to study
     db = firestore.client()
