@@ -396,12 +396,13 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
             bucket = storage.bucket()
             identifier = make_file_identifier(file.filename)
             blob = bucket.blob(identifier)
+
             file_content = file.file.read()
             blob.upload_from_string(file_content, content_type=blob.content_type)
             url = blob.media_link
             if url:
                 return FileUploadResponse(
-                    file_key=identifier, file_name=file.filename, url=url
+                    identifier=identifier, file_name=file.filename, url=url
                 )
             else:
                 raise HTTPException(
