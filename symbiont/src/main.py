@@ -87,16 +87,17 @@ async def delete_local_file(file_path: str):
 # ~~~~~~~~~~~~~~~~~~~~
 
 
+class EmbeddingModels(str, Enum):
+    TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
+    TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
+    TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
+
+
 # TODO move to a separate file
 class PdfPage(BaseModel):
     page_content: str
     metadata: dict = {"source": str, "page": 0}
     type: str = "Document"
-
-
-class EmbeddingModels(str, Enum):
-    TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
-    TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
 
 
 class PineconeRecord(BaseModel):
