@@ -136,8 +136,7 @@ async def prepare_resource_for_pinecone(file_identifier: str):
 async def upload_vecs_to_pinecone(vecs: List[PineconeRecord], file_identifier: str):
     client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
     index = client.Index("symbiont-me")
-    formatted_vecs = [(vec.id, vec.values) for vec in vecs]
-
+    formatted_vecs = [(vec.id, vec.values, vec.metadata) for vec in vecs]
     if index is None:
         raise Exception("Pinecone index not found")
     index.upsert(vectors=formatted_vecs, namespace=file_identifier)
@@ -153,12 +152,23 @@ def truncate_string_by_bytes(string, num_bytes):
 async def prepare_pdf_for_pinecone(pdf_page: PdfPage) -> List[PdfPage]:
     page_content = pdf_page.page_content.replace("\n", "")
     page_content = truncate_string_by_bytes(page_content, 10000)
-    text_splitter = NLTKTextSplitter()
-    split_texts = text_splitter.split_text(page_content)
+    # TODO use NLTK Splitter with db reference and don't store text in pinecone
+    # Pincecone is for embeddings only, it is expensive to store text in pinecone
+    # text_splitter = NLTKTextSplitter()
+    text_splitter = RecursiveCharacterTextSplitter(
+        # Set a really small chunk size, just to show.
+        chunk_size=1000,
+        chunk_overlap=20,
+        length_function=len,
+        is_separator_regex=False,
+    )
+
+    split_texts = text_splitter.create_documents([page_content])
     docs = [
         PdfPage(
-            page_content=split_text,
+            page_content=split_text.page_content,
             metadata={
+                "text": split_text.page_content,
                 "source": pdf_page.metadata["source"],
                 "page": pdf_page.metadata["page"],
             },
