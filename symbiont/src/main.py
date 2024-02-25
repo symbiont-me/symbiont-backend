@@ -3,7 +3,7 @@ from fastapi import BackgroundTasks, FastAPI, UploadFile, HTTPException, Header,
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from firebase_admin import initialize_app, firestore, auth, credentials, storage
-from typing import List
+from typing import List, Optional, Literal
 from pydantic.networks import HttpUrl
 from enum import Enum
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -12,7 +12,7 @@ import os
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
 from typing import AsyncGenerator
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.cloud.firestore import ArrayUnion
 from .utils import (
     make_file_identifier,
@@ -25,6 +25,7 @@ from hashlib import md5
 import time
 import codecs
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+import requests
 
 
 load_dotenv()
@@ -73,16 +74,26 @@ initialize_app(cred, {"storageBucket": "symbiont-e7f06.appspot.com"})
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-async def download_from_firebase_storage(file_key: str) -> str:
-    bucket = storage.bucket()
-    blob = bucket.blob(file_key)
-    if not os.path.exists("temp"):
-        os.makedirs("temp")
-    save_path = f"temp/{file_key}"
-    blob.download_to_filename(save_path)
-    return save_path
+async def download_from_firebase_storage(
+    file_key: str, download_url: str
+) -> str | None:
+    try:
+        response = requests.get(download_url)
+        response.raise_for_status()
+        save_path = f"temp/{file_key}"
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        with open(save_path, "wb") as f:
+            f.write(response.content)
+        print(f"File downloaded successfully and saved to {save_path}")
+        return save_path
+    except requests.exceptions.HTTPError as err:
+        print(f"HTTP Error occurred: {err}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    return None
 
 
+# TODO maybe delete the entire directory because we do not want to keep the user id in the file path
 async def delete_local_file(file_path: str):
     os.remove(file_path)
 
@@ -122,8 +133,7 @@ async def embed_document(doc: PdfPage) -> PineconeRecord:
     return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
 
 
-async def prepare_resource_for_pinecone(file_identifier: str):
-    file_path = await download_from_firebase_storage(file_identifier)
+async def handle_pdf_resource(file_path: str):
     if file_path is not None and file_path.endswith(".pdf"):
         loader = PyPDFLoader(file_path)
         pages = [PdfPage(**page.dict()) for page in loader.load_and_split()]
@@ -133,7 +143,15 @@ async def prepare_resource_for_pinecone(file_identifier: str):
             prepared_pages = await prepare_pdf_for_pinecone(page)
             docs.extend(prepared_pages)
         vecs = [await embed_document(doc) for doc in docs]
+        return vecs
+    return []
 
+
+async def prepare_resource_for_pinecone(file_identifier: str, download_url: str):
+    file_path = await download_from_firebase_storage(file_identifier, download_url)
+    # handle pdf only for now
+    if file_path is not None and file_path.endswith(".pdf"):
+        vecs = await handle_pdf_resource(file_path)
         await upload_vecs_to_pinecone(vecs, file_identifier)
         await delete_local_file(file_path)
 
@@ -244,6 +262,7 @@ class FileUploadResponse(BaseModel):
     identifier: str
     file_name: str
     url: str
+    download_url: str
 
 
 class ReourceCategory(str, Enum):
@@ -282,7 +301,6 @@ class Study(BaseModel):
 class TextUpdateRequest(BaseModel):
     studyId: str
     text: str
-    userId: str
 
 
 class UploadResource(Resource):
@@ -295,12 +313,6 @@ class AddChatMessageRequest(BaseModel):
     message: str
     userId: str
     role: str
-
-
-class ChatRequest(BaseModel):
-    message: str
-    studyId: str
-    resource_identifier: str | None
 
 
 class ChatMessage(BaseModel):
@@ -396,26 +408,43 @@ def delete_resource_from_storage(identifier: str):
     blob.delete()
 
 
-def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
-    if file.filename:
-        try:
-            bucket = storage.bucket()
-            identifier = make_file_identifier(file.filename)
-            blob = bucket.blob(identifier)
+def generate_signed_url(identifier: str) -> str:
+    blob = storage.bucket().blob(identifier)
+    expiration_time = datetime.now() + timedelta(hours=1)
+    url = blob.generate_signed_url(expiration=expiration_time, method="GET")
+    print(url)
+    return url
 
-            file_content = file.file.read()
-            blob.upload_from_string(file_content, content_type=blob.content_type)
-            url = blob.media_link
-            if url:
-                return FileUploadResponse(
-                    identifier=identifier, file_name=file.filename, url=url
-                )
-            else:
-                raise HTTPException(
-                    status_code=500, detail="Failed to get the file URL."
-                )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+
+def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is missing.")
+    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+    try:
+        bucket = storage.bucket()
+        identifier = f"userFiles/{user_uid}/{make_file_identifier(file.filename)}"
+
+        blob = bucket.blob(identifier)
+
+        file_content = file.file.read()
+        # TODO handle content types properly
+        content_type = ""
+        if file.filename.endswith(".pdf"):
+            content_type = "application/pdf"
+        blob.upload_from_string(file_content, content_type=content_type)
+        url = blob.media_link
+        download_url = generate_signed_url(identifier)
+        if url:
+            return FileUploadResponse(
+                identifier=identifier,
+                file_name=file.filename,
+                url=url,
+                download_url=download_url,
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to get the file URL.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     else:
         raise HTTPException(status_code=400, detail="Filename is missing.")
 
@@ -447,10 +476,11 @@ async def add_resource(file: UploadFile, studyId: str):
     # TODO verfications
     # TODO return category based on file type
     upload_result = upload_to_firebase_storage(file)
+
     study_resource = StudyResource(
         studyId=studyId,
         identifier=upload_result.identifier,
-        name=str(file.file.name),
+        name=upload_result.file_name,
         url=upload_result.url,
         category="pdf",  # TODO get category from file type
     )
@@ -460,12 +490,18 @@ async def add_resource(file: UploadFile, studyId: str):
     study = study_ref.get()
     if study.exists:
         study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-        await prepare_resource_for_pinecone(study_resource.identifier)
+        await prepare_resource_for_pinecone(
+            upload_result.identifier, upload_result.download_url
+        )
         return 201
     else:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
         delete_resource_from_storage(study_resource.identifier)
         return {"message": "No such document!"}, 404
+
+
+class GetResourcesResponse(BaseModel):
+    resources: List[StudyResource]
 
 
 # NOTE filter by catergory on the frontend
@@ -475,10 +511,15 @@ async def get_resources(studyId: str):
     db = firestore.client()
     doc_ref = db.collection("studies_").document(studyId)
     doc_snapshot = doc_ref.get()
+
     if doc_snapshot.exists:
         study_data = doc_snapshot.to_dict()
         if study_data and "resources" in study_data:
-            return {"resources": study_data["resources"]}
+            resources = [
+                StudyResource(**resource) for resource in study_data["resources"]
+            ]
+            # returns the StudyResource objects
+            return GetResourcesResponse(resources=resources)
     return {"resources": []}
 
 
@@ -514,16 +555,32 @@ async def send_chat_message(chat_message: AddChatMessageRequest):
     return {"message": "Chat message added successfully"}
 
 
+class Message(BaseModel):
+    content: str
+    createdAt: datetime
+    role: Literal["user", "bot"]
+
+
+class ChatRequest(BaseModel):
+    previous_message: str  # bot message for context
+    user_query: str
+    studyId: str
+    resource_identifier: str | None
+
+
 @app.post("/chat")
 async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
-    message = chat.message
-    studyId = chat.studyId
+    if chat.resource_identifier is None:
+        raise HTTPException(status_code=400, detail="Resource identifier is required.")
+    print(chat.user_query)
+    user_query = chat.user_query
+    previous_message = chat.previous_message
+    study_id = chat.studyId
     resource_identifier = chat.resource_identifier
-
     background_tasks.add_task(
         save_chat_message_to_db,
-        chat_message=message,
-        studyId=studyId,
+        chat_message=user_query,
+        studyId=study_id,
         role="user",
     )
     llm = OpenAI(
@@ -531,7 +588,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
     )
     context = ""
     if resource_identifier:
-        context = get_chat_context(message, resource_identifier)
+        context = get_chat_context(user_query, resource_identifier)
 
     base_prompt = (
         "The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness. "
@@ -544,7 +601,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         "AI will keep answers short and to the point. "
         "AI will return the response in valid Markdown format."
     )
-    prompt = f"${base_prompt}${message}"
+    prompt = f"${base_prompt} ${previous_message} ${user_query}"
 
     # NOTE a bit slow
     async def generate_llm_response() -> AsyncGenerator[str, None]:
@@ -561,7 +618,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         background_tasks.add_task(
             save_chat_message_to_db,
             chat_message=llm_response,
-            studyId=studyId,
+            studyId=study_id,
             role="bot",
         )
 
