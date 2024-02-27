@@ -1,9 +1,8 @@
-from re import A
 from fastapi import BackgroundTasks, FastAPI, UploadFile, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from firebase_admin import initialize_app, firestore, auth, credentials, storage
-from typing import List, Optional, Literal
+from typing import List, Literal
 from pydantic.networks import HttpUrl
 from enum import Enum
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -23,10 +22,9 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter
 from hashlib import md5
 import time
-import codecs
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import requests
-
+from typing import AsyncGenerator, Optional
 
 load_dotenv()
 
