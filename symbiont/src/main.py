@@ -563,20 +563,41 @@ class Message(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    previous_message: str  # bot message for context
     user_query: str
-    studyId: str
-    resource_identifier: str | None
+    previous_message: str
+    study_id: str
+    resource_identifier: Optional[str] = None
+
+
+class UserQuery(BaseModel):
+    query: str
+    previous_message: str | None
+    study_id: str
+
+
+@app.post("/mock-chat")
+async def mock_chat(chat: ChatRequest):
+    # Example logic to process the chat request
+    # This is where you'd integrate your chat logic, AI model, etc.
+    # For demonstration, let's just echo back the user_query with some additional text
+    response_text = f"Received your query"
+    print("User asked:", chat)
+    # Construct and return the response
+    # You might want to return more structured data depending on your frontend needs
+    return {"response": response_text}
 
 
 @app.post("/chat")
 async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
-    if chat.resource_identifier is None:
-        raise HTTPException(status_code=400, detail="Resource identifier is required.")
-    print(chat.user_query)
+    print(chat.resource_identifier)
+    # if chat.resource_identifier:
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail="Resource identifier is not supported in this version of the chat endpoint",
+    #     )
     user_query = chat.user_query
     previous_message = chat.previous_message
-    study_id = chat.studyId
+    study_id = chat.study_id
     resource_identifier = chat.resource_identifier
     background_tasks.add_task(
         save_chat_message_to_db,
@@ -588,14 +609,17 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75, max_tokens=1500
     )
     context = ""
+
     if resource_identifier:
         context = get_chat_context(user_query, resource_identifier)
+    print("Context:", context)
+    complete_context = context + " " + previous_message
 
     base_prompt = (
         "The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness. "
         "AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation. "
         "AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.\n\n"
-        "START DOCUMENT BLOCK\n\n" + context + "\n\nEND OF DOCUMENT BLOCK\n\n"
+        "START DOCUMENT BLOCK\n\n" + complete_context + "\n\nEND OF DOCUMENT BLOCK\n\n"
         "If the context does not provide the answer to the question or the context is empty, the AI assistant will say, "
         "\"I'm sorry, but I don't know the answer to that question\". "
         "AI assistant will not invent anything that is not drawn directly from the context. "
@@ -616,6 +640,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         async for chunk in llm.astream(prompt):
             llm_response += chunk
             yield chunk
+
         background_tasks.add_task(
             save_chat_message_to_db,
             chat_message=llm_response,
