@@ -10,7 +10,6 @@ from langchain_openai import OpenAI, OpenAIEmbeddings
 import os
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
-from typing import AsyncGenerator
 from datetime import datetime, timedelta
 from google.cloud.firestore import ArrayUnion
 from .utils import (
