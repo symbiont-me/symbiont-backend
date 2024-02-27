@@ -2,7 +2,7 @@ from fastapi import BackgroundTasks, FastAPI, UploadFile, HTTPException, Header,
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from firebase_admin import initialize_app, firestore, auth, credentials, storage
-from typing import List, Literal
+from typing import List
 from pydantic.networks import HttpUrl
 from enum import Enum
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -23,7 +23,9 @@ from hashlib import md5
 import time
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import requests
-from typing import AsyncGenerator, Optional
+from typing import Optional, AsyncGenerator
+
+from langchain.prompts import PromptTemplate
 
 load_dotenv()
 
@@ -120,7 +122,8 @@ class PineconeRecord(BaseModel):
 
 
 # Initialize the OpenAIEmbeddings object, will use the same object for embedding tasks
-embed = OpenAIEmbeddings(model=EmbeddingModels.TEXT_EMBEDDING_3_SMALL, dimensions=1536)
+embed = OpenAIEmbeddings(
+    model=EmbeddingModels.TEXT_EMBEDDING_3_SMALL, dimensions=1536)
 
 
 async def embed_document(doc: PdfPage) -> PineconeRecord:
@@ -440,7 +443,8 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
                 download_url=download_url,
             )
         else:
-            raise HTTPException(status_code=500, detail="Failed to get the file URL.")
+            raise HTTPException(
+                status_code=500, detail="Failed to get the file URL.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     else:
@@ -487,7 +491,8 @@ async def add_resource(file: UploadFile, studyId: str):
     study_ref = db.collection("studies_").document(studyId)
     study = study_ref.get()
     if study.exists:
-        study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+        study_ref.update(
+            {"resources": ArrayUnion([study_resource.model_dump()])})
         print("Adding to Pinecone")
         await prepare_resource_for_pinecone(
             upload_result.identifier, upload_result.download_url
@@ -555,45 +560,16 @@ async def send_chat_message(chat_message: AddChatMessageRequest):
     return {"message": "Chat message added successfully"}
 
 
-class Message(BaseModel):
-    content: str
-    createdAt: datetime
-    role: Literal["user", "bot"]
-
-
 class ChatRequest(BaseModel):
     user_query: str
-    previous_message: str
+    previous_message: Optional[str] = None
     study_id: str
     resource_identifier: Optional[str] = None
 
 
-class UserQuery(BaseModel):
-    query: str
-    previous_message: str | None
-    study_id: str
-
-
-@app.post("/mock-chat")
-async def mock_chat(chat: ChatRequest):
-    # Example logic to process the chat request
-    # This is where you'd integrate your chat logic, AI model, etc.
-    # For demonstration, let's just echo back the user_query with some additional text
-    response_text = f"Received your query"
-    print("User asked:", chat)
-    # Construct and return the response
-    # You might want to return more structured data depending on your frontend needs
-    return {"response": response_text}
-
-
 @app.post("/chat")
 async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
-    print(chat.resource_identifier)
-    # if chat.resource_identifier:
-    #     raise HTTPException(
-    #         status_code=400,
-    #         detail="Resource identifier is not supported in this version of the chat endpoint",
-    #     )
+    print("Chat request:", chat)
     user_query = chat.user_query
     previous_message = chat.previous_message
     study_id = chat.study_id
@@ -611,21 +587,31 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
 
     if resource_identifier:
         context = get_chat_context(user_query, resource_identifier)
-    print("Context:", context)
-    complete_context = context + " " + previous_message
 
-    base_prompt = (
-        "The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness. "
-        "AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation. "
-        "AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.\n\n"
-        "START DOCUMENT BLOCK\n\n" + complete_context + "\n\nEND OF DOCUMENT BLOCK\n\n"
-        "If the context does not provide the answer to the question or the context is empty, the AI assistant will say, "
-        "\"I'm sorry, but I don't know the answer to that question\". "
-        "AI assistant will not invent anything that is not drawn directly from the context. "
-        "AI will keep answers short and to the point. "
-        "AI will return the response in valid Markdown format."
+    prompt_template = PromptTemplate.from_template(
+        """
+        You are a well-informed AI assistant. 
+        The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness.
+        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation.
+        AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.
+        START DOCUMENT BLOCK {context} END OF DOCUMENT BLOCK
+        If the context does not provide the answer to the question or the context is empty, the AI assistant will say,
+        I'm sorry, but I don't know the answer to that question.
+        AI assistant will not invent anything that is not drawn directly from the context.
+        AI will keep answers short and to the point.
+    Previous Message: {previous_message}
+    Question: {query}
+    Output Format: Return your answer in valid {output_format} Format
+    """
     )
-    prompt = f"${base_prompt} ${previous_message} ${user_query}"
+
+    prompt = prompt_template.format(
+        query=user_query,
+        context=context,
+        previous_message=previous_message,
+        output_format="Markdown",
+    )
+    print(prompt)
 
     # NOTE a bit slow
     async def generate_llm_response() -> AsyncGenerator[str, None]:
@@ -647,6 +633,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
             role="bot",
         )
 
+    #
     return StreamingResponse(generate_llm_response())
 
 
