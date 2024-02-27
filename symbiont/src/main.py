@@ -420,7 +420,8 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
     user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
     try:
         bucket = storage.bucket()
-        identifier = f"userFiles/{user_uid}/{make_file_identifier(file.filename)}"
+        file_name = make_file_identifier(file.filename)
+        identifier = f"userFiles/{user_uid}/{file_name}"
 
         blob = bucket.blob(identifier)
 
@@ -488,10 +489,12 @@ async def add_resource(file: UploadFile, studyId: str):
     study = study_ref.get()
     if study.exists:
         study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+        print("Adding to Pinecone")
         await prepare_resource_for_pinecone(
             upload_result.identifier, upload_result.download_url
         )
-        return 201
+        return {"resource": study_resource.model_dump()}
+
     else:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
         delete_resource_from_storage(study_resource.identifier)
