@@ -1,11 +1,5 @@
-# from fastapi import FastAPI, File, UploadFile
-# from firebase_admin import initialize_app, storage, credentials
-
 import requests
 import os
-
-# cred = credentials.Certificate("src/serviceAccountKey.json")
-# initialize_app(cred, {"storageBucket": "your_bucket_link_without_gs://"})
 
 
 async def download_from_firebase_storage(
