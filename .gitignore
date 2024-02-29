@@ -3,4 +3,3 @@
 __pycache__/
 .DS_Store
 symbiont/src/scripts/delete_pinecone_vecs.py
-symbiont/src/scripts/delete_pinecone_vecs.py
