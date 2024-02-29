@@ -6,7 +6,7 @@ from ..pinecone.pc import get_chat_context
 from langchain.prompts import PromptTemplate
 from fastapi.responses import StreamingResponse
 from datetime import datetime
-from typing import Optional, AsyncGenerator
+from typing import AsyncGenerator
 from google.cloud.firestore import ArrayUnion
 
 
