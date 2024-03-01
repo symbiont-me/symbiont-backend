@@ -23,12 +23,14 @@ def make_file_identifier(text):
     return identifier
 
 
-async def verify_token(authorization: Optional[str] = Header(None)):
+async def verify_user_auth_token(authorization: Optional[str] = Header(None)):
     if authorization is None:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
+        raise HTTPException(
+            status_code=401, detail="Authorization header missing")
     try:
         id_token = authorization.split("Bearer ")[1]
         decoded_token = auth.verify_id_token(id_token)
+
         return decoded_token
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
