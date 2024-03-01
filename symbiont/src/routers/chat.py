@@ -32,7 +32,6 @@ async def chat_messages(studyId: str):
 
 @router.post("/chat")
 async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
-    print("Chat request:", chat)
     user_query = chat.user_query
     previous_message = chat.previous_message
     study_id = chat.study_id
@@ -74,7 +73,6 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
         previous_message=previous_message,
         output_format="Markdown",
     )
-    print(prompt)
 
     # NOTE a bit slow
     async def generate_llm_response() -> AsyncGenerator[str, None]:
