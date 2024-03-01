@@ -1,15 +1,15 @@
 from datetime import datetime, timedelta
+from re import A
 from google.cloud.firestore import ArrayUnion
-from ..utils import make_file_identifier, verify_token
+from ..utils import make_file_identifier, verify_user_auth_token
 from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter
-from hashlib import md5
 from firebase_admin import firestore, auth, credentials, storage
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Depends
 from ..models import FileUploadResponse, GetResourcesResponse, StudyResource
 from ..pinecone.pc import prepare_resource_for_pinecone
-
+from ..utils import verify_user_auth_token
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -77,7 +77,16 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
 
 
 @router.post("/upload-resource")
-async def add_resource(file: UploadFile, studyId: str):
+async def add_resource(
+    file: UploadFile,
+    studyId: str,
+    decoded_token: dict = Depends(verify_user_auth_token),
+):
+
+    user_uid = decoded_token["uid"]
+    # if user_uid is None:
+    #     raise HTTPException(status_code=401, detail="Unauthorized")
+
     # TODO verfications
     # TODO return category based on file type
     upload_result = upload_to_firebase_storage(file)
@@ -107,20 +116,22 @@ async def add_resource(file: UploadFile, studyId: str):
         return {"message": "No such document!"}, 404
 
 
-# NOTE filter by catergory on the frontend
 @router.post("/get-resources")
-async def get_resources(studyId: str):
-    # TODO verify auth
+async def get_resources(
+    studyId: str, decoded_token: dict = Depends(verify_user_auth_token)
+):
+    user_uid = decoded_token["uid"]
     db = firestore.client()
-    doc_ref = db.collection("studies_").document(studyId)
-    doc_snapshot = doc_ref.get()
+    study_data = db.collection("studies_").where("userId", "==", user_uid).stream()
 
-    if doc_snapshot.exists:
-        study_data = doc_snapshot.to_dict()
-        if study_data and "resources" in study_data:
-            resources = [
-                StudyResource(**resource) for resource in study_data["resources"]
-            ]
-            # returns the StudyResource objects
-            return GetResourcesResponse(resources=resources)
-    return {"resources": []}
+    for doc in study_data:
+        if doc.id != studyId:
+            continue
+        study_dict = doc.to_dict()
+        if study_dict is None:
+            raise HTTPException(status_code=404, detail="Study not found")
+        resources = study_dict.get("resources", [])
+        return GetResourcesResponse(
+            resources=[StudyResource(**resource) for resource in resources]
+        )
+    raise HTTPException(status_code=404, detail="Study not found")
