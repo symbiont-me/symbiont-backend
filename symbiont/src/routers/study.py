@@ -57,7 +57,6 @@ async def create_study(study: Study):
 @router.post("/get-study")
 async def get_study(studyId: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
-    # TODO verify user has access to study
     study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
     if study_ref is None:
         raise HTTPException(status_code=404, detail="No such document!")
