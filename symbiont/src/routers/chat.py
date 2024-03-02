@@ -1,5 +1,5 @@
 from firebase_admin import firestore
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Request
 from ..models import ChatRequest, ChatMessage, LLMModel
 from langchain_openai import OpenAI, OpenAIEmbeddings
 from ..pinecone.pc import get_chat_context
@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from datetime import datetime
 from typing import AsyncGenerator
 from google.cloud.firestore import ArrayUnion
+from ..utils.db_utils import get_document_ref, get_document_dict, get_document_snapshot
 
 
 ####################################################
@@ -15,19 +16,6 @@ from google.cloud.firestore import ArrayUnion
 ####################################################
 
 router = APIRouter()
-
-
-@router.post("/chat-messages")
-async def chat_messages(studyId: str):
-    # TODO verify user has access to study
-    db = firestore.client()
-    doc_ref = db.collection("studies_").document(studyId)
-    doc_snapshot = doc_ref.get()
-    if doc_snapshot.exists:
-        study_data = doc_snapshot.to_dict()
-        if study_data and "chat" in study_data:
-            return {"chat_messages": study_data["chat"]}
-    return {"chat_messages": []}
 
 
 @router.post("/chat")
@@ -99,7 +87,7 @@ async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
 
 
 # TODO add user verification dependency
-@router.post("/get-chat-messages")
+@router.get("/get-chat-messages")
 async def get_chat_messages(studyId: str):
     db = firestore.client()
     doc_ref = db.collection("studies_").document(studyId)
