@@ -19,7 +19,8 @@ router = APIRouter()
 
 
 @router.post("/chat")
-async def chat(chat: ChatRequest, background_tasks: BackgroundTasks):
+async def chat(chat: ChatRequest, request: Request, background_tasks: BackgroundTasks):
+    user_uid = request.state.verified_user["user_id"]
     user_query = chat.user_query
     previous_message = chat.previous_message
     study_id = chat.study_id
