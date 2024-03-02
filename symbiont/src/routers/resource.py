@@ -1,15 +1,23 @@
 from datetime import datetime, timedelta
-from re import A
 from google.cloud.firestore import ArrayUnion
-from ..utils import make_file_identifier, verify_user_auth_token
 from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter
 from firebase_admin import firestore, auth, credentials, storage
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Depends
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    HTTPException,
+    UploadFile,
+    File,
+    Depends,
+    Request,
+)
 from ..models import FileUploadResponse, GetResourcesResponse, StudyResource
 from ..pinecone.pc import prepare_resource_for_pinecone
-from ..utils import verify_user_auth_token
+from typing import Optional
+from ..utils.db_utils import get_document_dict, get_document_ref
+from ..utils.helpers import make_file_identifier
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -28,25 +36,35 @@ def generate_signed_url(identifier: str) -> str:
     blob = storage.bucket().blob(identifier)
     expiration_time = datetime.now() + timedelta(hours=1)
     url = blob.generate_signed_url(expiration=expiration_time, method="GET")
-    print(url)
     return url
 
 
-def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
+def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResponse:
+    """
+    Uploads a file to Firebase Storage.
+
+    Args:
+        file (UploadFile): The file to be uploaded.
+        user_id (str): The ID of the user.
+
+    Returns:
+        FileUploadResponse: The response containing the uploaded file details.
+
+    Raises:
+        HTTPException: If the filename is missing or if there is an error during the upload process.
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is missing.")
-    # TODO get user uid from token
-    # TODO remove hardcoded user_uid
-    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
     try:
         bucket = storage.bucket()
         file_name = make_file_identifier(file.filename)
-        identifier = f"userFiles/{user_uid}/{file_name}"
+        identifier = f"userFiles/{user_id}/{file_name}"
 
         blob = bucket.blob(identifier)
 
         file_content = file.file.read()
         # TODO handle content types properly
+        # NOTE this prevents the file from being downloaded in the browser if the content type is not set properly
         content_type = ""
         if file.filename.endswith(".pdf"):
             content_type = "application/pdf"
@@ -80,58 +98,40 @@ def upload_to_firebase_storage(file: UploadFile) -> FileUploadResponse:
 async def add_resource(
     file: UploadFile,
     studyId: str,
-    decoded_token: dict = Depends(verify_user_auth_token),
+    request: Request,
 ):
-
-    user_uid = decoded_token["uid"]
-    # if user_uid is None:
-    #     raise HTTPException(status_code=401, detail="Unauthorized")
-
-    # TODO verfications
-    # TODO return category based on file type
-    upload_result = upload_to_firebase_storage(file)
-
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided!")
+    user_uid = request.state.verified_user["user_id"]
+    upload_result = upload_to_firebase_storage(file, user_uid)
+    file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
     study_resource = StudyResource(
         studyId=studyId,
         identifier=upload_result.identifier,
         name=upload_result.file_name,
         url=upload_result.url,
-        category="pdf",  # TODO get category from file type
+        category=file_extension,
     )
-
-    db = firestore.client()
-    study_ref = db.collection("studies_").document(studyId)
-    study = study_ref.get()
-    if study.exists:
-        study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-        print("Adding to Pinecone")
-        await prepare_resource_for_pinecone(
-            upload_result.identifier, upload_result.download_url
-        )
-        return {"resource": study_resource.model_dump()}
-
-    else:
+    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    if study_ref is None:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
         delete_resource_from_storage(study_resource.identifier)
-        return {"message": "No such document!"}, 404
+        raise HTTPException(status_code=404, detail="No such document!")
+    study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+    print("Adding to Pinecone")
+    await prepare_resource_for_pinecone(
+        upload_result.identifier, upload_result.download_url
+    )
+    return {"resource": study_resource.model_dump()}
 
 
 @router.post("/get-resources")
-async def get_resources(
-    studyId: str, decoded_token: dict = Depends(verify_user_auth_token)
-):
-    user_uid = decoded_token["uid"]
-    db = firestore.client()
-    study_data = db.collection("studies_").where("userId", "==", user_uid).stream()
-
-    for doc in study_data:
-        if doc.id != studyId:
-            continue
-        study_dict = doc.to_dict()
-        if study_dict is None:
-            raise HTTPException(status_code=404, detail="Study not found")
-        resources = study_dict.get("resources", [])
-        return GetResourcesResponse(
-            resources=[StudyResource(**resource) for resource in resources]
-        )
-    raise HTTPException(status_code=404, detail="Study not found")
+async def get_resources(studyId: str, request: Request):
+    user_uid = request.state.verified_user["user_id"]
+    study_dict = get_document_dict("studies_", "userId", user_uid, studyId)
+    if study_dict is None:
+        raise HTTPException(status_code=404, detail="Study not found")
+    resources = study_dict.get("resources", [])
+    return GetResourcesResponse(
+        resources=[StudyResource(**resource) for resource in resources]
+    )
