@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from .middleware.UserAuthVerify import AuthTokenMiddleware
 
 from .routers import study as user_studies_router
 from .routers import text as text_router
@@ -8,6 +8,10 @@ from .routers import chat as chat_router
 from .routers import resource as resource_handling_router
 
 app = FastAPI()
+
+
+# Add the AuthTokenMiddleware
+app.add_middleware(AuthTokenMiddleware)
 
 
 app.include_router(user_studies_router.router)
