@@ -30,6 +30,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         chat_message=user_query,
         studyId=study_id,
         role="user",
+        user_uid=user_uid,
     )
     llm = OpenAI(
         model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75, max_tokens=1500
@@ -81,6 +82,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             chat_message=llm_response,
             studyId=study_id,
             role="bot",
+            user_uid=user_uid,
         )
 
     #
@@ -93,18 +95,11 @@ async def get_chat_messages(studyId: str):
     db = firestore.client()
     doc_ref = db.collection("studies_").document(studyId)
 
-    doc_snapshot = doc_ref.get()
-    if doc_snapshot.exists:
-        study_data = doc_snapshot.to_dict()
-        if study_data and "chatMessages" in study_data:
-            return {"chatMessages": study_data["chatMessages"]}
-    return {"chatMessages": []}
 
+def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str):
 
-def save_chat_message_to_db(chat_message: str, studyId: str, role: str):
-    db = firestore.client()
-    doc_ref = db.collection("studies_").document(studyId)
-    if not doc_ref.get().exists:
+    doc_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    if doc_ref is None:
         raise HTTPException(status_code=404, detail="No such document!")
     new_chat_message = ChatMessage(
         role=role, content=chat_message, createdAt=datetime.now()
