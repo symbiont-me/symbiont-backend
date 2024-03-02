@@ -89,11 +89,14 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     return StreamingResponse(generate_llm_response())
 
 
-# TODO add user verification dependency
 @router.get("/get-chat-messages")
-async def get_chat_messages(studyId: str):
-    db = firestore.client()
-    doc_ref = db.collection("studies_").document(studyId)
+async def get_chat_messages(studyId: str, request: Request):
+    user_uid = request.state.verified_user["user_id"]
+    study_data = get_document_dict("studies_", "userId", user_uid, studyId)
+    if study_data is None:
+        raise HTTPException(status_code=404, detail="No such document!")
+    if "chatMessages" in study_data:
+        return {"chatMessages": study_data["chatMessages"]}
 
 
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str):
