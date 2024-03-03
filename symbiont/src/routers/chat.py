@@ -25,6 +25,27 @@ from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 router = APIRouter()
 
 
+def get_combined_chat_context(study_id: str, user_uid: str, user_query: str):
+    all_resource_identifiers = []
+    # # get all resources for the study
+    # TODO use a function that does not require user_uid to be passed
+    study_dict = get_document_dict("studies_", "userId", user_uid, study_id)
+    if study_dict is None:
+        raise HTTPException(status_code=404, detail="No such document!")
+    resources = study_dict.get("resources", [])
+    if resources is None:
+        raise HTTPException(status_code=404, detail="No Resources Found")
+    # get the identifier for each resource
+    all_resource_identifiers = [resource.get("identifier") for resource in resources]
+    # # get the context for each resource
+    contexts = [
+        get_chat_context(user_query, resource_identifier, 1)
+        for resource_identifier in all_resource_identifiers
+    ]
+    # # TODO keep the context within the model's max token limit
+    return " ".join(contexts)
+
+
 @router.post("/chat")
 async def chat(chat: ChatRequest, request: Request, background_tasks: BackgroundTasks):
     """
@@ -53,14 +74,19 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     context = ""
 
-    if resource_identifier:
+    if resource_identifier and chat.combined:
+        print("GETTING COMBINED CONTEXT")
+        context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
+    elif resource_identifier and not chat.combined:
+        print("GETTING SINGLE CONTEXT")
         context = get_chat_context(user_query, resource_identifier)
-    print("RESOURCE IDENTIFIER", resource_identifier)
+
     print("CHAT CONTEXT", context)
     # TODO make a prompt function
-    llm = OpenAI(
-        model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75, max_tokens=1500
-    )
+    # TODO make it so that the user is allowed to specify the model and other parameters
+    # which means that this needs to be initialised somewhere at the top level
+    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75)
+
     prompt_template = PromptTemplate.from_template(
         """
         You are a well-informed AI assistant. 
