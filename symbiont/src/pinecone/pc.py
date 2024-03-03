@@ -63,6 +63,7 @@ async def prepare_resource_for_pinecone(file_identifier: str, download_url: str)
         await delete_local_file(file_path)
 
 
+# TODO rename this function as it is used for more than just webpages
 async def upload_webpage_to_pinecone(resource, content):
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
@@ -77,7 +78,7 @@ async def upload_webpage_to_pinecone(resource, content):
             metadata={
                 "text": split_text.page_content,
                 "source": resource.identifier,
-                "page": 0,  # there are no pages in a webpage
+                "page": 0,  # there are no pages in a webpage or plain text
             },
             type=resource.category,
         )
@@ -171,7 +172,7 @@ def get_query_embedding(query: str) -> List[float]:
     return vec
 
 
-def search_pinecone_index(query: str, file_identifier: str):
+def search_pinecone_index(query: str, file_identifier: str, top_k=2):
     # TODO don't initialize Pinecone client here
     client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
     index = client.Index("symbiont-me")
@@ -182,15 +183,15 @@ def search_pinecone_index(query: str, file_identifier: str):
     query_embedding = get_query_embedding(query)
     query_matches = index.query(
         vector=query_embedding,
-        top_k=2,
+        top_k=top_k,
         namespace=file_identifier,
         include_metadata=True,
     )
     return query_matches
 
 
-def get_chat_context(query: str, file_identifier: str):
-
+def get_chat_context(query: str, file_identifier: str, top_k=2):
+    # TODO unpack the search_pinecone_index function into this function
     result = search_pinecone_index(query, file_identifier)
     context = ""
     for match in result.matches:
