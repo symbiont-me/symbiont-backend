@@ -55,6 +55,8 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     if resource_identifier:
         context = get_chat_context(user_query, resource_identifier)
+    print("RESOURCE IDENTIFIER", resource_identifier)
+    print("CHAT CONTEXT", context)
     # TODO make a prompt function
     llm = OpenAI(
         model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75, max_tokens=1500
