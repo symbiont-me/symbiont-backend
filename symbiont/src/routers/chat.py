@@ -1,14 +1,21 @@
-from firebase_admin import firestore
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from ..models import ChatRequest, ChatMessage, LLMModel
-from langchain_openai import OpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAI
 from ..pinecone.pc import get_chat_context
 from langchain.prompts import PromptTemplate
 from fastapi.responses import StreamingResponse
 from datetime import datetime
 from typing import AsyncGenerator
 from google.cloud.firestore import ArrayUnion
-from ..utils.db_utils import get_document_ref, get_document_dict, get_document_snapshot
+from ..utils.db_utils import get_document_ref, get_document_dict
+from pydantic import BaseModel
+from langchain.chains import LLMChain
+from typing import Optional
+from typing import Optional
+from pydantic import BaseModel
+from langchain_openai import ChatOpenAI
+from langchain.chains.summarize import load_summarize_chain
+from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 
 
 ####################################################
@@ -20,6 +27,17 @@ router = APIRouter()
 
 @router.post("/chat")
 async def chat(chat: ChatRequest, request: Request, background_tasks: BackgroundTasks):
+    """
+    Handles the chat endpoint.
+
+    Args:
+        chat (ChatRequest): The chat request object containing user input.
+        request (Request): The request object.
+        background_tasks (BackgroundTasks): The background tasks object.
+
+    Returns:
+        StreamingResponse: The response containing the generated chat message from the language model.
+    """
     user_uid = request.state.verified_user["user_id"]
     user_query = chat.user_query
     previous_message = chat.previous_message
@@ -32,14 +50,15 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         role="user",
         user_uid=user_uid,
     )
-    llm = OpenAI(
-        model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75, max_tokens=1500
-    )
+
     context = ""
 
     if resource_identifier:
         context = get_chat_context(user_query, resource_identifier)
-
+    # TODO make a prompt function
+    llm = OpenAI(
+        model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75, max_tokens=1500
+    )
     prompt_template = PromptTemplate.from_template(
         """
         You are a well-informed AI assistant. 
