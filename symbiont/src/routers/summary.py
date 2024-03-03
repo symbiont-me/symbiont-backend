@@ -26,7 +26,6 @@ def get_summaries_from_db(studyId, user_uid):
 # TODO get summaries route
 @router.get("/get-summaries")
 async def get_summaries(studyId: str, request: Request):
-
-    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+    user_uid = request.state.verified_user["user_id"]
     summaries = get_summaries_from_db(studyId, user_uid)
     return summaries
