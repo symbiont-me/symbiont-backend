@@ -63,6 +63,31 @@ async def prepare_resource_for_pinecone(file_identifier: str, download_url: str)
         await delete_local_file(file_path)
 
 
+async def upload_webpage_to_pinecone(resource, content):
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=20,
+        length_function=len,
+        is_separator_regex=False,
+    )
+    split_texts = text_splitter.create_documents([content])
+    docs = [
+        DocumentPage(
+            page_content=split_text.page_content,
+            metadata={
+                "text": split_text.page_content,
+                "source": resource.identifier,
+                "page": 0,  # there are no pages in a webpage
+            },
+            type=resource.category,
+        )
+        for split_text in split_texts
+    ]
+
+    vecs = [await embed_document(doc) for doc in docs]
+    await upload_vecs_to_pinecone(vecs, resource.identifier)
+
+
 async def upload_yt_resource_to_pinecone(resource, content):
     # NOTE this is causing problems, it seems to be cutting off the text
     # content = truncate_string_by_bytes(content, 10000)
