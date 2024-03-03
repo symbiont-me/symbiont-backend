@@ -150,3 +150,49 @@ async def get_resources(studyId: str, request: Request):
     return GetResourcesResponse(
         resources=[StudyResource(**resource) for resource in resources]
     )
+
+
+@router.post("/process-youtube-video")
+async def process_youtube_video(
+    video_resource: ProcessYoutubeVideoRequest, request: Request
+):
+    # TODO allow multiple urls
+    # TODO auth verification if necessary
+    loader = YoutubeLoader.from_youtube_url(
+        video_resource.url,
+        add_video_info=True,
+        language=["en", "id"],
+        translation="en",
+    )
+
+    # @dev there should only be a single document for this
+    doc = loader.load()[0]
+    study_resource = StudyResource(
+        studyId=video_resource.studyId,
+        identifier=make_file_identifier(doc.metadata["title"]),
+        name=doc.metadata["title"],
+        url=video_resource.url,
+        category="video",
+    )
+    await upload_yt_resource_to_pinecone(study_resource, doc.page_content)
+
+
+# TODO move to db_utils
+def add_resource_to_db(user_uid: str, studyId: str, study_resource: StudyResource):
+    """
+    Adds a resource to the database under a specific study.
+
+    Args:
+        user_uid (str): The user ID.
+        studyId (str): The study ID.
+        study_resource (StudyResource): The study resource to add.
+
+    Raises:
+        HTTPException: If the study does not exist.
+    """
+    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    if study_ref is None:
+        # If the study does not exist, the resource will not be added to the database and the file should not exist in the storage
+        raise HTTPException(status_code=404, detail="No such document!")
+    study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+
