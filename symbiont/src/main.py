@@ -6,6 +6,7 @@ from .routers import study as user_studies_router
 from .routers import text as text_router
 from .routers import chat as chat_router
 from .routers import resource as resource_handling_router
+from .routers import summary as summary_router
 
 app = FastAPI()
 
@@ -18,6 +19,7 @@ app.include_router(user_studies_router.router)
 app.include_router(text_router.router)
 app.include_router(chat_router.router)
 app.include_router(resource_handling_router.router)
+app.include_router(summary_router.router)
 
 
 origins = [

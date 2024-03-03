@@ -1,26 +1,32 @@
 from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import Request
+from ..utils.db_utils import get_document_dict
 
 router = APIRouter()
 
 
-# TODO save resource content in the DB on upload?
-def get_resource_content(identifier: str):
-    # TODO search for resource in the DB using the identifier
-    # return the text_content
-    pass
-
-
-# TODO this should be a background task onUpload and update the state on the frontend when ready
-def make_summaries(text_content: str):
-    # TODO get all resources text content
-    # TODO make summaries one by one
-    # TODO save summaries with identifier and name of the resource in DB
-    pass
-
-
-def get_summaries(studyId):
-    # TODO return all the summaries as an array
-    pass
+def get_summaries_from_db(studyId, user_uid):
+    study_dict = get_document_dict("studies_", "userId", user_uid, studyId)
+    if study_dict is None:
+        raise HTTPException(status_code=404, detail="Study not found")
+    resources = study_dict.get("resources", [])
+    summaries = [
+        {
+            "name": resource.get("name"),
+            "identifier": resource.get("identifier"),
+            "url": resource.get("url"),
+            "summary": resource.get("summary"),
+        }
+        for resource in resources
+    ]
+    return {"summaries": summaries}
 
 
 # TODO get summaries route
+@router.get("/get-summaries")
+async def get_summaries(studyId: str, request: Request):
+
+    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+    summaries = get_summaries_from_db(studyId, user_uid)
+    return summaries
