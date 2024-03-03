@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class LLMModel(str, Enum):
     GPT_3_5_TURBO = "gpt-3.5-turbo"
     GPT_3_5_TURBO_INSTRUCT = "gpt-3.5-turbo-instruct"
+    GPT_3_5_TURBO_16K = "gpt-3.5-turbo-16k"
     GPT_4 = "gpt-4"
     LLAMA = "llama"
 
@@ -80,6 +81,7 @@ class StudyResource(BaseModel):
     url: str
     identifier: str
     category: str
+    summary: str = ""
 
 
 class ResourceUpload(BaseModel):
@@ -103,8 +105,7 @@ class EmbeddingModels(str, Enum):
     TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
 
 
-# TODO move to a separate file
-class PdfPage(BaseModel):
+class DocumentPage(BaseModel):
     page_content: str
     metadata: dict = {"source": str, "page": 0, "text": str}
     type: str = "Document"
@@ -114,3 +115,13 @@ class PineconeRecord(BaseModel):
     id: str
     values: List[float]
     metadata: dict = {"text": str, "source": str, "pageNumber": 0}
+
+
+class ProcessYoutubeVideoRequest(BaseModel):
+    studyId: str
+    url: str
+
+
+class ProcessWebpageResourceRequest(BaseModel):
+    urls: List[str]
+    studyId: str
