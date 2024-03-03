@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 
 
 class LLMModel(str, Enum):
@@ -97,6 +97,7 @@ class ChatRequest(BaseModel):
     previous_message: Optional[str] = None
     study_id: str
     resource_identifier: Optional[str] = None
+    combined: Optional[bool] = False
 
 
 class EmbeddingModels(str, Enum):
@@ -119,9 +120,9 @@ class PineconeRecord(BaseModel):
 
 class AddYoutubeVideoRequest(BaseModel):
     studyId: str
-    url: str
+    url: HttpUrl
 
 
 class AddWebpageResourceRequest(BaseModel):
-    urls: List[str]
+    urls: List[HttpUrl]
     studyId: str
