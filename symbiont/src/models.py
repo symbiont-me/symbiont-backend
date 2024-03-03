@@ -117,11 +117,11 @@ class PineconeRecord(BaseModel):
     metadata: dict = {"text": str, "source": str, "pageNumber": 0}
 
 
-class ProcessYoutubeVideoRequest(BaseModel):
+class AddYoutubeVideoRequest(BaseModel):
     studyId: str
     url: str
 
 
-class ProcessWebpageResourceRequest(BaseModel):
+class AddWebpageResourceRequest(BaseModel):
     urls: List[str]
     studyId: str
