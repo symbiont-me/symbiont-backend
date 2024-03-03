@@ -196,3 +196,69 @@ def add_resource_to_db(user_uid: str, studyId: str, study_resource: StudyResourc
         raise HTTPException(status_code=404, detail="No such document!")
     study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
 
+
+def summarise_resource(resource: StudyResource):
+    pass
+
+
+@router.post("/process-webpage-resource")
+async def process_webpage_resource(
+    webpage_resource: ProcessWebpageResourceRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    # user_uid = request.state.verified_user["user_id"]
+    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+    loader = AsyncHtmlLoader(webpage_resource.urls)
+    html_docs = loader.load()
+    studies = []
+    transformed_docs_contents = []  # Collect transformed docs content here
+
+    for index, doc in enumerate(html_docs):
+        identifier = make_file_identifier(doc.metadata["title"])
+
+        study_resource = StudyResource(
+            studyId=webpage_resource.studyId,
+            identifier=identifier,
+            name=doc.metadata["title"],
+            url=webpage_resource.urls[index],  # Assign URL based on index
+            category="webpage",
+            summary="",
+        )
+        studies.append(study_resource)
+        bs_transformer = BeautifulSoupTransformer()
+        docs_transformed = bs_transformer.transform_documents(
+            [doc], tags_to_extract=["p", "li", "span", "div"]
+        )
+        transformed_docs_contents.append(
+            (study_resource, docs_transformed[0].page_content)
+        )
+        # Schedule upload to Pinecone as a background task
+        background_tasks.add_task(
+            upload_webpage_to_pinecone, study_resource, docs_transformed[0].page_content
+        )
+
+    # Process summaries as a background task
+    for study_resource, content in transformed_docs_contents:
+        background_tasks.add_task(
+            process_and_save_summary_to_db,
+            study_resource,
+            content,
+            webpage_resource.studyId,
+            user_uid,
+        )
+
+
+async def process_and_save_summary_to_db(
+    study_resource: StudyResource, content: str, studyId: str, user_uid: str
+):
+    summary = summarise_webpage_resource(content)
+    study_resource.summary = summary
+    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    if study_ref is None:
+        raise HTTPException(status_code=404, detail="No such document!")
+    study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+    return {
+        "message": "Resource added successfully",
+        "resource": study_resource.model_dump(),
+    }
