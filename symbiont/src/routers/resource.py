@@ -13,11 +13,26 @@ from fastapi import (
     Depends,
     Request,
 )
-from ..models import FileUploadResponse, GetResourcesResponse, StudyResource
-from ..pinecone.pc import prepare_resource_for_pinecone
+from ..models import (
+    FileUploadResponse,
+    GetResourcesResponse,
+    StudyResource,
+    ProcessYoutubeVideoRequest,
+    ProcessWebpageResourceRequest,
+)
+from ..pinecone.pc import (
+    prepare_resource_for_pinecone,
+    upload_yt_resource_to_pinecone,
+    upload_webpage_to_pinecone,
+)
 from typing import Optional
 from ..utils.db_utils import get_document_dict, get_document_ref
 from ..utils.helpers import make_file_identifier
+from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
+from langchain_community.document_transformers import Html2TextTransformer
+from langchain_community.document_loaders import UnstructuredHTMLLoader
+from langchain_community.document_transformers import BeautifulSoupTransformer
+from ..utils.llm_utils import summarise_webpage_resource
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
