@@ -22,6 +22,8 @@ pytube = "^15.0.0"
 beautifulsoup4 = "^4.12.3"
 html2text = "^2024.2.26"
 unstructured = "^0.12.5"
+playwright = "^1.41.2"
+langchain-text-splitters = "^0.0.1"
 
 [build-system]
 requires = ["poetry-core"]
