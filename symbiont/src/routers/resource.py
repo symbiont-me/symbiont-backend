@@ -17,8 +17,8 @@ from ..models import (
     FileUploadResponse,
     GetResourcesResponse,
     StudyResource,
-    ProcessYoutubeVideoRequest,
-    ProcessWebpageResourceRequest,
+    AddYoutubeVideoRequest,
+    AddWebpageResourceRequest,
 )
 from ..pinecone.pc import (
     prepare_resource_for_pinecone,
@@ -32,7 +32,9 @@ from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import Html2TextTransformer
 from langchain_community.document_loaders import UnstructuredHTMLLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
-from ..utils.llm_utils import summarise_webpage_resource
+from ..utils.llm_utils import summarise_plain_text_resource
+from ..utils.db_utils import add_resource_to_db
+from pydantic import BaseModel
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -154,12 +156,14 @@ async def get_resources(studyId: str, request: Request):
 
 @router.post("/process-youtube-video")
 async def process_youtube_video(
-    video_resource: ProcessYoutubeVideoRequest, request: Request
+    video_resource: AddYoutubeVideoRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
 ):
     # TODO allow multiple urls
     # TODO auth verification if necessary
     loader = YoutubeLoader.from_youtube_url(
-        video_resource.url,
+        str(video_resource.url),
         add_video_info=True,
         language=["en", "id"],
         translation="en",
@@ -171,45 +175,29 @@ async def process_youtube_video(
         studyId=video_resource.studyId,
         identifier=make_file_identifier(doc.metadata["title"]),
         name=doc.metadata["title"],
-        url=video_resource.url,
+        url=str(video_resource.url),
         category="video",
+    )
+    background_tasks.add_task(
+        get_and_save_summary_to_db,
+        study_resource,
+        doc.page_content,
+        video_resource.studyId,
+        request.state.verified_user["user_id"],
     )
     await upload_yt_resource_to_pinecone(study_resource, doc.page_content)
 
 
-# TODO move to db_utils
-def add_resource_to_db(user_uid: str, studyId: str, study_resource: StudyResource):
-    """
-    Adds a resource to the database under a specific study.
-
-    Args:
-        user_uid (str): The user ID.
-        studyId (str): The study ID.
-        study_resource (StudyResource): The study resource to add.
-
-    Raises:
-        HTTPException: If the study does not exist.
-    """
-    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
-    if study_ref is None:
-        # If the study does not exist, the resource will not be added to the database and the file should not exist in the storage
-        raise HTTPException(status_code=404, detail="No such document!")
-    study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-
-
-def summarise_resource(resource: StudyResource):
-    pass
-
-
-@router.post("/process-webpage-resource")
-async def process_webpage_resource(
-    webpage_resource: ProcessWebpageResourceRequest,
+@router.post("/add-webpage-resource")
+async def add_webpage_resource(
+    webpage_resource: AddWebpageResourceRequest,
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-    # user_uid = request.state.verified_user["user_id"]
-    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
-    loader = AsyncHtmlLoader(webpage_resource.urls)
+
+    user_uid = request.state.verified_user["user_id"]
+    # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+    loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
     html_docs = loader.load()
     studies = []
     transformed_docs_contents = []  # Collect transformed docs content here
@@ -221,7 +209,7 @@ async def process_webpage_resource(
             studyId=webpage_resource.studyId,
             identifier=identifier,
             name=doc.metadata["title"],
-            url=webpage_resource.urls[index],  # Assign URL based on index
+            url=str(webpage_resource.urls[index]),  # Assign URL based on index
             category="webpage",
             summary="",
         )
@@ -241,7 +229,7 @@ async def process_webpage_resource(
     # Process summaries as a background task
     for study_resource, content in transformed_docs_contents:
         background_tasks.add_task(
-            process_and_save_summary_to_db,
+            get_and_save_summary_to_db,
             study_resource,
             content,
             webpage_resource.studyId,
@@ -249,16 +237,55 @@ async def process_webpage_resource(
         )
 
 
-async def process_and_save_summary_to_db(
+# NOTE I don't like this
+# TODO move this someplace else
+async def get_and_save_summary_to_db(
     study_resource: StudyResource, content: str, studyId: str, user_uid: str
 ):
-    summary = summarise_webpage_resource(content)
+    summary = summarise_plain_text_resource(content)
     study_resource.summary = summary
-    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
-    if study_ref is None:
-        raise HTTPException(status_code=404, detail="No such document!")
-    study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-    return {
-        "message": "Resource added successfully",
-        "resource": study_resource.model_dump(),
-    }
+    add_resource_to_db(user_uid, studyId, study_resource)
+
+
+class AddPlainTextResourceRequest(BaseModel):
+    studyId: str
+    name: str
+    content: str
+
+
+@router.post("/add-plain-text-resource")
+async def add_plain_text_resource(
+    plain_text_resource: AddPlainTextResourceRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    # user_uid = request.state.verified_user["user_id"]
+    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+    study_resource = StudyResource(
+        studyId=plain_text_resource.studyId,
+        identifier=make_file_identifier(plain_text_resource.name),
+        name=plain_text_resource.name,
+        url="",
+        category="text",
+        summary="",
+    )
+    background_tasks.add_task(
+        get_and_save_summary_to_db,
+        study_resource,
+        plain_text_resource.content,
+        plain_text_resource.studyId,
+        user_uid,
+    )
+    await upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
+    return {"status_code": 200, "message": "Resource added."}
+
+
+# @router.post("/delete-resource")
+# async def delete_resource(identifier: str, request: Request):
+#     user_uid = request.state.verified_user["user_id"]
+#     study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+#     if study_ref is None:
+#         raise HTTPException(status_code=404, detail="No such document!")
+#     study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+#     delete_resource_from_storage(identifier)
+#     return {"message": "Resource deleted."}
