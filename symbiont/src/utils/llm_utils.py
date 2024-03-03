@@ -8,7 +8,8 @@ from ..models import LLMModel
 llm = OpenAI(temperature=0, name=LLMModel.GPT_3_5_TURBO_16K)
 
 
-def summarise_webpage_resource(document_text):
+# NOTE used for webpages and plain text
+def summarise_plain_text_resource(document_text):
 
     nltk_text_splitter = NLTKTextSplitter()
 
