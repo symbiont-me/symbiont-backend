@@ -25,7 +25,6 @@ from ..pinecone.pc import (
     upload_yt_resource_to_pinecone,
     upload_webpage_to_pinecone,
 )
-from typing import Optional
 from ..utils.db_utils import get_document_dict, get_document_ref
 from ..utils.helpers import make_file_identifier
 from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
@@ -169,6 +168,8 @@ async def process_youtube_video(
         translation="en",
     )
 
+    print("PARSING YT VIDEO")
+
     # @dev there should only be a single document for this
     doc = loader.load()[0]
     study_resource = StudyResource(
@@ -185,7 +186,10 @@ async def process_youtube_video(
         video_resource.studyId,
         request.state.verified_user["user_id"],
     )
+
     await upload_yt_resource_to_pinecone(study_resource, doc.page_content)
+    print("YT VIDEO ADDED TO PINECONE")
+    return {"status_code": 200, "message": "Resource added."}
 
 
 @router.post("/add-webpage-resource")
@@ -245,6 +249,7 @@ async def get_and_save_summary_to_db(
     summary = summarise_plain_text_resource(content)
     study_resource.summary = summary
     add_resource_to_db(user_uid, studyId, study_resource)
+    print("ADDED RESOURCE TO DB")
 
 
 class AddPlainTextResourceRequest(BaseModel):
@@ -259,8 +264,8 @@ async def add_plain_text_resource(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-    # user_uid = request.state.verified_user["user_id"]
-    user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+    user_uid = request.state.verified_user["user_id"]
+    # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
     study_resource = StudyResource(
         studyId=plain_text_resource.studyId,
         identifier=make_file_identifier(plain_text_resource.name),
