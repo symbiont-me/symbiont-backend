@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-from ..models import Study
+from ..models import CreateStudyRequest
 from firebase_admin import firestore
 from ..utils.db_utils import get_document_ref
+from datetime import datetime
+from ..models import Study, Chat
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
@@ -37,11 +39,22 @@ async def get_user_studies(request: Request):
 
 
 @router.post("/create-study")
-async def create_study(study: Study):
+async def create_study(study: CreateStudyRequest, request: Request):
+    user_uid = request.state.verified_user["user_id"]
+
+    new_study = Study(
+        name=study.name,
+        description=study.description,
+        userId=user_uid,
+        image=study.image,
+        createdAt=str(datetime.now()),
+        resources=[],
+        chat=Chat(),
+    )
     try:
         db = firestore.client()
         doc_ref = db.collection("studies_").document()
-        doc_ref.set(study.model_dump())
+        doc_ref.set(new_study.model_dump())
 
         return {"message": "Study created successfully", "study": study.model_dump()}
     except Exception as e:
