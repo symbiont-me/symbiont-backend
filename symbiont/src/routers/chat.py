@@ -146,6 +146,18 @@ async def get_chat_messages(studyId: str, request: Request):
         return {"chatMessages": study_data["chatMessages"]}
 
 
+@router.delete("/delete-chat-messages")
+async def delete_chat_messages(studyId: str, request: Request):
+    user_uid = request.state.verified_user["user_id"]
+    print("DELETING CHAT MESSAGES")
+    doc_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    if doc_ref is None:
+        raise HTTPException(status_code=404, detail="No such document!")
+
+    doc_ref.update({"chatMessages": []})
+    return {"message": "Chat messages deleted!", "status_code": 200}
+
+
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str):
 
     doc_ref = get_document_ref("studies_", "userId", user_uid, studyId)
