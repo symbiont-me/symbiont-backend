@@ -47,9 +47,15 @@ class Study(BaseModel):
     createdAt: str
     description: str
     name: str
+    image: str
     resources: List[Resource]
     userId: str
-    studyId: str
+
+
+class CreateStudyRequest(BaseModel):
+    name: str = ""
+    description: str = ""
+    image: str = ""
 
 
 class TextUpdateRequest(BaseModel):
