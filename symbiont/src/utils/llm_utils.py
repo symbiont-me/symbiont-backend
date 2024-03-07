@@ -8,6 +8,7 @@ from ..models import LLMModel
 llm = OpenAI(temperature=0, name=LLMModel.GPT_3_5_TURBO_16K)
 
 
+# TODO fix This model's maximum context length is 4097 tokens, however you requested 11438 tokens
 # NOTE used for webpages and plain text
 def summarise_plain_text_resource(document_text):
     summary = ""
