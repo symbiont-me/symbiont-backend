@@ -67,6 +67,16 @@ async def create_study(study: CreateStudyRequest, request: Request):
         )
 
 
+@router.delete("/delete-study")
+async def delete_study(studyId: str, request: Request):
+    user_uid = request.state.verified_user["user_id"]
+    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    if study_ref is None:
+        raise HTTPException(status_code=404, detail="No such document!")
+    study_ref.delete()
+    return {"message": "Study deleted successfully", "status_code": 200}
+
+
 @router.post("/get-study")
 async def get_study(studyId: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
