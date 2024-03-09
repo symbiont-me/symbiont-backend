@@ -1,11 +1,33 @@
-import os
 from pinecone import Pinecone
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+if not os.getenv("PINECONE_API_KEY"):
+    raise Exception("PINECONE_API_KEY is not set")
 
 api_key = os.getenv("PINECONE_API_KEY")
-index_name = os.getenv("PINECONE_INDEX_NAME")
-region = os.getenv("PINECONE_REGION")
+index_name = "symbiont-me"
+region = "us-west-2"
 
 pc = Pinecone(api_key=api_key, region=region)
 index = pc.Index("symbiont-me")
+namespaces = []
 if index:
-    index.delete(delete_all=True, namespace="20240219040159_1712.01210v1.pdf")
+    res = index.describe_index_stats()
+    namespaces = list(res.get("namespaces", {}).keys())
+
+
+for ns in namespaces:
+    try:
+        if index:
+            index.delete(
+                delete_all=True,
+                namespace=ns,
+            )
+            print(f"Deleted namespace {ns}")
+    except Exception as e:
+        print(f"Error deleting namespace {ns}: {str(e)}")
+        continue
