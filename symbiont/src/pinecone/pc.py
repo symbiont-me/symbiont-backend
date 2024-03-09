@@ -7,7 +7,6 @@ from langchain_community.document_loaders import PyPDFLoader
 
 from langchain.text_splitter import NLTKTextSplitter
 from hashlib import md5
-import time
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAI, OpenAIEmbeddings
 from symbiont.src.models import EmbeddingModels
@@ -15,7 +14,7 @@ import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
 from typing import List, Union
-
+from langchain_community.embeddings import CohereEmbeddings
 
 # ~~~~~~~~~~~~~~~~~~~~
 #       PINECONE
@@ -23,13 +22,19 @@ from typing import List, Union
 
 load_dotenv()
 
+
+cohere_api_key = os.getenv("COHERE_API_KEY")
 api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
 
 # Initialize the OpenAIEmbeddings object, will use the same object for embedding tasks
-embed = OpenAIEmbeddings(model=EmbeddingModels.TEXT_EMBEDDING_3_SMALL, dimensions=1536)
+embed = OpenAIEmbeddings(model="text-embedding-3-large", dimensions=1536)
+
+# embed = CohereEmbeddings(
+#     model="embed-english-light-v3.0",
+# )
 
 
 # make this generic it should take various types of resources
