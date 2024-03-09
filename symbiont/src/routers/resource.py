@@ -95,7 +95,8 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
                 download_url=download_url,
             )
         else:
-            raise HTTPException(status_code=500, detail="Failed to get the file URL.")
+            raise HTTPException(
+                status_code=500, detail="Failed to get the file URL.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -120,7 +121,8 @@ async def add_resource(
         raise HTTPException(status_code=400, detail="No file provided!")
     user_uid = request.state.verified_user["user_id"]
     upload_result = upload_to_firebase_storage(file, user_uid)
-    file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
+    file_extension = file.filename.split(
+        ".")[-1] if "." in file.filename else ""
     study_resource = StudyResource(
         studyId=studyId,
         identifier=upload_result.identifier,
@@ -138,7 +140,7 @@ async def add_resource(
     await prepare_resource_for_pinecone(
         upload_result.identifier, upload_result.download_url
     )
-    return {"resource": study_resource.model_dump()}
+    return {"resource": study_resource.model_dump(), "status_code": 200}
 
 
 @router.post("/get-resources")
@@ -201,14 +203,16 @@ async def add_webpage_resource(
 
     user_uid = request.state.verified_user["user_id"]
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+
     loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
     html_docs = loader.load()
     studies = []
     transformed_docs_contents = []  # Collect transformed docs content here
-
+    print("PARSING WEBPAGE")
+    print(html_docs)
     for index, doc in enumerate(html_docs):
         identifier = make_file_identifier(doc.metadata["title"])
-
+        print(doc)
         study_resource = StudyResource(
             studyId=webpage_resource.studyId,
             identifier=identifier,
@@ -225,6 +229,7 @@ async def add_webpage_resource(
         transformed_docs_contents.append(
             (study_resource, docs_transformed[0].page_content)
         )
+        print("ADDED WEBPAGE RESOURCE")
         # Schedule upload to Pinecone as a background task
         background_tasks.add_task(
             upload_webpage_to_pinecone, study_resource, docs_transformed[0].page_content
