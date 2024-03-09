@@ -7,15 +7,25 @@ from ..models import LLMModel
 
 llm = OpenAI(temperature=0, name=LLMModel.GPT_3_5_TURBO_16K)
 
+# sort of a dumb tokenizer but works
 
-# TODO fix This model's maximum context length is 4097 tokens, however you requested 11438 tokens
+
+def truncate_prompt(prompt: str, query_size=350, model_context_window=4096) -> str:
+    max_prompt_tokens = model_context_window - query_size
+    tokens = prompt.split()  # simple whitespace tokenization
+    if len(tokens) > max_prompt_tokens:
+        tokens = tokens[:max_prompt_tokens]
+    return " ".join(tokens)
+
+
 # NOTE used for webpages and plain text
 def summarise_plain_text_resource(document_text):
+    prompt = truncate_prompt(document_text)
     summary = ""
     try:
         nltk_text_splitter = NLTKTextSplitter()
 
-        docs = nltk_text_splitter.create_documents([document_text])
+        docs = nltk_text_splitter.create_documents([prompt])
 
         summary_chain = load_summarize_chain(
             llm=llm,
