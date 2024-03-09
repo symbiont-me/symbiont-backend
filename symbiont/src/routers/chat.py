@@ -10,8 +10,6 @@ from google.cloud.firestore import ArrayUnion
 from ..utils.db_utils import get_document_ref, get_document_dict
 from pydantic import BaseModel
 from langchain.chains import LLMChain
-from typing import Optional
-from typing import Optional
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain.chains.summarize import load_summarize_chain
@@ -36,7 +34,8 @@ def get_combined_chat_context(study_id: str, user_uid: str, user_query: str):
     if resources is None:
         raise HTTPException(status_code=404, detail="No Resources Found")
     # get the identifier for each resource
-    all_resource_identifiers = [resource.get("identifier") for resource in resources]
+    all_resource_identifiers = [resource.get(
+        "identifier") for resource in resources]
     # # get the context for each resource
     contexts = [
         get_chat_context(user_query, resource_identifier, 1)
@@ -74,10 +73,19 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     context = ""
 
-    if resource_identifier and chat.combined:
+    print(chat.combined, "COMBINED")
+
+    print(resource_identifier, "RESOURCE IDENTIFIER")
+
+    if not chat.combined and resource_identifier is None:
+        raise HTTPException(  # TODO this should be a 400
+            status_code=404, detail="Resource Identifier Required"
+        )
+    if chat.combined:
         print("GETTING COMBINED CONTEXT")
-        context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
-    elif resource_identifier and not chat.combined:
+        context = get_combined_chat_context(
+            chat.study_id, user_uid, chat.user_query)
+    if not chat.combined and resource_identifier is not None:
         print("GETTING SINGLE CONTEXT")
         context = get_chat_context(user_query, resource_identifier)
 
