@@ -10,11 +10,12 @@ llm = OpenAI(temperature=0, name=LLMModel.GPT_3_5_TURBO_16K)
 # sort of a dumb tokenizer but works
 
 
-def truncate_prompt(prompt: str, query_size=350, model_context_window=4096) -> str:
+def truncate_prompt(prompt: str, query_size=500, model_context_window=4096) -> str:
     max_prompt_tokens = model_context_window - query_size
-    tokens = prompt.split()  # simple whitespace tokenization
+    tokens = prompt.split()
     if len(tokens) > max_prompt_tokens:
         tokens = tokens[:max_prompt_tokens]
+        print(len(tokens))
     return " ".join(tokens)
 
 
