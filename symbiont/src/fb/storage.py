@@ -2,9 +2,7 @@ import requests
 import os
 
 
-async def download_from_firebase_storage(
-    file_key: str, download_url: str
-) -> str | None:
+async def download_from_firebase_storage(file_key: str, download_url: str):
     try:
         response = requests.get(download_url)
         response.raise_for_status()
