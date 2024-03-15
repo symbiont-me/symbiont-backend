@@ -290,12 +290,29 @@ async def add_plain_text_resource(
     return {"status_code": 200, "message": "Resource added."}
 
 
-# @router.post("/delete-resource")
-# async def delete_resource(identifier: str, request: Request):
-#     user_uid = request.state.verified_user["user_id"]
-#     study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
-#     if study_ref is None:
-#         raise HTTPException(status_code=404, detail="No such document!")
-#     study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-#     delete_resource_from_storage(identifier)
-#     return {"message": "Resource deleted."}
+# TODO FIX !TRASH CODE
+@router.post("/delete-resource")
+async def delete_resource(identifier: str, request: Request):
+    user_uid = request.state.verified_user["user_id"]
+    # TODO fix this
+    study_docs = (
+        firestore.client()
+        .collection("studies_")
+        .where("userId", "==", user_uid)
+        .stream()
+    )
+    resource = None
+    for doc in study_docs:
+        doc_dict = doc.to_dict()
+
+        resources = doc_dict.get("resources", [])
+        for res in resources:
+            if res.get("identifier") == identifier:
+                resources.remove(res)
+                doc.reference.update({"resources": resources})
+                if res.get("category") == "pdf":
+                    delete_resource_from_storage(identifier)
+                    delete_vectors_from_pinecone(identifier)
+                return {"message": "Resource deleted."}
+    raise HTTPException(status_code=404, detail="Resource not found")
+    return {"message": "Resource deleted."}
