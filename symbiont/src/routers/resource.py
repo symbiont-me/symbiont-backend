@@ -98,8 +98,7 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
                 download_url=download_url,
             )
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to get the file URL.")
+            raise HTTPException(status_code=500, detail="Failed to get the file URL.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -124,8 +123,7 @@ async def add_resource(
         raise HTTPException(status_code=400, detail="No file provided!")
     user_uid = request.state.verified_user["user_id"]
     upload_result = upload_to_firebase_storage(file, user_uid)
-    file_extension = file.filename.split(
-        ".")[-1] if "." in file.filename else ""
+    file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
     study_resource = StudyResource(
         studyId=studyId,
         identifier=upload_result.identifier,
