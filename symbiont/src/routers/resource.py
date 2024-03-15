@@ -118,6 +118,7 @@ async def add_resource(
     file: UploadFile,
     studyId: str,
     request: Request,
+    background_tasks: BackgroundTasks,
 ):
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file provided!")
@@ -140,6 +141,14 @@ async def add_resource(
     print("Adding to Pinecone")
     await prepare_resource_for_pinecone(
         upload_result.identifier, upload_result.download_url
+    )
+    # Add background task to generate summary
+    background_tasks.add_task(
+        get_and_save_summary_to_db,
+        study_resource,
+        upload_result.download_url,
+        studyId,
+        user_uid,
     )
     return {"resource": study_resource.model_dump(), "status_code": 200}
 
