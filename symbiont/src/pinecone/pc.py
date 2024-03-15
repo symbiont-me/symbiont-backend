@@ -195,7 +195,7 @@ def search_pinecone_index(query: str, file_identifier: str, top_k=2):
     return query_matches
 
 
-def get_chat_context(query: str, file_identifier: str, top_k=2):
+def get_chat_context(query: str, file_identifier: str, top_k=25):
     # TODO unpack the search_pinecone_index function into this function
     result = search_pinecone_index(query, file_identifier)
     context = ""
