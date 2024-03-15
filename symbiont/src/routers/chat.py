@@ -15,7 +15,13 @@ from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain.chains.summarize import load_summarize_chain
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
-
+from ..llms import (
+    create_user_prompt,
+    generate_anthropic_response,
+    isOpenAImodel,
+    isAnthropicModel,
+    get_user_llm_settings,
+)
 
 ####################################################
 #                   CHAT                           #
@@ -91,34 +97,8 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     print("CONTEXT", context)
 
-    # TODO make a prompt function
-    # TODO make it so that the user is allowed to specify the model and other parameters
-    # which means that this needs to be initialised somewhere at the top level
-    llm = OpenAI(model=LLMModel.GPT_3_5_TURBO_INSTRUCT, temperature=0.75)
-
-    prompt_template = PromptTemplate.from_template(
-        """
-        You are a well-informed AI assistant. 
-        The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness.
-        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation.
-        AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.
-        START DOCUMENT BLOCK {context} END OF DOCUMENT BLOCK
-        If the context does not provide the answer to the question or the context is empty, the AI assistant will say,
-        I'm sorry, but I don't know the answer to that question.
-        AI assistant will not invent anything that is not drawn directly from the context.
-        AI will be as detailed as possible.
-    Previous Message: {previous_message}
-    Question: {query}
-    Output Format: Return your answer in valid {output_format} Format
-    """
-    )
-
-    prompt = prompt_template.format(
-        query=user_query,
-        context=context,
-        previous_message=previous_message,
-        output_format="Markdown",
-    )
+    llm = get_user_llm_settings()
+    prompt = create_user_prompt(user_query, context, previous_message)
 
     # NOTE a bit slow
     async def generate_llm_response() -> AsyncGenerator[str, None]:
@@ -129,10 +109,18 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         to save the complete response to the database as a chat message from the 'bot' role.
         """
         llm_response = ""
-        async for chunk in llm.astream(prompt):
+        # TODO uncomment
+        # if isOpenAImodel(llm.model):
+        #     async for chunk in llm.astream(prompt):
+        #         llm_response += chunk
+        #         yield chunk
+        # if isAnthropicModel(llm.model):
+        # TODO fix, Claude is not Streaming
+        async for chunk in generate_anthropic_response(
+            LLMModel.CLAUDE_INSTANT_1_2, 1500, user_query, context, previous_message
+        ):
             llm_response += chunk
             yield chunk
-
         background_tasks.add_task(
             save_chat_message_to_db,
             chat_message=llm_response,
@@ -141,7 +129,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             user_uid=user_uid,
         )
 
-    #
     return StreamingResponse(generate_llm_response())
 
 
