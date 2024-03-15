@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from langchain_core.documents import Document
 from typing import List, Union
 from langchain_community.embeddings import CohereEmbeddings
+from . import pc_index
 
 # ~~~~~~~~~~~~~~~~~~~~
 #       PINECONE
@@ -22,7 +23,7 @@ from langchain_community.embeddings import CohereEmbeddings
 
 load_dotenv()
 
-
+# TODO import all these from __init__.py
 cohere_api_key = os.getenv("COHERE_API_KEY")
 api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
@@ -35,6 +36,15 @@ embed = OpenAIEmbeddings(model="text-embedding-3-large", dimensions=1536)
 # embed = CohereEmbeddings(
 #     model="embed-english-light-v3.0",
 # )
+
+
+def delete_vectors_from_pinecone(namespace):
+    try:
+        if pc_index:
+            pc_index.delete(delete_all=True, namespace=namespace)
+            print(f"Deleted namespace {namespace}")
+    except Exception as e:
+        print(f"Error deleting namespace {namespace}: {str(e)}")
 
 
 # make this generic it should take various types of resources
