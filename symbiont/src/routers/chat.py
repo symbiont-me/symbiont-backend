@@ -89,7 +89,10 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         print("GETTING SINGLE CONTEXT")
         context = get_chat_context(user_query, resource_identifier)
 
-    print("CHAT CONTEXT", context)
+    context = truncate_prompt(context)
+
+    print("CONTEXT", context)
+
     # TODO make a prompt function
     # TODO make it so that the user is allowed to specify the model and other parameters
     # which means that this needs to be initialised somewhere at the top level
