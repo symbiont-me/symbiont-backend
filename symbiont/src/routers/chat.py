@@ -108,7 +108,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         If the context does not provide the answer to the question or the context is empty, the AI assistant will say,
         I'm sorry, but I don't know the answer to that question.
         AI assistant will not invent anything that is not drawn directly from the context.
-        AI will keep answers short and to the point.
+        AI will be as detailed as possible.
     Previous Message: {previous_message}
     Question: {query}
     Output Format: Return your answer in valid {output_format} Format
