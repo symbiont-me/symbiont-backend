@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
-from google.cloud.firestore import ArrayUnion
+from re import A
+from google.cloud.firestore import ArrayUnion, ArrayRemove
 from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter
@@ -34,6 +35,8 @@ from langchain_community.document_transformers import BeautifulSoupTransformer
 from ..utils.llm_utils import summarise_plain_text_resource
 from ..utils.db_utils import add_resource_to_db
 from pydantic import BaseModel
+from ..pinecone.pc import delete_vectors_from_pinecone
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
