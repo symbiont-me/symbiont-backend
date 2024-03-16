@@ -252,6 +252,7 @@ async def add_webpage_resource(
         # )
         study_service = StudyService(user_uid, webpage_resource.studyId)
         study_service.add_resource_to_db(study_resource)
+        print("ADDED RESOURCE TO DB")
     # Process summaries as a background task
     # for study_resource, content in transformed_docs_contents:
     #     background_tasks.add_task(
