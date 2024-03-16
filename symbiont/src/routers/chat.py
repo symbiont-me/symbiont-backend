@@ -2,13 +2,13 @@ from requests import api
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from ..models import ChatRequest, ChatMessage, LLMModel
 
-from ..pinecone.pc import get_chat_context
+
 from langchain.prompts import PromptTemplate
 from fastapi.responses import StreamingResponse
 from datetime import datetime
 from typing import AsyncGenerator
 from google.cloud.firestore import ArrayUnion
-from ..utils.db_utils import get_document_ref, get_document_dict
+from ..utils.db_utils import StudyService
 from ..utils.llm_utils import truncate_prompt
 from pydantic import BaseModel
 from langchain.chains import LLMChain
@@ -27,6 +27,7 @@ from ..llms import (
     get_user_llm_settings,
     generate_openai_response,
 )
+from ..pinecone.pc import PineconeService
 
 ####################################################
 #                   CHAT                           #
@@ -36,10 +37,12 @@ router = APIRouter()
 
 
 def get_combined_chat_context(study_id: str, user_uid: str, user_query: str):
+    study_service = StudyService(user_uid, study_id)
+    pc_service = PineconeService(user_uid, user_query, None, study_id)
     all_resource_identifiers = []
     # # get all resources for the study
     # TODO use a function that does not require user_uid to be passed
-    study_dict = get_document_dict("studies_", "userId", user_uid, study_id)
+    study_dict = study_service.get_document_dict()
     if study_dict is None:
         raise HTTPException(status_code=404, detail="No such document!")
     resources = study_dict.get("resources", [])
@@ -49,7 +52,7 @@ def get_combined_chat_context(study_id: str, user_uid: str, user_query: str):
     all_resource_identifiers = [resource.get("identifier") for resource in resources]
     # # get the context for each resource
     contexts = [
-        get_chat_context(user_query, resource_identifier, 1)
+        pc_service.get_chat_context()[0]
         for resource_identifier in all_resource_identifiers
     ]
     # # TODO keep the context within the model's max token limit
@@ -58,17 +61,7 @@ def get_combined_chat_context(study_id: str, user_uid: str, user_query: str):
 
 @router.post("/chat")
 async def chat(chat: ChatRequest, request: Request, background_tasks: BackgroundTasks):
-    """
-    Handles the chat endpoint.
 
-    Args:
-        chat (ChatRequest): The chat request object containing user input.
-        request (Request): The request object.
-        background_tasks (BackgroundTasks): The background tasks object.
-
-    Returns:
-        StreamingResponse: The response containing the generated chat message from the language model.
-    """
     user_uid = request.state.verified_user["user_id"]
     user_query = chat.user_query
     previous_message = ""  # TODO remove this feature as previous_message makes makes the context poorer
@@ -82,7 +75,10 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         user_uid=user_uid,
     )
 
+    pc_service = PineconeService(user_uid, user_query, resource_identifier, study_id)
+
     context = ""
+    context_metadata = []
 
     print(chat.combined, "COMBINED")
     print(resource_identifier, "RESOURCE IDENTIFIER")
@@ -96,16 +92,12 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
     if not chat.combined and resource_identifier is not None:
         print("GETTING SINGLE CONTEXT")
-        context = get_chat_context(user_query, resource_identifier)
-
-    context = truncate_prompt(context)
-
-    # print("CONTEXT", context)
+        context = pc_service.get_chat_context()
 
     llm = get_user_llm_settings(user_uid)
     if llm is None:
         raise HTTPException(status_code=404, detail="No LLM settings found!")
-    prompt = create_user_prompt(user_query, context, previous_message)
+
     print(llm, "LLM")
 
     # NOTE a bit slow
@@ -167,8 +159,8 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
 @router.get("/get-chat-messages")
 async def get_chat_messages(studyId: str, request: Request):
-    user_uid = request.state.verified_user["user_id"]
-    study_data = get_document_dict("studies_", "userId", user_uid, studyId)
+    study_service = StudyService(request.state.verified_user["user_id"], studyId)
+    study_data = study_service.get_document_dict()
     if study_data is None:
         raise HTTPException(status_code=404, detail="No such document!")
     if "chatMessages" in study_data:
@@ -177,9 +169,9 @@ async def get_chat_messages(studyId: str, request: Request):
 
 @router.delete("/delete-chat-messages")
 async def delete_chat_messages(studyId: str, request: Request):
-    user_uid = request.state.verified_user["user_id"]
+    study_service = StudyService(request.state.verified_user["user_id"], studyId)
     print("DELETING CHAT MESSAGES")
-    doc_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    doc_ref = study_service.get_document_ref()
     if doc_ref is None:
         raise HTTPException(status_code=404, detail="No such document!")
 
@@ -188,8 +180,9 @@ async def delete_chat_messages(studyId: str, request: Request):
 
 
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str):
-
-    doc_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    # TODO improve this
+    study_service = StudyService(user_uid, studyId)
+    doc_ref = study_service.get_document_ref()
     if doc_ref is None:
         raise HTTPException(status_code=404, detail="No such document!")
     new_chat_message = ChatMessage(
