@@ -68,7 +68,7 @@ async def generate_openai_response(
     prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
     chain = prompt | chat
     for chunk in chain.stream({}):
-        print(chunk.content)
+
         yield chunk.content
 
 
@@ -94,7 +94,7 @@ async def generate_anthropic_response(
 
     chain = prompt | chat
     for chunk in chain.stream({}):
-        print(chunk.content)
+
         yield chunk.content
 
 
