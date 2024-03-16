@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel
 from langchain_openai import OpenAI
+from firebase_admin import firestore
 
 
 def create_user_prompt(user_query: str, context: str, previous_message: str | None):
@@ -70,19 +71,18 @@ async def generate_anthropic_response(
         yield chunk.content
 
 
-# TODO move to models/llm_settings.py
-class DefaultLLMSettings(BaseModel):
-    model: str = LLMModel.GPT_3_5_TURBO_INSTRUCT
-    max_tokens: int = 1500
-    temperature: float = 0.75
+class LLMSettings(BaseModel):
+    llm_name: str
+    api_key: str
 
 
 # TODO move to routers/llm_settings.py
-def get_user_llm_settings():
-    # TODO get user settings from the database
-    # if there are none use the default settings
-    default_settings = DefaultLLMSettings()
-    return OpenAI(
-        model=default_settings.model,
-        temperature=default_settings.temperature,
-    )
+def get_user_llm_settings(user_uid: str) -> LLMSettings | None:
+    db = firestore.client()
+    doc_ref = db.collection("users").document(user_uid)
+    if not doc_ref:
+        raise ValueError("User not found")
+    else:
+        settings = doc_ref.get().get("settings")
+        print("SETTINGS", settings)
+        return settings
