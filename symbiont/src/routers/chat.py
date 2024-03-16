@@ -1,6 +1,7 @@
+from requests import api
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from ..models import ChatRequest, ChatMessage, LLMModel
-from langchain_openai import OpenAI
+
 from ..pinecone.pc import get_chat_context
 from langchain.prompts import PromptTemplate
 from fastapi.responses import StreamingResponse
@@ -12,7 +13,10 @@ from ..utils.llm_utils import truncate_prompt
 from pydantic import BaseModel
 from langchain.chains import LLMChain
 from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
+
+from langchain_openai import OpenAI
+from langchain_community.chat_models import ChatOpenAI
+
 from langchain.chains.summarize import load_summarize_chain
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from ..llms import (
@@ -21,6 +25,7 @@ from ..llms import (
     isOpenAImodel,
     isAnthropicModel,
     get_user_llm_settings,
+    generate_openai_response,
 )
 
 ####################################################
@@ -66,7 +71,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     """
     user_uid = request.state.verified_user["user_id"]
     user_query = chat.user_query
-    previous_message = chat.previous_message
+    previous_message = ""  # TODO remove this feature as previous_message makes makes the context poorer
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
     background_tasks.add_task(
@@ -95,7 +100,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     context = truncate_prompt(context)
 
-    print("CONTEXT", context)
+    # print("CONTEXT", context)
 
     llm = get_user_llm_settings(user_uid)
     if llm is None:
@@ -104,6 +109,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     print(llm, "LLM")
 
     # NOTE a bit slow
+    # TODO fix streaming response
     async def generate_llm_response() -> AsyncGenerator[str, None]:
         """
         This asynchronous generator function streams the response from the language model (LLM) in chunks.
@@ -111,39 +117,50 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         the chunk to the caller. After all chunks have been received and yielded, it schedules a background task
         to save the complete response to the database as a chat message from the 'bot' role.
         """
+
         llm_response = ""
-        # TODO uncomment
+
         if isOpenAImodel(llm["llm_name"]):
-            chain = OpenAI(
-                model_name=llm["llm_name"],
-                openai_api_key=llm["api_key"],
+            async for chunk in generate_openai_response(
+                model=llm["llm_name"],
+                api_key=llm["api_key"],
                 max_tokens=1500,
-                temperature=0.75,
-            )
-            async for chunk in chain.astream(prompt):
-                llm_response += chunk
-                yield chunk
-                background_tasks.add_task(
-                    save_chat_message_to_db,
-                    chat_message=llm_response,
-                    studyId=study_id,
-                    role="bot",
-                    user_uid=user_uid,
-                )
-        if isAnthropicModel(llm["llm_name"]):
-            # TODO fix, Claude is not Streaming
-            async for chunk in generate_anthropic_response(
-                LLMModel.CLAUDE_INSTANT_1_2, 1500, user_query, context, previous_message
+                user_query=user_query,
+                context=context,
             ):
                 llm_response += chunk
                 yield chunk
-                background_tasks.add_task(
-                    save_chat_message_to_db,
-                    chat_message=llm_response,
-                    studyId=study_id,
-                    role="bot",
-                    user_uid=user_uid,
-                )
+
+            background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=llm_response,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
+
+        elif isAnthropicModel(
+            llm["llm_name"]
+        ):  # Changed to elif to avoid overlapping if conditions
+
+            async for chunk in generate_anthropic_response(
+                model=llm["llm_name"],
+                max_tokens=1500,
+                api_key=llm["api_key"],
+                user_query=user_query,
+                context=context,
+                previous_message=previous_message,
+            ):
+                llm_response += chunk
+                yield chunk
+
+            background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=llm_response,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
 
     return StreamingResponse(generate_llm_response())
 
