@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from ..models import CreateStudyRequest
 from firebase_admin import firestore
-from ..utils.db_utils import get_document_ref
+from ..utils.db_utils import StudyService
 from datetime import datetime
 from ..models import Study, Chat
 
@@ -83,8 +83,10 @@ async def create_study(study: CreateStudyRequest, request: Request):
 
 @router.delete("/delete-study")
 async def delete_study(studyId: str, request: Request):
+
     user_uid = request.state.verified_user["user_id"]
-    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    study_service = StudyService(request.state.verified_user["user_id"], studyId)
+    study_ref = study_service.get_document_ref()
     if study_ref is None:
         raise HTTPException(status_code=404, detail="No such document!")
     study_ref.delete()
