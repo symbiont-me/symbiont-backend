@@ -14,7 +14,7 @@ class StudyService:
 
     def get_document_dict(self) -> Optional[dict]:
         documents_stream = (
-            self.db.collection("studies_").where("userId", "==", self.user_uid).stream()
+            self.db.collection("studies").where("userId", "==", self.user_uid).stream()
         )
         for document in documents_stream:
             if document.id == self.study_id:
@@ -23,15 +23,15 @@ class StudyService:
 
     def get_document_ref(self):
         documents_stream = (
-            self.db.collection("studies_").where("userId", "==", self.user_uid).stream()
+            self.db.collection("studies").where("userId", "==", self.user_uid).stream()
         )
         for document in documents_stream:
             if document.id == self.study_id:
-                return self.db.collection("studies_").document(self.study_id)
+                return self.db.collection("studies").document(self.study_id)
         return None
 
     def get_document_snapshot(self) -> Optional[DocumentSnapshot]:
-        doc_ref = self.db.collection("studies_").document(self.study_id)
+        doc_ref = self.db.collection("studies").document(self.study_id)
         doc_snapshot = doc_ref.get()
         if doc_snapshot.exists:
             return doc_snapshot

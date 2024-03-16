@@ -20,7 +20,7 @@ async def get_user_studies(request: Request):
     # TODO fix pattern for returning data, cf. other routers
     try:
         db = firestore.client()
-        studies_ref = db.collection("studies_")
+        studies_ref = db.collection("studies")
         query = studies_ref.where("userId", "==", user_uid)
         studies = query.stream()
         # Create a list of dictionaries, each containing the studyId and the study's data
@@ -54,7 +54,7 @@ async def create_study(study: CreateStudyRequest, request: Request):
     try:
         db = firestore.client()
         # Create a new document for the study
-        study_doc_ref = db.collection("studies_").document()
+        study_doc_ref = db.collection("studies").document()
         study_doc_ref.set(new_study.model_dump())
         study_id = study_doc_ref.id
 
@@ -96,7 +96,7 @@ async def delete_study(studyId: str, request: Request):
 @router.get("/get-study")
 async def get_study(studyId: str, request: Request):
     # user_uid = request.state.verified_user["user_id"]
-    # study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    # study_ref = get_document_ref("studies", "userId", user_uid, studyId)
     # if study_ref is None:
     # raise HTTPException(status_code=404, detail="No such document!")
     # study = study_ref.get()

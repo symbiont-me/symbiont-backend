@@ -320,7 +320,7 @@ async def delete_resource(identifier: str, request: Request):
     # TODO fix this
     study_docs = (
         firestore.client()
-        .collection("studies_")
+        .collection("studies")
         .where("userId", "==", user_uid)
         .stream()
     )
