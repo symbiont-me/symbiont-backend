@@ -134,7 +134,7 @@ class PineconeService:
         vecs = [await self.embed_document(doc) for doc in docs]
         await self.upload_vecs_to_pinecone(vecs, resource.identifier)
 
-    def get_chat_context(self, top_k=2):
+    def get_chat_context(self, top_k=10):
         if self.resource is None or self.user_query is None:
             raise ValueError(
                 "Resource and user query must be provided to get chat context"
@@ -230,7 +230,7 @@ class PineconeService:
         vec = self.embed.embed_query(query)
         return vec
 
-    def search_pinecone_index(self, query: str, file_identifier: str, top_k=2):
+    def search_pinecone_index(self, query: str, file_identifier: str, top_k=10):
 
         query_embedding = self.get_query_embedding(query)
         query_matches = pc_index.query(
