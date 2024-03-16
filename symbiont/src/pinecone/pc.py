@@ -16,6 +16,8 @@ from langchain_core.documents import Document
 from typing import List, Union
 from langchain_community.embeddings import CohereEmbeddings
 from . import pc_index
+from ..models import EmbeddingModels
+from firebase_admin import firestore
 
 # ~~~~~~~~~~~~~~~~~~~~
 #       PINECONE
@@ -31,7 +33,7 @@ pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
 
 # Initialize the OpenAIEmbeddings object, will use the same object for embedding tasks
-embed = OpenAIEmbeddings(model="text-embedding-3-large", dimensions=1536)
+embed = OpenAIEmbeddings(model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE, dimensions=1536)
 
 # embed = CohereEmbeddings(
 #     model="embed-english-light-v3.0",
@@ -52,6 +54,7 @@ async def embed_document(doc: Union[DocumentPage, Document]) -> PineconeRecord:
 
     vec = await embed.aembed_query(doc.page_content)
     hash = md5(doc.page_content.encode("utf-8")).hexdigest()
+    create_vec_ref_in_db("user_uid", hash, doc.metadata)
     return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
 
 
@@ -74,6 +77,7 @@ async def prepare_resource_for_pinecone(file_identifier: str, download_url: str)
     # handle pdf only for now
     if file_path is not None and file_path.endswith(".pdf"):
         vecs = await handle_pdf_resource(file_path)
+
         await upload_vecs_to_pinecone(vecs, file_identifier)
         await delete_local_file(file_path)
 
@@ -102,6 +106,21 @@ async def upload_webpage_to_pinecone(resource, content):
 
     vecs = [await embed_document(doc) for doc in docs]
     await upload_vecs_to_pinecone(vecs, resource.identifier)
+
+
+def create_vec_ref_in_db(user_uid, md5_hash, metadata):
+    db = firestore.client()
+    vec_ref = db.collection("users").document(user_uid)
+    # Retrieve the current data to avoid overwriting
+    current_data = vec_ref.get().to_dict()
+    # Initialize 'vectors' as a mapping if it doesn't exist
+    if "vectors" not in current_data:
+        current_data["vectors"] = {}
+    # Update the mapping with the new vector data using md5 as the key
+    current_data["vectors"][md5_hash] = metadata
+    # Update the document with the new mapping of vectors
+    vec_ref.set(current_data)
+    return vec_ref
 
 
 async def upload_yt_resource_to_pinecone(resource, content):
@@ -134,8 +153,12 @@ async def upload_yt_resource_to_pinecone(resource, content):
 async def upload_vecs_to_pinecone(vecs: List[PineconeRecord], file_identifier: str):
     # TODO don't initialize Pinecone client here
     client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
+    # TODO use this: pc_index.Index
     index = client.Index("symbiont-me")
-    formatted_vecs = [(vec.id, vec.values, vec.metadata) for vec in vecs]
+    metadata = (
+        {}
+    )  # TODO metadata is stored in the db. It should not be stored in Pinecone. Should have a better way to do this
+    formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
     if index is None:
         raise Exception("Pinecone index not found")
     index.upsert(vectors=formatted_vecs, namespace=file_identifier)
@@ -151,15 +174,13 @@ def truncate_string_by_bytes(string, num_bytes):
 async def prepare_pdf_for_pinecone(pdf_page: DocumentPage) -> List[DocumentPage]:
     page_content = pdf_page.page_content.replace("\n", "")
     page_content = truncate_string_by_bytes(page_content, 10000)
-    # TODO use NLTK Splitter with db reference and don't store text in pinecone
-    # Pincecone is for embeddings only, it is expensive to store text in pinecone
-    # text_splitter = NLTKTextSplitter()
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=20,
-        length_function=len,
-        is_separator_regex=False,
-    )
+    text_splitter = NLTKTextSplitter()
+    # text_splitter = RecursiveCharacterTextSplitter(
+    #     chunk_size=1000,
+    #     chunk_overlap=20,
+    #     length_function=len,
+    #     is_separator_regex=False,
+    # )
 
     split_texts = text_splitter.create_documents([page_content])
     docs = [
@@ -174,12 +195,20 @@ async def prepare_pdf_for_pinecone(pdf_page: DocumentPage) -> List[DocumentPage]
         )
         for split_text in split_texts
     ]
+
     return docs
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       Vector Search
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def get_vector_data_from_db(user_uid, md5_hash):
+    db = firestore.client()
+    vec_ref = db.collection("users").document(user_uid)
+    vec_data = vec_ref.get().to_dict()
+    return vec_data["vectors"][md5_hash]
 
 
 def get_query_embedding(query: str) -> List[float]:
@@ -189,27 +218,33 @@ def get_query_embedding(query: str) -> List[float]:
 
 def search_pinecone_index(query: str, file_identifier: str, top_k=2):
     # TODO don't initialize Pinecone client here
-    client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
-    index = client.Index("symbiont-me")
+    # client = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
+    # index = client.Index("symbiont-me")
 
-    if index is None:
-        raise Exception("Pinecone index not found")
+    # if index is None:
+    #     raise Exception("Pinecone index not found")
 
     query_embedding = get_query_embedding(query)
-    query_matches = index.query(
+    query_matches = pc_index.query(
         vector=query_embedding,
         top_k=top_k,
         namespace=file_identifier,
         include_metadata=True,
     )
-    return query_matches
+    search_results_from_db = []
+    for match in query_matches.matches:
+        vec_data = get_vector_data_from_db("user_uid", match.id)
+        search_results_from_db.append(vec_data)
+
+    return search_results_from_db
 
 
 def get_chat_context(query: str, file_identifier: str, top_k=25):
     # TODO unpack the search_pinecone_index function into this function
-    result = search_pinecone_index(query, file_identifier)
+    results = search_pinecone_index(query, file_identifier)
     context = ""
-    for match in result.matches:
-        context += match.metadata["text"] + " "
-    # TODO return an object with matches for detailed footnoting
+    for vec_ref in results:
+        context += vec_ref["text"]
+    print(context)
+    # # TODO return an object with matches for detailed footnoting
     return context
