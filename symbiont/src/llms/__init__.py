@@ -76,10 +76,10 @@ async def generate_openai_response(
 async def generate_anthropic_response(
     model: LLMModel,
     api_key: str,
-    max_tokens: int | None,
     user_query: str,
     context: str,
     previous_message: str = "",
+    max_tokens: int = 1500,
 ):
     chat = ChatAnthropic(
         temperature=0,
