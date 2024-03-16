@@ -1,13 +1,14 @@
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Request
-from ..utils.db_utils import get_document_dict
+from ..utils.db_utils import StudyService
 
 router = APIRouter()
 
 
 def get_summaries_from_db(studyId, user_uid):
-    study_dict = get_document_dict("studies_", "userId", user_uid, studyId)
+    study_service = StudyService(user_uid, studyId)
+    study_dict = study_service.get_document_dict()
     if study_dict is None:
         raise HTTPException(status_code=404, detail="Study not found")
     resources = study_dict.get("resources", [])
