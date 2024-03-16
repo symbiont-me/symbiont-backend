@@ -5,6 +5,7 @@ from firebase_admin import firestore
 from ..utils.db_utils import StudyService
 from datetime import datetime
 from ..models import Study, Chat
+from ..utils.db_utils import UserService
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
@@ -85,11 +86,14 @@ async def create_study(study: CreateStudyRequest, request: Request):
 async def delete_study(studyId: str, request: Request):
 
     user_uid = request.state.verified_user["user_id"]
+    user_service = UserService(user_uid)
+
     study_service = StudyService(request.state.verified_user["user_id"], studyId)
     study_ref = study_service.get_document_ref()
     if study_ref is None:
         raise HTTPException(status_code=404, detail="No such document!")
     study_ref.delete()
+    user_service.remove_study_from_user(studyId)
     return {"message": "Study deleted successfully", "status_code": 200}
 
 

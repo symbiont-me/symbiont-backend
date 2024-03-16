@@ -62,6 +62,11 @@ class UserService:
         self.user_uid = user_uid
         self.db = firestore.client()
 
+    def remove_study_from_user(self, study_id):
+        user_ref = self.db.collection("users").document(self.user_uid)
+        user_ref.update({"studies": firestore.ArrayRemove([study_id])})
+        return {"message": "Study removed from user"}
+
     def create_vec_ref_in_db(self, md5_hash, metadata):
         vec_ref = self.db.collection("users").document(self.user_uid)
         current_data = vec_ref.get().to_dict()
