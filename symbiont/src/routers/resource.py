@@ -213,7 +213,7 @@ async def add_webpage_resource(
     user_uid = request.state.verified_user["user_id"]
     pc_service = PineconeService(user_uid)
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
-    study_service = StudyService(user_uid, webpage_resource.studyId)
+
     loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
     html_docs = loader.load()
     studies = []
@@ -240,22 +240,27 @@ async def add_webpage_resource(
             (study_resource, docs_transformed[0].page_content)
         )
         print("ADDED WEBPAGE RESOURCE")
-        # Schedule upload to Pinecone as a background task
-        background_tasks.add_task(
-            pc_service.upload_webpage_to_pinecone,
-            study_resource,
-            docs_transformed[0].page_content,
-        )
 
-    # Process summaries as a background task
-    for study_resource, content in transformed_docs_contents:
-        background_tasks.add_task(
-            get_and_save_summary_to_db,
-            study_resource,
-            content,
-            webpage_resource.studyId,
-            user_uid,
+        await pc_service.upload_webpage_to_pinecone(
+            study_resource, docs_transformed[0].page_content
         )
+        # Schedule upload to Pinecone as a background task
+        # background_tasks.add_task(
+        #     pc_service.upload_webpage_to_pinecone,
+        #     study_resource,
+        #     docs_transformed[0].page_content,
+        # )
+        study_service = StudyService(user_uid, webpage_resource.studyId)
+        study_service.add_resource_to_db(study_resource)
+    # Process summaries as a background task
+    # for study_resource, content in transformed_docs_contents:
+    #     background_tasks.add_task(
+    #         get_and_save_summary_to_db,
+    #         study_resource,
+    #         content,
+    #         webpage_resource.studyId,
+    #         user_uid,
+    #     )
 
 
 # NOTE I don't like this
