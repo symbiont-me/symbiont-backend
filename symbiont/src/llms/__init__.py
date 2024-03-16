@@ -7,6 +7,13 @@ from langchain.prompts import PromptTemplate
 from pydantic import BaseModel
 from langchain_openai import OpenAI
 from firebase_admin import firestore
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts.chat import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
+)
+from langchain_openai import ChatOpenAI
 
 
 def create_user_prompt(user_query: str, context: str, previous_message: str | None):
@@ -45,19 +52,39 @@ def isAnthropicModel(llm_name: str) -> bool:
     return bool(re.match(r"claude", llm_name))
 
 
+async def generate_openai_response(
+    model: LLMModel, api_key: str, max_tokens: int, user_query: str, context: str
+):
+    chat = ChatOpenAI(
+        model_name=model,
+        temperature=0.75,
+        openai_api_key=api_key,
+        max_tokens=max_tokens,
+    )
+
+    system_prompt = create_user_prompt(user_query, context, "")
+    system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
+    human = user_query
+    prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
+    chain = prompt | chat
+    for chunk in chain.stream({}):
+        print(chunk.content)
+        yield chunk.content
+
+
 # TODO move to own file
 async def generate_anthropic_response(
     model: LLMModel,
-    max_tokens: int,
+    api_key: str,
+    max_tokens: int | None,
     user_query: str,
     context: str,
     previous_message: str | None,
 ):
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if api_key is None:
-        raise ValueError("ANTHROPIC_API_KEY is not set")
     chat = ChatAnthropic(
-        temperature=0, anthropic_api_key=api_key, model_name=LLMModel.CLAUDE_INSTANT_1_2
+        temperature=0,
+        anthropic_api_key=api_key,
+        model_name=model,
     )
 
     system_prompt = create_user_prompt(user_query, context, previous_message)
