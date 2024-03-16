@@ -104,7 +104,7 @@ class LLMSettings(BaseModel):
 
 
 # TODO move to routers/llm_settings.py
-def get_user_llm_settings(user_uid: str) -> LLMSettings | None:
+def get_user_llm_settings(user_uid: str):
     db = firestore.client()
     doc_ref = db.collection("users").document(user_uid)
     if not doc_ref:
