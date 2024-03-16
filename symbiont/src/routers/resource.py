@@ -21,21 +21,16 @@ from ..models import (
     AddYoutubeVideoRequest,
     AddWebpageResourceRequest,
 )
-from ..pinecone.pc import (
-    prepare_resource_for_pinecone,
-    upload_yt_resource_to_pinecone,
-    upload_webpage_to_pinecone,
-)
-from ..utils.db_utils import get_document_dict, get_document_ref
+from ..pinecone.pc import PineconeService
+from ..utils.db_utils import StudyService
 from ..utils.helpers import make_file_identifier
 from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import Html2TextTransformer
 from langchain_community.document_loaders import UnstructuredHTMLLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from ..utils.llm_utils import summarise_plain_text_resource
-from ..utils.db_utils import add_resource_to_db
 from pydantic import BaseModel
-from ..pinecone.pc import delete_vectors_from_pinecone
+from ..pinecone.pc import PineconeService
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -122,7 +117,9 @@ async def add_resource(
 ):
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file provided!")
+    pc_service = PineconeService(request.state.verified_user["user_id"])
     user_uid = request.state.verified_user["user_id"]
+    study_service = StudyService(user_uid, studyId)
     upload_result = upload_to_firebase_storage(file, user_uid)
     file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
     study_resource = StudyResource(
@@ -132,14 +129,14 @@ async def add_resource(
         url=upload_result.url,
         category=file_extension,
     )
-    study_ref = get_document_ref("studies_", "userId", user_uid, studyId)
+    study_ref = study_service.get_document_ref()
     if study_ref is None:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
         delete_resource_from_storage(study_resource.identifier)
         raise HTTPException(status_code=404, detail="No such document!")
     study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
     print("Adding to Pinecone")
-    await prepare_resource_for_pinecone(
+    await pc_service.prepare_resource_for_pinecone(
         upload_result.identifier, upload_result.download_url
     )
     # Add background task to generate summary
@@ -156,7 +153,8 @@ async def add_resource(
 @router.post("/get-resources")
 async def get_resources(studyId: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
-    study_dict = get_document_dict("studies_", "userId", user_uid, studyId)
+    study_service = StudyService(user_uid, studyId)
+    study_dict = study_service.get_document_dict()
     if study_dict is None:
         raise HTTPException(status_code=404, detail="Study not found")
     resources = study_dict.get("resources", [])
@@ -171,6 +169,7 @@ async def process_youtube_video(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
+    pc_service = PineconeService(request.state.verified_user["user_id"])
     # TODO allow multiple urls
     # TODO auth verification if necessary
     loader = YoutubeLoader.from_youtube_url(
@@ -199,7 +198,7 @@ async def process_youtube_video(
         request.state.verified_user["user_id"],
     )
 
-    await upload_yt_resource_to_pinecone(study_resource, doc.page_content)
+    await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
     print("YT VIDEO ADDED TO PINECONE")
     return {"status_code": 200, "message": "Resource added."}
 
@@ -212,8 +211,9 @@ async def add_webpage_resource(
 ):
 
     user_uid = request.state.verified_user["user_id"]
+    pc_service = PineconeService(user_uid)
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
-
+    study_service = StudyService(user_uid, webpage_resource.studyId)
     loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
     html_docs = loader.load()
     studies = []
@@ -242,7 +242,9 @@ async def add_webpage_resource(
         print("ADDED WEBPAGE RESOURCE")
         # Schedule upload to Pinecone as a background task
         background_tasks.add_task(
-            upload_webpage_to_pinecone, study_resource, docs_transformed[0].page_content
+            pc_service.upload_webpage_to_pinecone,
+            study_resource,
+            docs_transformed[0].page_content,
         )
 
     # Process summaries as a background task
@@ -261,9 +263,10 @@ async def add_webpage_resource(
 async def get_and_save_summary_to_db(
     study_resource: StudyResource, content: str, studyId: str, user_uid: str
 ):
+    study_service = StudyService(user_uid, studyId)
     summary = summarise_plain_text_resource(content)
     study_resource.summary = summary
-    add_resource_to_db(user_uid, studyId, study_resource)
+    study_service.add_resource_to_db(study_resource)
     print("ADDED RESOURCE TO DB")
 
 
@@ -280,6 +283,7 @@ async def add_plain_text_resource(
     background_tasks: BackgroundTasks,
 ):
     user_uid = request.state.verified_user["user_id"]
+
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
     study_resource = StudyResource(
         studyId=plain_text_resource.studyId,
@@ -289,6 +293,12 @@ async def add_plain_text_resource(
         category="text",
         summary="",
     )
+    pc_service = PineconeService(
+        user_uid,
+        plain_text_resource.content,
+        study_resource.identifier,
+        plain_text_resource.studyId,
+    )
     background_tasks.add_task(
         get_and_save_summary_to_db,
         study_resource,
@@ -296,7 +306,9 @@ async def add_plain_text_resource(
         plain_text_resource.studyId,
         user_uid,
     )
-    await upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
+    await pc_service.upload_webpage_to_pinecone(
+        study_resource, plain_text_resource.content
+    )
     return {"status_code": 200, "message": "Resource added."}
 
 
@@ -304,6 +316,7 @@ async def add_plain_text_resource(
 @router.post("/delete-resource")
 async def delete_resource(identifier: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
+    pc_service = PineconeService(user_uid)
     # TODO fix this
     study_docs = (
         firestore.client()
@@ -322,7 +335,7 @@ async def delete_resource(identifier: str, request: Request):
                 doc.reference.update({"resources": resources})
                 if res.get("category") == "pdf":
                     delete_resource_from_storage(identifier)
-                    delete_vectors_from_pinecone(identifier)
+                    pc_service.delete_vectors_from_pinecone(identifier)
                 return {"message": "Resource deleted."}
     raise HTTPException(status_code=404, detail="Resource not found")
     return {"message": "Resource deleted."}
