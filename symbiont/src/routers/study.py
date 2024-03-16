@@ -53,8 +53,22 @@ async def create_study(study: CreateStudyRequest, request: Request):
     )
     try:
         db = firestore.client()
-        doc_ref = db.collection("studies_").document()
-        doc_ref.set(new_study.model_dump())
+        # Create a new document for the study
+        study_doc_ref = db.collection("studies_").document()
+        study_doc_ref.set(new_study.model_dump())
+        study_id = study_doc_ref.id
+
+        # Get the user document and update the studies array
+        user_doc_ref = db.collection("users").document(user_uid)
+        user_doc = user_doc_ref.get()
+        if user_doc.exists:
+            user_data = user_doc.to_dict()
+            user_studies = user_data.get("studies", [])
+            user_studies.append(study_id)
+            user_doc_ref.update({"studies": user_studies})
+        else:
+            # If the user does not exist, create a new document with the study
+            user_doc_ref.set({"studies": [study_id]})
 
         return {"message": "Study created successfully", "study": study.model_dump()}
     except Exception as e:
