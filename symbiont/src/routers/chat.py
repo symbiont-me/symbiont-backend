@@ -97,8 +97,11 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     print("CONTEXT", context)
 
-    llm = get_user_llm_settings()
+    llm = get_user_llm_settings(user_uid)
+    if llm is None:
+        raise HTTPException(status_code=404, detail="No LLM settings found!")
     prompt = create_user_prompt(user_query, context, previous_message)
+    print(llm, "LLM")
 
     # NOTE a bit slow
     async def generate_llm_response() -> AsyncGenerator[str, None]:
@@ -110,24 +113,37 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         """
         llm_response = ""
         # TODO uncomment
-        # if isOpenAImodel(llm.model):
-        #     async for chunk in llm.astream(prompt):
-        #         llm_response += chunk
-        #         yield chunk
-        # if isAnthropicModel(llm.model):
-        # TODO fix, Claude is not Streaming
-        async for chunk in generate_anthropic_response(
-            LLMModel.CLAUDE_INSTANT_1_2, 1500, user_query, context, previous_message
-        ):
-            llm_response += chunk
-            yield chunk
-        background_tasks.add_task(
-            save_chat_message_to_db,
-            chat_message=llm_response,
-            studyId=study_id,
-            role="bot",
-            user_uid=user_uid,
-        )
+        if isOpenAImodel(llm["llm_name"]):
+            chain = OpenAI(
+                model_name=llm["llm_name"],
+                openai_api_key=llm["api_key"],
+                max_tokens=1500,
+                temperature=0.75,
+            )
+            async for chunk in chain.astream(prompt):
+                llm_response += chunk
+                yield chunk
+                background_tasks.add_task(
+                    save_chat_message_to_db,
+                    chat_message=llm_response,
+                    studyId=study_id,
+                    role="bot",
+                    user_uid=user_uid,
+                )
+        if isAnthropicModel(llm["llm_name"]):
+            # TODO fix, Claude is not Streaming
+            async for chunk in generate_anthropic_response(
+                LLMModel.CLAUDE_INSTANT_1_2, 1500, user_query, context, previous_message
+            ):
+                llm_response += chunk
+                yield chunk
+                background_tasks.add_task(
+                    save_chat_message_to_db,
+                    chat_message=llm_response,
+                    studyId=study_id,
+                    role="bot",
+                    user_uid=user_uid,
+                )
 
     return StreamingResponse(generate_llm_response())
 
