@@ -16,7 +16,7 @@ from langchain_core.prompts.chat import (
 from langchain_openai import ChatOpenAI
 
 
-def create_user_prompt(user_query: str, context: str, previous_message: str | None):
+def create_user_prompt(user_query: str, context: str, previous_message=""):
     prompt_template = PromptTemplate.from_template(
         """
         You are a well-informed AI assistant. 
@@ -79,7 +79,7 @@ async def generate_anthropic_response(
     max_tokens: int | None,
     user_query: str,
     context: str,
-    previous_message: str | None,
+    previous_message: str = "",
 ):
     chat = ChatAnthropic(
         temperature=0,

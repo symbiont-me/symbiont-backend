@@ -6,6 +6,7 @@ from ..models import LLMModel
 from ..llms import get_user_llm_settings
 
 
+# TODO fix summariser
 # sort of a dumb tokenizer but works
 def truncate_prompt(prompt: str, query_size=500, model_context_window=4096) -> str:
 
