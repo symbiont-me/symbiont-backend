@@ -17,7 +17,6 @@ from langchain_community.embeddings import CohereEmbeddings
 from . import pc_index
 from ..models import EmbeddingModels
 from firebase_admin import firestore
-from ..llms import get_user_llm_settings
 import nltk
 
 nltk.download("punkt")
@@ -26,60 +25,26 @@ load_dotenv()
 
 # TODO import all these from __init__.py
 cohere_api_key = os.getenv("COHERE_API_KEY")
-
+api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
-# open_ai_api_key = os.getenv("OPENAI_API_KEY")
 
 
-# class PineconeService:
-#     def __init__(
-#         self, user_uid=None, user_query=None, resource_identifier=None, study_id=None
-#     ):
-
-#         self.user_uid = user_uid
-#         self.user_query = user_query
-#         self.resource = resource_identifier
-#         self.study_id = study_id
-#         self.db = firestore.client()
-#         self.embed = OpenAIEmbeddings(
-#             model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE,
-#             dimensions=1536,
-#         )
-#         # Other initializations...
-
-
+# TODO INITIALIZE THE EMBEDDINGS MODEL WITH USER'S API KEY FROM THE DB
 class PineconeService:
     def __init__(
-        self,
-        user_uid=None,
-        user_query=None,
-        resource_identifier=None,
-        study_id=None,
+        self, user_uid=None, user_query=None, resource_identifier=None, study_id=None
     ):
+
         self.user_uid = user_uid
         self.user_query = user_query
         self.resource = resource_identifier
         self.study_id = study_id
         self.db = firestore.client()
         self.embed = OpenAIEmbeddings(
-            model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE,
-            dimensions=1536,
+            model=EmbeddingModels.TEXT_EMBEDDING_3_SMALL, dimensions=1536
         )
-        self.initialize_embeddings_model()
-
-    # TODO fix this part it is out of place, can be moved to some __init__.py file
-    def initialize_embeddings_model(self):
-        if self.user_uid is None:
-            raise ValueError("User UID must be provided to initialize embeddings model")
-        settings = get_user_llm_settings(self.user_uid)
-        self.embed = OpenAIEmbeddings(
-            model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE,
-            dimensions=1536,
-            api_key=settings.api_key,
-        )
-        print("Initialized embeddings model")
 
     def get_vectors_from_db(self):
         vec_ref = self.db.collection("users").document(self.user_uid)
