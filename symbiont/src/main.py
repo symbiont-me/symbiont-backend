@@ -27,6 +27,9 @@ app.include_router(llm_settings_router.router)
 origins = [
     "http://localhost",
     "http://localhost:3000",
+    "https://symbiont.vercel.app/",
+    "symbiont-git-main-thelonehegelian.vercel.app",
+    "symbiont-bfhadjedi-thelonehegelian.vercel.app",
 ]
 
 app.add_middleware(
