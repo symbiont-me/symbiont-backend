@@ -42,6 +42,8 @@ class StudyService:
         if study_ref is None:
             raise HTTPException(status_code=404, detail="No such document!")
         study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+
+        print("Added resource to DB")
         return {
             "message": "Resource added successfully",
             "resource": study_resource.model_dump(),
