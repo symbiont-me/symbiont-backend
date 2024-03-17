@@ -4,7 +4,7 @@ from symbiont.src.models import PineconeRecord, DocumentPage
 from symbiont.src.fb.storage import download_from_firebase_storage, delete_local_file
 from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import NLTKTextSplitter
+from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
 from hashlib import md5
 
 from langchain_openai import OpenAIEmbeddings
@@ -18,6 +18,7 @@ from . import pc_index
 from ..models import EmbeddingModels
 from firebase_admin import firestore
 import nltk
+from pydantic import BaseModel
 
 nltk.download("punkt")
 
@@ -29,6 +30,12 @@ api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
+
+
+class VectorInDB(BaseModel):
+    source: str
+    page: int
+    text: str
 
 
 # TODO INITIALIZE THE EMBEDDINGS MODEL WITH USER'S API KEY FROM THE DB
@@ -61,8 +68,10 @@ class PineconeService:
         # Initialize 'vectors' as a mapping if it doesn't exist
         if "vectors" not in current_data:
             current_data["vectors"] = {}
-        # Update the mapping with the new vector data using md5 as the key
-        current_data["vectors"][md5_hash] = metadata
+        source = metadata["source"]  # @dev this is the same as the file_identifier
+        if source not in current_data["vectors"]:
+            current_data["vectors"][metadata["source"]] = {}
+        current_data["vectors"][source][md5_hash] = VectorInDB(**metadata).dict()
         # Update the document with the new mapping of vectors
         vec_ref.set(current_data)
         return vec_ref
@@ -111,6 +120,13 @@ class PineconeService:
     # TODO rename this function as it is used for more than just webpages
     async def upload_webpage_to_pinecone(self, resource, content):
         text_splitter = NLTKTextSplitter()
+        # text_splitter = RecursiveCharacterTextSplitter(
+        #     # Set a really small chunk size, just to show.
+        #     chunk_size=1500,
+        #     chunk_overlap=20,
+        #     length_function=len,
+        #     is_separator_regex=False,
+        # )
         split_texts = text_splitter.create_documents([content])
         docs = [
             DocumentPage(
@@ -141,8 +157,9 @@ class PineconeService:
             vec_data = self.get_vectors_from_db()
             if vec_data is None:
                 return ""
-            vec_metadata.append(vec_data[match.id])
-            context += vec_data[match.id]["text"]
+            resource_vecs = vec_data[self.resource]
+            vec_metadata.append(resource_vecs[match.id])
+            context += resource_vecs[match.id]["text"]
         print("CONTEXT", context)
         return context
 
