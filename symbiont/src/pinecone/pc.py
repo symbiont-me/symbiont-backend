@@ -6,6 +6,7 @@ from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
 
 from langchain.text_splitter import NLTKTextSplitter
+
 from hashlib import md5
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAI, OpenAIEmbeddings
@@ -18,7 +19,9 @@ from langchain_community.embeddings import CohereEmbeddings
 from . import pc_index
 from ..models import EmbeddingModels
 from firebase_admin import firestore
+import nltk
 
+nltk.download("punkt")
 
 load_dotenv()
 
@@ -109,14 +112,14 @@ class PineconeService:
 
     # TODO rename this function as it is used for more than just webpages
     async def upload_webpage_to_pinecone(self, resource, content):
-        # text_splitter = NLTKTextSplitter()
-        text_splitter = RecursiveCharacterTextSplitter(
-            # Set a really small chunk size, just to show.
-            chunk_size=250,
-            chunk_overlap=20,
-            length_function=len,
-            is_separator_regex=False,
-        )
+        text_splitter = NLTKTextSplitter()
+        # text_splitter = RecursiveCharacterTextSplitter(
+        #     # Set a really small chunk size, just to show.
+        #     chunk_size=250,
+        #     chunk_overlap=20,
+        #     length_function=len,
+        #     is_separator_regex=False,
+        # )
         split_texts = text_splitter.create_documents([content])
         docs = [
             DocumentPage(
