@@ -245,23 +245,25 @@ async def add_webpage_resource(
             study_resource, docs_transformed[0].page_content
         )
         # Schedule upload to Pinecone as a background task
-        # background_tasks.add_task(
-        #     pc_service.upload_webpage_to_pinecone,
-        #     study_resource,
-        #     docs_transformed[0].page_content,
-        # )
-        study_service = StudyService(user_uid, webpage_resource.studyId)
-        study_service.add_resource_to_db(study_resource)
-        print("ADDED RESOURCE TO DB")
+        background_tasks.add_task(
+            pc_service.upload_webpage_to_pinecone,
+            study_resource,
+            docs_transformed[0].page_content,
+        )
+
+        # TODO if the background tasks are too slow use the code below
+        # study_service = StudyService(user_uid, webpage_resource.studyId)
+        # study_service.add_resource_to_db(study_resource)
+        # print("ADDED RESOURCE TO DB")
     # Process summaries as a background task
-    # for study_resource, content in transformed_docs_contents:
-    #     background_tasks.add_task(
-    #         get_and_save_summary_to_db,
-    #         study_resource,
-    #         content,
-    #         webpage_resource.studyId,
-    #         user_uid,
-    #     )
+    for study_resource, content in transformed_docs_contents:
+        background_tasks.add_task(
+            get_and_save_summary_to_db,
+            study_resource,
+            content,
+            webpage_resource.studyId,
+            user_uid,
+        )
 
 
 # NOTE I don't like this
