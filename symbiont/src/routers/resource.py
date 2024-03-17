@@ -46,6 +46,8 @@ def delete_resource_from_storage(identifier: str):
     blob.delete()
 
 
+# Generates a signed URL is a URL that includes a signature, allowing access to a resource for a limited time period.
+# This is useful for providing short-term access to a resource that would otherwise require authentication.
 def generate_signed_url(identifier: str) -> str:
     blob = storage.bucket().blob(identifier)
     expiration_time = datetime.now() + timedelta(hours=1)
@@ -99,13 +101,19 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
 
 
 # TODO handle file types
-# TODO verify user that user is logged in
-# TODO make this into a single endpoint that takes in the file and the studyId, uploads and saves the resource to the database
-# TODO REMOVE
-# @app.post("/upload-resource/")
-# async def upload_resource(file: UploadFile):
-#     return_obj = upload_to_firebase_storage(file)
-#     return return_obj
+
+
+# NOTE I don't like this
+# TODO move this someplace else
+async def get_and_save_summary_to_db(
+    study_resource: StudyResource, content: str, studyId: str, user_uid: str
+):
+    # TODO Fix summariser
+    # TODO add the resource to db straight away
+    study_service = StudyService(user_uid, studyId)
+    study_service.add_resource_to_db(study_resource)
+    # summary = summarise_plain_text_resource(content)
+    # study_service.update_resource_summary(study_resource.identifier, summary)
 
 
 @router.post("/upload-resource")
@@ -240,23 +248,14 @@ async def add_webpage_resource(
         transformed_docs_contents.append(
             (study_resource, docs_transformed[0].page_content)
         )
-        # Add resource to db straight away and schedule upload to Pinecone
-        study_service.add_resource_to_db(study_resource)
-        # await pc_service.upload_webpage_to_pinecone(
-        #     study_resource, docs_transformed[0].page_content
-        # )
-        # Schedule upload to Pinecone as a background task
+
         background_tasks.add_task(
             pc_service.upload_webpage_to_pinecone,
             study_resource,
             docs_transformed[0].page_content,
         )
 
-        # TODO if the background tasks are too slow use the code below
-        # study_service = StudyService(user_uid, webpage_resource.studyId)
-
-        # print("ADDED RESOURCE TO DB")
-    # Process summaries as a background task
+    # Process summaries and db update as a background task
     for study_resource, content in transformed_docs_contents:
         background_tasks.add_task(
             get_and_save_summary_to_db,
@@ -265,19 +264,6 @@ async def add_webpage_resource(
             webpage_resource.studyId,
             user_uid,
         )
-
-
-# NOTE I don't like this
-# TODO move this someplace else
-async def get_and_save_summary_to_db(
-    study_resource: StudyResource, content: str, studyId: str, user_uid: str
-):
-    # TODO Fix summariser
-    # TODO add the resource to db straight away
-    study_service = StudyService(user_uid, studyId)
-    # summary = summarise_plain_text_resource(content)
-    # study_resource.summary = summary
-    study_service.add_resource_to_db(study_resource)
 
 
 class AddPlainTextResourceRequest(BaseModel):
