@@ -4,12 +4,10 @@ from symbiont.src.models import PineconeRecord, DocumentPage
 from symbiont.src.fb.storage import download_from_firebase_storage, delete_local_file
 from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
-
 from langchain.text_splitter import NLTKTextSplitter
-
 from hashlib import md5
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAI, OpenAIEmbeddings
+
+from langchain_openai import OpenAIEmbeddings
 from symbiont.src.models import EmbeddingModels
 import os
 from dotenv import load_dotenv
@@ -19,6 +17,7 @@ from langchain_community.embeddings import CohereEmbeddings
 from . import pc_index
 from ..models import EmbeddingModels
 from firebase_admin import firestore
+from ..llms import get_user_llm_settings
 import nltk
 
 nltk.download("punkt")
@@ -27,10 +26,11 @@ load_dotenv()
 
 # TODO import all these from __init__.py
 cohere_api_key = os.getenv("COHERE_API_KEY")
-api_key = os.getenv("OPENAI_API_KEY")
+
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
+open_ai_api_key = os.getenv("OPENAI_API_KEY")
 
 
 class PineconeService:
@@ -44,9 +44,38 @@ class PineconeService:
         self.study_id = study_id
         self.db = firestore.client()
         self.embed = OpenAIEmbeddings(
-            model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE, dimensions=1536
+            model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE,
+            dimensions=1536,
         )
         # Other initializations...
+
+    class PineconeService:
+        def __init__(
+            self,
+            user_uid=None,
+            user_query=None,
+            resource_identifier=None,
+            study_id=None,
+        ):
+            self.user_uid = user_uid
+            self.user_query = user_query
+            self.resource = resource_identifier
+            self.study_id = study_id
+            self.db = firestore.client()
+            self.initialize_embeddings_model()
+
+            # Other initializations...
+
+        def initialize_embeddings_model(self):
+            if self.user_uid is None:
+                return
+            settings = get_user_llm_settings(self.user_uid)
+            self.embed = OpenAIEmbeddings(
+                model=EmbeddingModels.TEXT_EMBEDDING_3_LARGE,
+                dimensions=1536,
+                api_key=settings.api_key,
+            )
+            print("Initialized embeddings model")
 
     def get_vectors_from_db(self):
         vec_ref = self.db.collection("users").document(self.user_uid)
@@ -113,13 +142,6 @@ class PineconeService:
     # TODO rename this function as it is used for more than just webpages
     async def upload_webpage_to_pinecone(self, resource, content):
         text_splitter = NLTKTextSplitter()
-        # text_splitter = RecursiveCharacterTextSplitter(
-        #     # Set a really small chunk size, just to show.
-        #     chunk_size=250,
-        #     chunk_overlap=20,
-        #     length_function=len,
-        #     is_separator_regex=False,
-        # )
         split_texts = text_splitter.create_documents([content])
         docs = [
             DocumentPage(
@@ -158,14 +180,7 @@ class PineconeService:
     async def upload_yt_resource_to_pinecone(self, resource, content):
         # NOTE this is causing problems, it seems to be cutting off the text
         # content = truncate_string_by_bytes(content, 10000)
-        # text_splitter = NLTKTextSplitter()
-        text_splitter = RecursiveCharacterTextSplitter(
-            # Set a really small chunk size, just to show.
-            chunk_size=250,
-            chunk_overlap=20,
-            length_function=len,
-            is_separator_regex=False,
-        )
+        text_splitter = NLTKTextSplitter()
         split_texts = text_splitter.create_documents([content])
         # NOTE I should be able to use the Document from langchain_core.documents everywhere
         docs = [
@@ -204,15 +219,7 @@ class PineconeService:
     ) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
-        # text_splitter = NLTKTextSplitter()
-        text_splitter = RecursiveCharacterTextSplitter(
-            # Set a really small chunk size, just to show.
-            chunk_size=250,
-            chunk_overlap=20,
-            length_function=len,
-            is_separator_regex=False,
-        )
-
+        text_splitter = NLTKTextSplitter()
         split_texts = text_splitter.create_documents([page_content])
         docs = [
             DocumentPage(
