@@ -28,8 +28,8 @@ origins = [
     "http://localhost",
     "http://localhost:3000",
     "https://symbiont.vercel.app/",
-    "symbiont-git-main-thelonehegelian.vercel.app",
-    "symbiont-bfhadjedi-thelonehegelian.vercel.app",
+    "https://symbiont-git-main-thelonehegelian.vercel.app",
+    "https://symbiont-bfhadjedi-thelonehegelian.vercel.app",
 ]
 
 app.add_middleware(
