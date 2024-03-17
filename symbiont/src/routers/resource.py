@@ -212,6 +212,7 @@ async def add_webpage_resource(
 
     user_uid = request.state.verified_user["user_id"]
     pc_service = PineconeService(user_uid)
+    study_service = StudyService(user_uid, webpage_resource.studyId)
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
 
     loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
@@ -239,11 +240,11 @@ async def add_webpage_resource(
         transformed_docs_contents.append(
             (study_resource, docs_transformed[0].page_content)
         )
-        print("ADDED WEBPAGE RESOURCE")
-
-        await pc_service.upload_webpage_to_pinecone(
-            study_resource, docs_transformed[0].page_content
-        )
+        # Add resource to db straight away and schedule upload to Pinecone
+        study_service.add_resource_to_db(study_resource)
+        # await pc_service.upload_webpage_to_pinecone(
+        #     study_resource, docs_transformed[0].page_content
+        # )
         # Schedule upload to Pinecone as a background task
         background_tasks.add_task(
             pc_service.upload_webpage_to_pinecone,
@@ -253,7 +254,7 @@ async def add_webpage_resource(
 
         # TODO if the background tasks are too slow use the code below
         # study_service = StudyService(user_uid, webpage_resource.studyId)
-        # study_service.add_resource_to_db(study_resource)
+
         # print("ADDED RESOURCE TO DB")
     # Process summaries as a background task
     for study_resource, content in transformed_docs_contents:
@@ -271,11 +272,12 @@ async def add_webpage_resource(
 async def get_and_save_summary_to_db(
     study_resource: StudyResource, content: str, studyId: str, user_uid: str
 ):
+    # TODO Fix summariser
+    # TODO add the resource to db straight away
     study_service = StudyService(user_uid, studyId)
-    summary = summarise_plain_text_resource(content)
-    study_resource.summary = summary
+    # summary = summarise_plain_text_resource(content)
+    # study_resource.summary = summary
     study_service.add_resource_to_db(study_resource)
-    print("ADDED RESOURCE TO DB")
 
 
 class AddPlainTextResourceRequest(BaseModel):
