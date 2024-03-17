@@ -98,7 +98,8 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     if llm is None:
         raise HTTPException(status_code=404, detail="No LLM settings found!")
 
-    print(llm, "LLM")
+    if context == "":
+        response = "I am sorry, there is no information available in the documents to answer your question."
 
     # NOTE a bit slow
     # TODO fix streaming response
@@ -131,7 +132,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
                 user_uid=user_uid,
             )
 
-        elif isAnthropicModel(
+        if isAnthropicModel(
             llm["llm_name"]
         ):  # Changed to elif to avoid overlapping if conditions
 
@@ -146,6 +147,17 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
                 llm_response += chunk
                 yield chunk
 
+            background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=llm_response,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
+
+        if (context == "") and (llm_response == ""):
+            llm_response = "I am sorry, there is no information available in the documents to answer your question."
+            yield llm_response
             background_tasks.add_task(
                 save_chat_message_to_db,
                 chat_message=llm_response,
