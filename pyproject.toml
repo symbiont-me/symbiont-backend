@@ -26,6 +26,7 @@ playwright = "^1.41.2"
 langchain-text-splitters = "^0.0.1"
 cohere = "^4.53"
 langchain-anthropic = "^0.1.4"
+colorlog = "^6.8.2"
 
 [build-system]
 requires = ["poetry-core"]
