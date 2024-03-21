@@ -286,16 +286,13 @@ async def add_plain_text_resource(
         study_resource.identifier,
         plain_text_resource.studyId,
     )
-    background_tasks.add_task(
-        get_and_save_summary_to_db,
-        study_resource,
-        plain_text_resource.content,
-        plain_text_resource.studyId,
-        user_uid,
-    )
+    study_service = StudyService(user_uid, plain_text_resource.studyId)
+
     await pc_service.upload_webpage_to_pinecone(
         study_resource, plain_text_resource.content
     )
+
+    study_service.add_resource_to_db(study_resource)
     return {"status_code": 200, "message": "Resource added."}
 
 
