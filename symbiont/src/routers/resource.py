@@ -1,17 +1,11 @@
 from datetime import datetime, timedelta
-from re import A
-from google.cloud.firestore import ArrayUnion, ArrayRemove
-from pinecone import Pinecone
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import NLTKTextSplitter
-from firebase_admin import firestore, auth, credentials, storage
+from google.cloud.firestore import ArrayUnion
+from firebase_admin import firestore, storage
 from fastapi import (
     APIRouter,
     BackgroundTasks,
     HTTPException,
     UploadFile,
-    File,
-    Depends,
     Request,
 )
 from ..models import (
@@ -25,12 +19,8 @@ from ..pinecone.pc import PineconeService
 from ..utils.db_utils import StudyService
 from ..utils.helpers import make_file_identifier
 from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
-from langchain_community.document_transformers import Html2TextTransformer
-from langchain_community.document_loaders import UnstructuredHTMLLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
-from ..utils.llm_utils import summarise_plain_text_resource
 from pydantic import BaseModel
-from ..pinecone.pc import PineconeService
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
