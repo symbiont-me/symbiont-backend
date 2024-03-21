@@ -7,7 +7,6 @@ from .routers import chat as chat_router
 from .routers import resource as resource_handling_router
 from .routers import summary as summary_router
 from .routers import llm_settings as llm_settings_router
-import re
 
 
 app = FastAPI()
@@ -29,9 +28,6 @@ origins = [
     "http://localhost",
     "http://localhost:3000",
     "https://symbiont.vercel.app/",
-    "https://symbiont-git-main-thelonehegelian.vercel.app",
-    "https://symbiont-bfhadjedi-thelonehegelian.vercel.app",
-    "https://symbiont-6n13jr6cf-thelonehegelian.vercel.app",
 ]
 
 
