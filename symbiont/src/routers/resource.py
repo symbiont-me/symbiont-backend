@@ -250,7 +250,9 @@ async def add_webpage_resource(
         transformed_docs_contents.append(
             (study_resource, docs_transformed[0].page_content)
         )
-        pc_service.upload_webpage_to_pinecone
+        await pc_service.upload_webpage_to_pinecone(
+            study_resource, docs_transformed[0].page_content
+        )
 
     # Process summaries and db update as a background task
     for study_resource, content in transformed_docs_contents:
