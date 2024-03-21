@@ -2,7 +2,6 @@ from hashlib import md5
 from typing import List
 from symbiont.src.models import PineconeRecord, DocumentPage
 from symbiont.src.fb.storage import download_from_firebase_storage, delete_local_file
-from pinecone import Pinecone
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
 from hashlib import md5
@@ -15,10 +14,13 @@ from langchain_core.documents import Document
 from typing import List, Union
 from langchain_community.embeddings import CohereEmbeddings
 from . import pc_index
-from ..models import EmbeddingModels
+from ..models import EmbeddingModels, StudyResource
 from firebase_admin import firestore
 import nltk
 from pydantic import BaseModel
+from ..models import Study
+from typing import Union
+from .. import logger
 
 nltk.download("punkt")
 
