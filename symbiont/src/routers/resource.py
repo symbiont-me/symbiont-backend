@@ -21,6 +21,7 @@ from ..utils.helpers import make_file_identifier
 from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
+from .. import logger
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -170,7 +171,8 @@ async def process_youtube_video(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-    pc_service = PineconeService(request.state.verified_user["user_id"])
+    user_uid = request.state.verified_user["user_id"]
+
     # TODO allow multiple urls
     # TODO auth verification if necessary
     loader = YoutubeLoader.from_youtube_url(
@@ -190,6 +192,12 @@ async def process_youtube_video(
         name=doc.metadata["title"],
         url=str(video_resource.url),
         category="video",
+    )
+    pc_service = PineconeService(
+        study_id=video_resource.studyId,
+        resource_identifier=study_resource.identifier,
+        user_uid=user_uid,
+        user_query=None,
     )
     background_tasks.add_task(
         get_and_save_summary_to_db,
