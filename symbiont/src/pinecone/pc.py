@@ -88,9 +88,10 @@ class PineconeService:
         # Initialize 'vectors' as a mapping if it doesn't exist
         if "vectors" not in current_data:
             current_data["vectors"] = {}
-        source = metadata["source"]  # @dev this is the same as the file_identifier
+        # @dev this is the same as the file_identifier
+        source = self.resource_identifier
         if source not in current_data["vectors"]:
-            current_data["vectors"][metadata["source"]] = {}
+            current_data["vectors"][source] = {}
         current_data["vectors"][source][md5_hash] = VectorInDB(**metadata).dict()
         # Update the document with the new mapping of vectors
         vec_ref.set(current_data)
@@ -159,28 +160,34 @@ class PineconeService:
         ]
 
         vecs = [await self.embed_document(doc) for doc in docs]
-        await self.upload_vecs_to_pinecone(vecs, resource.identifier)
+        await self.upload_vecs_to_pinecone(vecs)
 
     def get_chat_context(self, top_k=10):
-        if self.resource is None or self.user_query is None:
+        if self.resource_identifier is None or self.user_query is None:
             raise ValueError(
                 "Resource and user query must be provided to get chat context"
             )
         context = ""
-        pc_results = self.search_pinecone_index(self.user_query, self.resource, top_k)
+        pc_results = self.search_pinecone_index(
+            self.user_query, self.resource_identifier, top_k
+        )
+        logger.info(f"Found {len(pc_results.matches)} matches")
 
         vec_metadata = []
         for match in pc_results.matches:
             vec_data = self.get_vectors_from_db()
+            logger.info(f"VEC DATA FROM DB: {vec_data}")
             if vec_data is None:
                 return ""
-            resource_vecs = vec_data[self.resource]
+            resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
             context += resource_vecs[match.id]["text"]
         print("CONTEXT", context)
         return context
 
-    async def upload_yt_resource_to_pinecone(self, resource, content):
+    async def upload_yt_resource_to_pinecone(
+        self, resource: StudyResource, content: str
+    ):
         # NOTE this is causing problems, it seems to be cutting off the text
         # content = truncate_string_by_bytes(content, 10000)
         split_texts = self.recursive_text_splitter.create_documents([content])
@@ -198,18 +205,17 @@ class PineconeService:
             for split_text in split_texts
         ]
         vecs = [await self.embed_document(doc) for doc in docs]
-        await self.upload_vecs_to_pinecone(vecs, resource.identifier)
+        await self.upload_vecs_to_pinecone(vecs)
 
-    async def upload_vecs_to_pinecone(
-        self, vecs: List[PineconeRecord], file_identifier: str
-    ):
-        # TODO don't initialize Pinecone client here
+    async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
         metadata = (
             {}
         )  # TODO metadata is stored in the db. It should not be stored in Pinecone. Should have a better way to do this
         formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
-        pc_index.upsert(vectors=formatted_vecs, namespace=file_identifier)
-        print("Uploaded to Pinecone")
+        if pc_index is None:
+            logger.error("Pinecone index is not initialized")
+            raise ValueError("Pinecone index is not initialized")
+        pc_index.upsert(vectors=formatted_vecs, namespace=self.resource_identifier)
 
     def truncate_string_by_bytes(self, string, num_bytes):
         encoded_string = string.encode("utf-8")
@@ -227,7 +233,7 @@ class PineconeService:
                 page_content=split_text.page_content,
                 metadata={
                     "text": split_text.page_content,
-                    "source": pdf_page.metadata["source"],
+                    "source": self.resource_identifier,
                     "page": pdf_page.metadata["page"],
                 },
                 type=pdf_page.type,
@@ -242,8 +248,9 @@ class PineconeService:
         return vec
 
     def search_pinecone_index(self, query: str, file_identifier: str, top_k=10):
-
         query_embedding = self.get_query_embedding(query)
+        if pc_index is None:
+            raise ValueError("Pinecone index is not initialized")
         query_matches = pc_index.query(
             vector=query_embedding,
             top_k=top_k,
@@ -252,3 +259,6 @@ class PineconeService:
         )
 
         return query_matches
+
+    def add_resource_to_pinecone(self):
+        pass
