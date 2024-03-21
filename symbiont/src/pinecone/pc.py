@@ -144,15 +144,7 @@ class PineconeService:
 
     # TODO rename this function as it is used for more than just webpages
     async def upload_webpage_to_pinecone(self, resource, content):
-        text_splitter = NLTKTextSplitter()
-        # text_splitter = RecursiveCharacterTextSplitter(
-        #     # Set a really small chunk size, just to show.
-        #     chunk_size=1500,
-        #     chunk_overlap=20,
-        #     length_function=len,
-        #     is_separator_regex=False,
-        # )
-        split_texts = text_splitter.create_documents([content])
+        split_texts = self.recursive_text_splitter.create_documents([content])
         docs = [
             DocumentPage(
                 page_content=split_text.page_content,
@@ -191,9 +183,8 @@ class PineconeService:
     async def upload_yt_resource_to_pinecone(self, resource, content):
         # NOTE this is causing problems, it seems to be cutting off the text
         # content = truncate_string_by_bytes(content, 10000)
-        text_splitter = NLTKTextSplitter()
-        split_texts = text_splitter.create_documents([content])
-        # NOTE I should be able to use the Document from langchain_core.documents everywhere
+        split_texts = self.recursive_text_splitter.create_documents([content])
+        # NOTE should be able to use the Document from langchain_core.documents everywhere
         docs = [
             DocumentPage(
                 page_content=split_text.page_content,
@@ -230,8 +221,7 @@ class PineconeService:
     ) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
-        text_splitter = NLTKTextSplitter()
-        split_texts = text_splitter.create_documents([page_content])
+        split_texts = self.recursive_text_splitter.create_documents([page_content])
         docs = [
             DocumentPage(
                 page_content=split_text.page_content,
