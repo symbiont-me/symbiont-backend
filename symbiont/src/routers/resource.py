@@ -216,7 +216,7 @@ async def add_webpage_resource(
 ):
 
     user_uid = request.state.verified_user["user_id"]
-    pc_service = PineconeService(user_uid)
+
     study_service = StudyService(user_uid, webpage_resource.studyId)
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
 
@@ -237,6 +237,11 @@ async def add_webpage_resource(
             category="webpage",
             summary="",
         )
+        pc_service = PineconeService(
+            study_id=webpage_resource.studyId,
+            resource_identifier=identifier,
+            user_uid=user_uid,
+        )
         studies.append(study_resource)
         bs_transformer = BeautifulSoupTransformer()
         docs_transformed = bs_transformer.transform_documents(
@@ -245,22 +250,11 @@ async def add_webpage_resource(
         transformed_docs_contents.append(
             (study_resource, docs_transformed[0].page_content)
         )
-
-        background_tasks.add_task(
-            pc_service.upload_webpage_to_pinecone,
-            study_resource,
-            docs_transformed[0].page_content,
-        )
+        pc_service.upload_webpage_to_pinecone
 
     # Process summaries and db update as a background task
     for study_resource, content in transformed_docs_contents:
-        background_tasks.add_task(
-            get_and_save_summary_to_db,
-            study_resource,
-            content,
-            webpage_resource.studyId,
-            user_uid,
-        )
+        study_service.add_resource_to_db(study_resource)
 
 
 class AddPlainTextResourceRequest(BaseModel):
