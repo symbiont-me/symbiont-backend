@@ -4,6 +4,7 @@ from google.cloud.firestore import DocumentSnapshot
 from google.cloud.firestore_v1 import ArrayUnion
 from fastapi import HTTPException
 from ..models import StudyResource
+from .. import logger
 
 
 class StudyService:
@@ -43,7 +44,7 @@ class StudyService:
             raise HTTPException(status_code=404, detail="No such document!")
         study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
 
-        print("Added resource to DB")
+        logger.info(f"Resource added to study {study_resource}")
         return {
             "message": "Resource added successfully",
             "resource": study_resource.model_dump(),
