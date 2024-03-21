@@ -63,10 +63,10 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
         raise HTTPException(status_code=400, detail="Filename is missing.")
     try:
         bucket = storage.bucket()
-        file_name = make_file_identifier(file.filename)
-        identifier = f"userFiles/{user_id}/{file_name}"
+        unique_file_identifier = make_file_identifier(file.filename)
+        storage_path = f"userFiles/{user_id}/{unique_file_identifier}"
 
-        blob = bucket.blob(identifier)
+        blob = bucket.blob(storage_path)
 
         file_content = file.file.read()
         # TODO handle content types properly
@@ -76,10 +76,10 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
             content_type = "application/pdf"
         blob.upload_from_string(file_content, content_type=content_type)
         url = blob.media_link
-        download_url = generate_signed_url(identifier)
+        download_url = generate_signed_url(storage_path)
         if url:
             return FileUploadResponse(
-                identifier=identifier,
+                identifier=unique_file_identifier,
                 file_name=file.filename,
                 url=url,
                 download_url=download_url,
