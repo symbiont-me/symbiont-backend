@@ -126,15 +126,20 @@ class PineconeService:
             return vecs
         return []
 
-    async def prepare_resource_for_pinecone(
-        self, file_identifier: str, download_url: str
-    ):
-        file_path = await download_from_firebase_storage(file_identifier, download_url)
+    async def add_file_resource_to_pinecone(self):
+        if self.download_url is None:
+            logger.error("Download URL must be provided to prepare file resource")
+            raise ValueError("Download URL must be provided to prepare file resource")
+
+        file_path = await download_from_firebase_storage(
+            self.resource_identifier, self.download_url
+        )
+
         # handle pdf only for now
         if file_path is not None and file_path.endswith(".pdf"):
             vecs = await self.handle_pdf_resource(file_path)
 
-            await self.upload_vecs_to_pinecone(vecs, file_identifier)
+            await self.upload_vecs_to_pinecone(vecs)
             await delete_local_file(file_path)
 
     # TODO rename this function as it is used for more than just webpages
