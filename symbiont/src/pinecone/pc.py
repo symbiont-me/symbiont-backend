@@ -41,18 +41,36 @@ class VectorInDB(BaseModel):
 
 
 # TODO INITIALIZE THE EMBEDDINGS MODEL WITH USER'S API KEY FROM THE DB
-class PineconeService:
-    def __init__(
-        self, user_uid=None, user_query=None, resource_identifier=None, study_id=None
-    ):
 
+
+class PineconeService:
+    """
+    resource_identifier is the unique identifier for the resource in the database
+    """
+
+    def __init__(
+        self,
+        study_id: str,
+        resource_identifier: str,
+        user_uid=None,
+        user_query=None,
+        resource_download_url=None,
+    ):
         self.user_uid = user_uid
         self.user_query = user_query
-        self.resource = resource_identifier
         self.study_id = study_id
+        self.resource_identifier = resource_identifier
+        self.download_url = resource_download_url
         self.db = firestore.client()
         self.embed = OpenAIEmbeddings(
             model=EmbeddingModels.TEXT_EMBEDDING_3_SMALL, dimensions=1536
+        )
+        self.nltk_text_splitter = NLTKTextSplitter()
+        self.recursive_text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1500,
+            chunk_overlap=20,
+            length_function=len,
+            is_separator_regex=False,
         )
 
     def get_vectors_from_db(self):
