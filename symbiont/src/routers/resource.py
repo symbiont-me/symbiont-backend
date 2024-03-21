@@ -288,6 +288,7 @@ async def add_plain_text_resource(
     )
     study_service = StudyService(user_uid, plain_text_resource.studyId)
 
+    # TODO rename the method as used for both plain text and webpage
     await pc_service.upload_webpage_to_pinecone(
         study_resource, plain_text_resource.content
     )
@@ -300,7 +301,10 @@ async def add_plain_text_resource(
 @router.post("/delete-resource")
 async def delete_resource(identifier: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
-    pc_service = PineconeService(user_uid)
+    # @note study_id is not used here as user can send a delete request from the library instead of a study
+    pc_service = PineconeService(
+        study_id="", user_uid=user_uid, resource_identifier=identifier
+    )
     # TODO fix this
     study_docs = (
         firestore.client()
