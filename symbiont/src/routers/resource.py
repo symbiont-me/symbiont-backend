@@ -182,7 +182,7 @@ async def process_youtube_video(
         translation="en",
     )
 
-    print("PARSING YT VIDEO")
+    logger.info(f"Processing youtube video {video_resource.url}")
 
     # @dev there should only be a single document for this
     doc = loader.load()[0]
@@ -199,16 +199,12 @@ async def process_youtube_video(
         user_uid=user_uid,
         user_query=None,
     )
-    background_tasks.add_task(
-        get_and_save_summary_to_db,
-        study_resource,
-        doc.page_content,
-        video_resource.studyId,
-        request.state.verified_user["user_id"],
-    )
+
+    study_service = StudyService(user_uid, video_resource.studyId)
+    study_service.add_resource_to_db(study_resource)
 
     await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
-    print("YT VIDEO ADDED TO PINECONE")
+    logger.info(f"Youtube video added to Pinecone {study_resource}")
     return {"status_code": 200, "message": "Resource added."}
 
 
