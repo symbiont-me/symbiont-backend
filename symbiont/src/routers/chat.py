@@ -28,6 +28,7 @@ from ..llms import (
     generate_openai_response,
 )
 from ..pinecone.pc import PineconeService
+from .. import logger
 
 ####################################################
 #                   CHAT                           #
@@ -75,13 +76,8 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         user_uid=user_uid,
     )
 
-    pc_service = PineconeService(user_uid, user_query, resource_identifier, study_id)
-
     context = ""
     context_metadata = []
-
-    print(chat.combined, "COMBINED")
-    print(resource_identifier, "RESOURCE IDENTIFIER")
 
     if not chat.combined and resource_identifier is None:
         raise HTTPException(  # TODO this should be a 400
@@ -91,8 +87,16 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         print("GETTING COMBINED CONTEXT")
         context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
     if not chat.combined and resource_identifier is not None:
-        print("GETTING SINGLE CONTEXT")
+        logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
+
+        pc_service = PineconeService(
+            study_id=study_id,
+            resource_identifier=resource_identifier,
+            user_uid=user_uid,
+            user_query=user_query,
+        )
         context = pc_service.get_chat_context()
+        print("CONTEXT", context)
 
     llm = get_user_llm_settings(user_uid)
     if llm is None:
