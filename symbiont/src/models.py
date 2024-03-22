@@ -20,6 +20,10 @@ class LLMModel(str, Enum):
     CLAUDE_2_1 = "claude-2.1"
     CLAUDE_2_0 = "claude-2.0"
     CLAUDE_INSTANT_1_2 = "claude-instant-1.2"
+    GEMINI_PRO = "gemini-pro"
+    GEMINI_1_PRO = "gemini-1.0-pro"
+    GEMINI_1_PRO_001 = "gemini-1.0-pro-001"
+    GEMINI_1_PRO_LATEST = "gemini-1.0-pro-latest"
 
 
 class FileUploadResponse(BaseModel):
@@ -120,6 +124,7 @@ class EmbeddingModels(str, Enum):
     TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
     TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
     TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
+    EMBEDDING_001 = "embedding-001"
 
 
 class DocumentPage(BaseModel):
