@@ -283,10 +283,9 @@ async def add_plain_text_resource(
         summary="",
     )
     pc_service = PineconeService(
-        user_uid,
-        plain_text_resource.content,
-        study_resource.identifier,
-        plain_text_resource.studyId,
+        study_id=plain_text_resource.studyId,
+        user_uid=user_uid,
+        resource_identifier=study_resource.identifier,
     )
     study_service = StudyService(user_uid, plain_text_resource.studyId)
 
