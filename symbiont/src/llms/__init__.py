@@ -116,7 +116,7 @@ async def generate_google_response(
     chat = ChatGoogleGenerativeAI(
         temperature=0,
         google_api_key=api_key,
-        model_name=model,
+        model=model,
         convert_system_message_to_human=True,
         max_tokens=max_tokens,
     )
