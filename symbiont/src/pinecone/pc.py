@@ -80,6 +80,7 @@ class PineconeService:
             return None
         return vec_data["vectors"]
 
+    # TODO refactor: confusing
     def create_vec_ref_in_db(self, md5_hash, metadata):
         db = firestore.client()
         vec_ref = db.collection("users").document(self.user_uid)
@@ -147,6 +148,7 @@ class PineconeService:
     async def upload_webpage_to_pinecone(self, resource, content):
         split_texts = self.recursive_text_splitter.create_documents([content])
         docs = [
+            # TODO fix duplicate page_content
             DocumentPage(
                 page_content=split_text.page_content,
                 metadata={
@@ -158,7 +160,6 @@ class PineconeService:
             )
             for split_text in split_texts
         ]
-
         vecs = [await self.embed_document(doc) for doc in docs]
         await self.upload_vecs_to_pinecone(vecs)
 
