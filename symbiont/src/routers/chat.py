@@ -24,8 +24,10 @@ from ..llms import (
     generate_anthropic_response,
     isOpenAImodel,
     isAnthropicModel,
+    isGoogleModel,
     get_user_llm_settings,
     generate_openai_response,
+    generate_google_response,
 )
 from ..pinecone.pc import PineconeService
 from .. import logger
@@ -159,7 +161,27 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
                 role="bot",
                 user_uid=user_uid,
             )
+        if isGoogleModel(llm["llm_name"]):
+            async for chunk in generate_google_response(
+                model=llm["llm_name"],
+                max_tokens=1500,
+                api_key=llm["api_key"],
+                user_query=user_query,
+                context=context,
+                previous_message=previous_message,
+            ):
+                llm_response += chunk
+                yield chunk
 
+            background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=llm_response,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
+
+        # TODO fix this
         if (context == "") and (llm_response == ""):
             llm_response = "I am sorry, there is no information available in the documents to answer your question."
             yield llm_response
