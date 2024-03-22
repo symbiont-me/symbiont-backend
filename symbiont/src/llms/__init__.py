@@ -52,8 +52,10 @@ def isOpenAImodel(llm_name: str) -> bool:
 def isAnthropicModel(llm_name: str) -> bool:
     return bool(re.match(r"claude", llm_name))
 
+
 def isGoogleModel(llm_name: str) -> bool:
     return bool(re.match(r"gemini", llm_name))
+
 
 async def generate_openai_response(
     model: LLMModel, api_key: str, max_tokens: int, user_query: str, context: str
@@ -100,6 +102,7 @@ async def generate_anthropic_response(
 
         yield chunk.content
 
+
 async def generate_google_response(
     model: LLMModel,
     api_key: str,
@@ -108,13 +111,15 @@ async def generate_google_response(
     previous_message: str = "",
     max_tokens: int = 1500,
 ):
-    # Note: Gemini doesn’t support SystemMessage at the moment, but it can be added to the first human message in the row. 
+    # Note: Gemini doesn’t support SystemMessage at the moment, but it can be added to the first human message in the row.
     #       If you want such behavior, just set the convert_system_message_to_human to True
     chat = ChatGoogleGenerativeAI(
         temperature=0,
         google_api_key=api_key,
         model_name=model,
-        convert_system_message_to_human=True,)
+        convert_system_message_to_human=True,
+        max_tokens=max_tokens,
+    )
 
     system_prompt = create_user_prompt(user_query, context, previous_message)
     system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
