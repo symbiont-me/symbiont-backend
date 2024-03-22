@@ -76,6 +76,8 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         user_uid=user_uid,
     )
 
+    logger.info(resource_identifier)
+
     context = ""
     context_metadata = []
 
@@ -88,7 +90,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
     if not chat.combined and resource_identifier is not None:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
-
         pc_service = PineconeService(
             study_id=study_id,
             resource_identifier=resource_identifier,
