@@ -52,12 +52,13 @@ class StudyService:
 
     def set_llm_settings(self, settings):
         doc_ref = self.db.collection("users").document(self.user_uid)
-        if not doc_ref:
-            return {"error": "User not found", "status_code": 404}
-        doc_ref.set(
-            {"settings": {"llm_name": settings.llm_name, "api_key": settings.api_key}}
-        )
-        return {"message": "LLM settings updated"}
+        doc_snapshot = doc_ref.get()
+        if doc_snapshot.exists:
+            doc_ref.update({"settings": settings.model_dump()})
+            return {"message": "LLM Settings updated"}
+        else:
+            doc_ref.set({"settings": settings})
+            return {"message": "Settings created"}
 
 
 class UserService:
