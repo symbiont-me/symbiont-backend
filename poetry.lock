@@ -97,6 +97,17 @@ yarl = ">=1.0,<2.0"
 speedups = ["Brotli", "aiodns", "brotlicffi"]
 
 [[package]]
+name = "aiolimiter"
+version = "1.1.0"
+description = "asyncio rate limiter, a leaky bucket implementation"
+optional = false
+python-versions = ">=3.7,<4.0"
+files = [
+    {file = "aiolimiter-1.1.0-py3-none-any.whl", hash = "sha256:0b4997961fc58b8df40279e739f9cf0d3e255e63e9a44f64df567a8c17241e24"},
+    {file = "aiolimiter-1.1.0.tar.gz", hash = "sha256:461cf02f82a29347340d031626c92853645c099cb5ff85577b831a7bd21132b5"},
+]
+
+[[package]]
 name = "aiosignal"
 version = "1.3.1"
 description = "aiosignal: a list of registered asynchronous callbacks"
@@ -1706,13 +1717,13 @@ extended-testing = ["aiosqlite (>=0.19.0,<0.20.0)", "aleph-alpha-client (>=2.15.
 
 [[package]]
 name = "langchain-core"
-version = "0.1.28"
+version = "0.1.33"
 description = "Building applications with LLMs through composability"
 optional = false
-python-versions = ">=3.8.1,<4.0"
+python-versions = "<4.0,>=3.8.1"
 files = [
-    {file = "langchain_core-0.1.28-py3-none-any.whl", hash = "sha256:f40ca31257e003eb404e6275345d13a1b3839df147153684bab56bb8d80162c6"},
-    {file = "langchain_core-0.1.28.tar.gz", hash = "sha256:04e761a513200b6e5b5818613821945799c07bc5349087d7692e50823107c9d6"},
+    {file = "langchain_core-0.1.33-py3-none-any.whl", hash = "sha256:cee7fbab114c74b7279a92c8a376b40344b0fa3d0f0af3143a858e3b7485bf13"},
+    {file = "langchain_core-0.1.33.tar.gz", hash = "sha256:545eff3de83cc58231bd2b0c6d672323fc2077b94d326ba1a3219118af1d1a66"},
 ]
 
 [package.dependencies]
@@ -1795,6 +1806,21 @@ langchain-core = ">=0.1.28,<0.2.0"
 
 [package.extras]
 extended-testing = ["lxml (>=5.1.0,<6.0.0)"]
+
+[[package]]
+name = "langchain-voyageai"
+version = "0.1.0"
+description = "An integration package connecting VoyageAI and LangChain"
+optional = false
+python-versions = ">=3.8.1,<4.0"
+files = [
+    {file = "langchain_voyageai-0.1.0-py3-none-any.whl", hash = "sha256:d7e7059b7fc704028201b4ba455abd3b7903773d53668daaab87e5a6968a3a7e"},
+    {file = "langchain_voyageai-0.1.0.tar.gz", hash = "sha256:2d0d478861673d7214f6a516bb3bc2b4a8a63a3f90e7f4398fa84b26adcc1a3f"},
+]
+
+[package.dependencies]
+langchain-core = ">=0.1.32,<0.2.0"
+voyageai = ">=0.2.1,<1"
 
 [[package]]
 name = "langdetect"
@@ -3892,6 +3918,24 @@ docs = ["Sphinx (>=4.1.2,<4.2.0)", "sphinx-rtd-theme (>=0.5.2,<0.6.0)", "sphinxc
 test = ["Cython (>=0.29.36,<0.30.0)", "aiohttp (==3.9.0b0)", "aiohttp (>=3.8.1)", "flake8 (>=5.0,<6.0)", "mypy (>=0.800)", "psutil", "pyOpenSSL (>=23.0.0,<23.1.0)", "pycodestyle (>=2.9.0,<2.10.0)"]
 
 [[package]]
+name = "voyageai"
+version = "0.2.1"
+description = ""
+optional = false
+python-versions = ">=3.7.1,<4.0.0"
+files = [
+    {file = "voyageai-0.2.1-py3-none-any.whl", hash = "sha256:a00978f880adb689718940f8a5c5e4b80f76053e51d1e7e2dd35a9f2025b5506"},
+    {file = "voyageai-0.2.1.tar.gz", hash = "sha256:209ddf06343a271538a1f48340bcc4ddf93f346797462d4cf58d32a891d56093"},
+]
+
+[package.dependencies]
+aiohttp = ">=3.5,<4.0"
+aiolimiter = ">=1.1.0,<2.0.0"
+numpy = ">=1.11"
+requests = ">=2.20,<3.0"
+tenacity = ">=8.0.1"
+
+[[package]]
 name = "watchfiles"
 version = "0.21.0"
 description = "Simple, modern and high performance file watching and code reload in python."
@@ -4273,4 +4317,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9.0,<3.12"
-content-hash = "4611b2cc0cf5aeba7c4204a98fdedcafda60575a38d2044eb1af23f612c86767"
+content-hash = "7721690bb3921c77ef2523e76410a3f7ebf27bf14df3e0189c1c96bbcfb7d475"

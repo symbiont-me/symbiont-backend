@@ -29,6 +29,7 @@ langchain-anthropic = "^0.1.4"
 colorlog = "^6.8.2"
 langchain-google-genai = "^0.0.11"
 pillow = "^10.2.0"
+langchain-voyageai = "^0.1.0"
 
 [build-system]
 requires = ["poetry-core"]
