@@ -71,6 +71,7 @@ class PineconeService:
             voyage_api_key=voyage_api_key,
             model=EmbeddingModels.VOYAGEAI_2,
         )
+        # TODO initialize the splitters somewhere else and use with self.text_splitter = ...
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=2500,
