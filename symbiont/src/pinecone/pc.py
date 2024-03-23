@@ -93,7 +93,8 @@ class PineconeService:
         source = self.resource_identifier
         if source not in current_data["vectors"]:
             current_data["vectors"][source] = {}
-        current_data["vectors"][source][md5_hash] = VectorInDB(**metadata).dict()
+        current_data["vectors"][source][md5_hash] = VectorInDB(
+            **metadata).dict()
         # Update the document with the new mapping of vectors
         vec_ref.set(current_data)
         return vec_ref
@@ -118,7 +119,8 @@ class PineconeService:
     async def handle_pdf_resource(self, file_path: str):
         if file_path is not None and file_path.endswith(".pdf"):
             loader = PyPDFLoader(file_path)
-            pages = [DocumentPage(**page.dict()) for page in loader.load_and_split()]
+            pages = [DocumentPage(**page.dict())
+                     for page in loader.load_and_split()]
 
             docs = []
             for page in pages:
@@ -130,8 +132,10 @@ class PineconeService:
 
     async def add_file_resource_to_pinecone(self):
         if self.download_url is None:
-            logger.error("Download URL must be provided to prepare file resource")
-            raise ValueError("Download URL must be provided to prepare file resource")
+            logger.error(
+                "Download URL must be provided to prepare file resource")
+            raise ValueError(
+                "Download URL must be provided to prepare file resource")
 
         file_path = await download_from_firebase_storage(
             self.resource_identifier, self.download_url
@@ -216,7 +220,8 @@ class PineconeService:
         if pc_index is None:
             logger.error("Pinecone index is not initialized")
             raise ValueError("Pinecone index is not initialized")
-        pc_index.upsert(vectors=formatted_vecs, namespace=self.resource_identifier)
+        pc_index.upsert(vectors=formatted_vecs,
+                        namespace=self.resource_identifier)
 
     def truncate_string_by_bytes(self, string, num_bytes):
         encoded_string = string.encode("utf-8")
@@ -228,7 +233,8 @@ class PineconeService:
     ) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
-        split_texts = self.recursive_text_splitter.create_documents([page_content])
+        split_texts = self.recursive_text_splitter.create_documents([
+                                                                    page_content])
         docs = [
             DocumentPage(
                 page_content=split_text.page_content,
