@@ -121,10 +121,13 @@ class ChatRequest(BaseModel):
 
 
 class EmbeddingModels(str, Enum):
-    TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
-    TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
-    TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
+    OPENAI_TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
+    OPENAI_TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
+    OPENAI_TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
     EMBEDDING_001 = "embedding-001"
+    VOYAGEAI_LARGE_2 = "voyage-large-2"
+    VOYAGEAI_2 = "voyage-2"
+    VOYAGEAI_LIGHT_02_INSTRUCT = "voyage-lite-02-instruct"
 
 
 class DocumentPage(BaseModel):
