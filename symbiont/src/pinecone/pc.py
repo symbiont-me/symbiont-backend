@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from ..models import Study
 from typing import Union
 from .. import logger
+from langchain_voyageai import VoyageAIEmbeddings
 
 nltk.download("punkt")
 
@@ -32,6 +33,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
+voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
 
 class VectorInDB(BaseModel):
@@ -64,6 +66,10 @@ class PineconeService:
         self.db = firestore.client()
         self.embed = OpenAIEmbeddings(
             model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
+        )
+        self.voyage_embed = VoyageAIEmbeddings(
+            voyage_api_key=voyage_api_key,
+            model=EmbeddingModels.VOYAGEAI_2,
         )
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
