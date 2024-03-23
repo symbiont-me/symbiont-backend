@@ -63,7 +63,7 @@ class PineconeService:
         self.download_url = resource_download_url
         self.db = firestore.client()
         self.embed = OpenAIEmbeddings(
-            model=EmbeddingModels.TEXT_EMBEDDING_3_SMALL, dimensions=1536
+            model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
         )
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
