@@ -42,9 +42,6 @@ class VectorInDB(BaseModel):
     text: str
 
 
-# TODO INITIALIZE THE EMBEDDINGS MODEL WITH USER'S API KEY FROM THE DB
-
-
 class PineconeService:
     """
     resource_identifier is the unique identifier for the resource in the database
