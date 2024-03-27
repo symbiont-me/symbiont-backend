@@ -55,7 +55,7 @@ def get_combined_chat_context(study_id: str, user_uid: str, user_query: str):
     all_resource_identifiers = [resource.get("identifier") for resource in resources]
     # # get the context for each resource
     contexts = [
-        pc_service.get_chat_context()[0]
+        pc_service.get_chat_context(user_query)[0]
         for resource_identifier in all_resource_identifiers
     ]
     # # TODO keep the context within the model's max token limit
@@ -98,7 +98,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             user_uid=user_uid,
             user_query=user_query,
         )
-        context = pc_service.get_chat_context()
+        context = pc_service.get_chat_context(user_query)
         print("CONTEXT", context)
 
     llm = get_user_llm_settings(user_uid)
