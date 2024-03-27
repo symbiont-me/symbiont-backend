@@ -64,13 +64,18 @@ class PineconeService:
         self.resource_identifier = resource_identifier
         self.download_url = resource_download_url
         self.db = firestore.client()
-        self.embed = OpenAIEmbeddings(
-            model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
+        # self.embed = OpenAIEmbeddings(
+        #     model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
+        # )
+        # self.voyage_embed = VoyageAIEmbeddings(
+        #     voyage_api_key=voyage_api_key,
+        #     model="voyage-large-2",
+        # )
+
+        self.embed = VoyageAIEmbeddings(
+            voyage_api_key=voyage_api_key, model="voyage-large-2"
         )
-        self.voyage_embed = VoyageAIEmbeddings(
-            voyage_api_key=voyage_api_key,
-            model=EmbeddingModels.VOYAGEAI_2,
-        )
+
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=2500,
