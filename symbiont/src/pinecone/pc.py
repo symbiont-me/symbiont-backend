@@ -22,18 +22,21 @@ from ..models import Study
 from typing import Union
 from .. import logger
 from langchain_voyageai import VoyageAIEmbeddings
+import cohere
 
 nltk.download("punkt")
 
 load_dotenv()
 
 # TODO import all these from __init__.py
-cohere_api_key = os.getenv("COHERE_API_KEY")
+cohere_api_key = os.getenv("CO_API_KEY")
 api_key = os.getenv("OPENAI_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
 voyage_api_key = os.getenv("VOYAGE_API_KEY")
+
+co = cohere.Client(api_key=cohere_api_key)
 
 
 class VectorInDB(BaseModel):
@@ -168,7 +171,7 @@ class PineconeService:
         vecs = [await self.embed_document(doc) for doc in docs]
         await self.upload_vecs_to_pinecone(vecs)
 
-    def get_chat_context(self, top_k=10):
+    def get_chat_context(self, query: str, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
             raise ValueError(
                 "Resource and user query must be provided to get chat context"
@@ -182,14 +185,20 @@ class PineconeService:
         vec_metadata = []
         for match in pc_results.matches:
             vec_data = self.get_vectors_from_db()
-            logger.info(f"VEC DATA FROM DB: {vec_data}")
+            # logger.info(f"VEC DATA FROM DB: {vec_data}")
             if vec_data is None:
                 return ""
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
             context += resource_vecs[match.id]["text"]
-        print("CONTEXT", context)
-        return context
+        reranked_context = co.rerank(
+            query=query,
+            documents=vec_metadata,
+            top_n=3,
+            model="rerank-multilingual-v2.0",
+        )
+        # TODO get the text from the reranked type
+        return reranked_context
 
     async def upload_yt_resource_to_pinecone(
         self, resource: StudyResource, content: str
@@ -253,7 +262,7 @@ class PineconeService:
         vec = self.embed.embed_query(query)
         return vec
 
-    def search_pinecone_index(self, query: str, file_identifier: str, top_k=10):
+    def search_pinecone_index(self, query: str, file_identifier: str, top_k=25):
         query_embedding = self.get_query_embedding(query)
         if pc_index is None:
             raise ValueError("Pinecone index is not initialized")
