@@ -125,7 +125,7 @@ class EmbeddingModels(str, Enum):
     OPENAI_TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
     OPENAI_TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
     EMBEDDING_001 = "embedding-001"
-    VOYAGEAI_LARGE_2 = "voyage-large-2"
+    VOYAGEAI_2_LARGE = "voyage-large-2"
     VOYAGEAI_2 = "voyage-2"
     VOYAGEAI_LIGHT_02_INSTRUCT = "voyage-lite-02-instruct"
 
