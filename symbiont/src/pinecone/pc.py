@@ -66,16 +66,16 @@ class PineconeService:
         self.resource_identifier = resource_identifier
         self.download_url = resource_download_url
         self.db = firestore.client()
-        # self.embed = OpenAIEmbeddings(
-        #     model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
-        # )
+        self.embed = OpenAIEmbeddings(
+            model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
+        )
 
         # TODO use model based on user's settings and api key provided
         # TODO fix missing param error
         # NOTE: has a rate limit per seconds (I think) so it throws an error if you try to use it too much
-        self.embed = VoyageAIEmbeddings(
-            voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
-        )
+        # self.embed = VoyageAIEmbeddings(
+        #     voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
+        # )
 
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
@@ -85,7 +85,7 @@ class PineconeService:
             is_separator_regex=False,
         )
 
-        self.text_splitter = self.nltk_text_splitter
+        self.text_splitter = self.recursive_text_splitter
         self.db_vec_refs = {}
 
     def get_vectors_from_db(self):
@@ -99,23 +99,29 @@ class PineconeService:
     # TODO refactor: confusing
     # TODO fix type errors
     async def create_vec_ref_in_db(self):
-        db = firestore.client()
-        vec_ref = db.collection("users").document(self.user_uid)
-        # Retrieve the current data to avoid overwriting
-        current_data = vec_ref.get().to_dict()
-        # Initialize 'vectors' as a mapping if it doesn't exist
-        if "vectors" not in current_data:
-            current_data["vectors"] = {}
-        # Update the document with the new mapping of vectors under the specific resource identifier
-        identifier = self.resource_identifier
-        if identifier not in current_data["vectors"]:
-            current_data["vectors"][identifier] = {}
-        current_data["vectors"][identifier].update(self.db_vec_refs)
+        if self.db_vec_refs is None:
+            raise ValueError("No vectors to save in the database")
+        try:
+            db = firestore.client()
+            vec_ref = db.collection("users").document(self.user_uid)
+            # Retrieve the current data to avoid overwriting
+            current_data = vec_ref.get().to_dict()
+            # Initialize 'vectors' as a mapping if it doesn't exist
+            if "vectors" not in current_data:
+                current_data["vectors"] = {}
+            # Update the document with the new mapping of vectors under the specific resource identifier
+            identifier = self.resource_identifier
+            if identifier not in current_data["vectors"]:
+                current_data["vectors"][identifier] = {}
+            current_data["vectors"][identifier].update(self.db_vec_refs)
 
-        # Save the updated data back to Firestore
-        vec_ref.set(current_data)
-
-        return vec_ref
+            # Save the updated data back to Firestore
+            vec_ref.set(current_data)
+            logger.info(f"Updated vectors in Firestore for {self.resource_identifier}")
+            return vec_ref
+        except Exception as e:
+            logger.error(f"Error updating vectors in Firestore: {str(e)}")
+            return None
 
     # make this generic it should take various types of resources
     async def embed_document(
@@ -147,6 +153,7 @@ class PineconeService:
                 prepared_pages = await self.prepare_pdf_for_pinecone(page)
                 docs.extend(prepared_pages)
             vecs = [await self.embed_document(doc) for doc in docs]
+            logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
             return vecs
         return []
 
@@ -162,8 +169,9 @@ class PineconeService:
         # handle pdf only for now
         if file_path is not None and file_path.endswith(".pdf"):
             vecs = await self.handle_pdf_resource(file_path)
-
+            logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
             await self.upload_vecs_to_pinecone(vecs)
+            await self.create_vec_ref_in_db()
             await delete_local_file(file_path)
 
     # TODO rename this function as it is used for more than just webpages
@@ -175,7 +183,7 @@ class PineconeService:
                 page_content=split_text.page_content,
                 metadata={
                     "text": split_text.page_content,
-                    "source": resource.identifier,
+                    "source": self.resource_identifier,
                     "page": 0,  # there are no pages in a webpage or plain text
                 },
                 type=resource.category,
@@ -184,11 +192,11 @@ class PineconeService:
         ]
         s = time.time()
         vecs = [await self.embed_document(doc) for doc in docs]
-        await self.create_vec_ref_in_db()
+        logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
         elapsed = time.time() - s
         logger.info("Vectorisation took (%s) s", elapsed)
-        logger.debug(self.db_vec_refs)
         await self.upload_vecs_to_pinecone(vecs)
+        await self.create_vec_ref_in_db()
 
     def get_chat_context(self, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
@@ -230,7 +238,7 @@ class PineconeService:
                 page_content=split_text.page_content,
                 metadata={
                     "text": split_text.page_content,
-                    "source": resource.identifier,
+                    "source": self.resource_identifier,
                     "page": 0,  # there are no pages in a youtube video
                 },
                 type=resource.category,
@@ -238,7 +246,9 @@ class PineconeService:
             for split_text in split_texts
         ]
         vecs = [await self.embed_document(doc) for doc in docs]
+        logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
         await self.upload_vecs_to_pinecone(vecs)
+        await self.create_vec_ref_in_db()
 
     async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
         metadata = (
