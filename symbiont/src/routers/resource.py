@@ -211,6 +211,7 @@ async def process_youtube_video(
         return {"status_code": 200, "message": "Resource added."}
     except Exception as e:
         logger.error(f"Error processing youtube video: {e}")
+        # TODO delete from db if it fails
         raise HTTPException(status_code=500, detail="Error processing youtube video")
 
 
