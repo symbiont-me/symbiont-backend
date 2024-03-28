@@ -129,9 +129,7 @@ class PineconeService:
     ) -> PineconeRecord:
 
         vec = await self.embed.aembed_query(doc.page_content)
-
         hash = md5(doc.page_content.encode("utf-8")).hexdigest()
-
         self.db_vec_refs[hash] = VectorInDB(**doc.metadata).dict()
         return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
 
