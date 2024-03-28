@@ -86,6 +86,7 @@ class PineconeService:
         )
 
         self.text_splitter = self.nltk_text_splitter
+        self.db_vec_refs = {}
 
     def get_vectors_from_db(self):
         vec_ref = self.db.collection("users").document(self.user_uid)
@@ -97,7 +98,7 @@ class PineconeService:
 
     # TODO refactor: confusing
     # TODO fix type errors
-    async def create_vec_ref_in_db(self, md5_hash, metadata):
+    async def create_vec_ref_in_db(self):
         db = firestore.client()
         vec_ref = db.collection("users").document(self.user_uid)
         # Retrieve the current data to avoid overwriting
@@ -105,13 +106,15 @@ class PineconeService:
         # Initialize 'vectors' as a mapping if it doesn't exist
         if "vectors" not in current_data:
             current_data["vectors"] = {}
-        # @dev this is the same as the file_identifier
-        source = self.resource_identifier
-        if source not in current_data["vectors"]:
-            current_data["vectors"][source] = {}
-        current_data["vectors"][source][md5_hash] = VectorInDB(**metadata).dict()
-        # Update the document with the new mapping of vectors
+        # Update the document with the new mapping of vectors under the specific resource identifier
+        identifier = self.resource_identifier
+        if identifier not in current_data["vectors"]:
+            current_data["vectors"][identifier] = {}
+        current_data["vectors"][identifier].update(self.db_vec_refs)
+
+        # Save the updated data back to Firestore
         vec_ref.set(current_data)
+
         return vec_ref
 
     # make this generic it should take various types of resources
@@ -123,7 +126,7 @@ class PineconeService:
 
         hash = md5(doc.page_content.encode("utf-8")).hexdigest()
 
-        await self.create_vec_ref_in_db(hash, doc.metadata)
+        self.db_vec_refs[hash] = VectorInDB(**doc.metadata).dict()
         return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
 
     def delete_vectors_from_pinecone(self, namespace):
@@ -181,9 +184,10 @@ class PineconeService:
         ]
         s = time.time()
         vecs = [await self.embed_document(doc) for doc in docs]
+        await self.create_vec_ref_in_db()
         elapsed = time.time() - s
         logger.info("Vectorisation took (%s) s", elapsed)
-
+        logger.debug(self.db_vec_refs)
         await self.upload_vecs_to_pinecone(vecs)
 
     def get_chat_context(self, top_k=25):
