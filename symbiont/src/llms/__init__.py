@@ -15,6 +15,11 @@ from langchain_core.prompts.chat import (
 )
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import AsyncGenerator
+from fastapi import HTTPException
+from pydantic import SecretStr
+from typing import Union
+from .. import logger
 
 
 def create_user_prompt(user_query: str, context: str, previous_message=""):
@@ -57,84 +62,56 @@ def isGoogleModel(llm_name: str) -> bool:
     return bool(re.match(r"gemini", llm_name))
 
 
-async def generate_openai_response(
-    model: LLMModel, api_key: str, max_tokens: int, user_query: str, context: str
-):
-    chat = ChatOpenAI(
-        model_name=model,
-        temperature=0.75,
-        openai_api_key=api_key,
-        max_tokens=max_tokens,
-    )
+class UsersLLMSettings(BaseModel):
+    llm_name: str
+    api_key: SecretStr
+    # max_tokens: int
+    # temperature: float
 
+
+def init_llm(settings: UsersLLMSettings):
+    if settings is None:
+        raise HTTPException(status_code=400, detail="Please set LLM Settings")
+    logger.debug(f"Initializing LLM with settings: {settings}")
+    try:
+        llm = None
+        if isOpenAImodel(settings["llm_name"]):
+            llm = ChatOpenAI(
+                model=settings["llm_name"],
+                api_key=settings["api_key"],
+                max_tokens=1500,
+                temperature=0.75,
+            )
+            return llm
+        elif isAnthropicModel(settings["llm_name"]):
+            llm = ChatAnthropic(
+                model_name=settings["llm_name"],
+                anthropic_api_key=settings["api_key"],
+                temperature=0.75,
+            )
+            return llm
+        elif isGoogleModel(settings["llm_name"]):
+            llm = ChatGoogleGenerativeAI(
+                model_name=settings["llm_name"],
+                google_api_key=settings["api_key"],
+                max_tokens=1500,
+                temperature=0.75,
+            )
+            return llm
+    except Exception as e:
+        logger.error(f"Error initializing LLM: {e}")
+        raise HTTPException(status_code=500, detail="Error generating response")
+
+
+async def get_llm_response(llm, user_query: str, context: str):
     system_prompt = create_user_prompt(user_query, context, "")
     system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
     human = user_query
+
     prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-    chain = prompt | chat
+    chain = prompt | llm
     for chunk in chain.stream({}):
-
         yield chunk.content
-
-
-# TODO move to own file
-async def generate_anthropic_response(
-    model: LLMModel,
-    api_key: str,
-    user_query: str,
-    context: str,
-    previous_message: str = "",
-    max_tokens: int = 1500,
-):
-    chat = ChatAnthropic(
-        temperature=0,
-        anthropic_api_key=api_key,
-        model_name=model,
-    )
-
-    system_prompt = create_user_prompt(user_query, context, previous_message)
-    system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
-    human = user_query
-    prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-
-    chain = prompt | chat
-    for chunk in chain.stream({}):
-
-        yield chunk.content
-
-
-async def generate_google_response(
-    model: LLMModel,
-    api_key: str,
-    user_query: str,
-    context: str,
-    previous_message: str = "",
-    max_tokens: int = 1500,
-):
-    # Note: Gemini doesn’t support SystemMessage at the moment, but it can be added to the first human message in the row.
-    #       If you want such behavior, just set the convert_system_message_to_human to True
-    chat = ChatGoogleGenerativeAI(
-        temperature=0,
-        google_api_key=api_key,
-        model=model,
-        convert_system_message_to_human=True,
-        max_tokens=max_tokens,
-    )
-
-    system_prompt = create_user_prompt(user_query, context, previous_message)
-    system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
-    human = user_query
-    prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-
-    chain = prompt | chat
-    for chunk in chain.stream({}):
-
-        yield chunk.content
-
-
-class LLMSettings(BaseModel):
-    llm_name: str
-    api_key: str
 
 
 # TODO move to routers/llm_settings.py
@@ -145,5 +122,5 @@ def get_user_llm_settings(user_uid: str):
         raise ValueError("User not found")
     else:
         settings = doc_ref.get().get("settings")
-        print("SETTINGS", settings)
+        logger.info(f"User settings: {settings}")
         return settings
