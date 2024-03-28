@@ -182,11 +182,14 @@ async def process_youtube_video(
             language=["en", "id"],
             translation="en",
         )
-
         logger.info(f"Processing youtube video {video_resource.url}")
-
         # @dev there should only be a single document for this
         doc = loader.load()[0]
+        if doc.page_content == "":
+            raise HTTPException(
+                status_code=404,
+                detail="There is no content in the video. Please try again",
+            )
         study_resource = StudyResource(
             studyId=video_resource.studyId,
             identifier=make_file_identifier(doc.metadata["title"]),
