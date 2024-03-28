@@ -26,6 +26,20 @@ class LLMModel(str, Enum):
     GEMINI_1_PRO_LATEST = "gemini-1.0-pro-latest"
 
 
+class EmbeddingModels(str, Enum):
+    OPENAI_TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
+    OPENAI_TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
+    OPENAI_TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
+    EMBEDDING_001 = "embedding-001"
+    VOYAGEAI_2_LARGE = "voyage-large-2"
+    VOYAGEAI_2 = "voyage-2"
+    VOYAGEAI_LIGHT_02_INSTRUCT = "voyage-lite-02-instruct"
+
+
+class CohereTextModels(str, Enum):
+    COHERE_RERANK_V2 = "rerank-multilingual-v2.0"
+
+
 class FileUploadResponse(BaseModel):
     identifier: str
     file_name: str
@@ -118,16 +132,6 @@ class ChatRequest(BaseModel):
     study_id: str
     resource_identifier: Optional[str] = None
     combined: Optional[bool] = False
-
-
-class EmbeddingModels(str, Enum):
-    OPENAI_TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
-    OPENAI_TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
-    OPENAI_TEXT_EMBEDDING_ADA_002 = "text-embedding-ada-002"
-    EMBEDDING_001 = "embedding-001"
-    VOYAGEAI_2_LARGE = "voyage-large-2"
-    VOYAGEAI_2 = "voyage-2"
-    VOYAGEAI_LIGHT_02_INSTRUCT = "voyage-lite-02-instruct"
 
 
 class DocumentPage(BaseModel):
