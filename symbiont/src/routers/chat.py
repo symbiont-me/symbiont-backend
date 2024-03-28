@@ -20,14 +20,9 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.chains.summarize import load_summarize_chain
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from ..llms import (
-    create_user_prompt,
-    generate_anthropic_response,
-    isOpenAImodel,
-    isAnthropicModel,
-    isGoogleModel,
     get_user_llm_settings,
-    generate_openai_response,
-    generate_google_response,
+    init_llm,
+    get_llm_response,
 )
 from ..pinecone.pc import PineconeService
 from .. import logger
@@ -67,7 +62,14 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     user_uid = request.state.verified_user["user_id"]
     user_query = chat.user_query
-    # TODO remove this feature as previous_message makes makes the context poorer
+    #### INIT LLM ####
+    llm_settings = get_user_llm_settings(user_uid)
+    llm = init_llm(llm_settings)
+    # TODO remove after testing, shouldn't be needing this as error is handled in init_llm
+    if llm is None:
+        raise HTTPException(status_code=404, detail="No LLM settings found!")
+
+    # TODO remove this feature as previous_message makes makes the context poor
     previous_message = ""
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
@@ -101,10 +103,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         )
         context = pc_service.get_chat_context()
 
-    llm = get_user_llm_settings(user_uid)
-    if llm is None:
-        raise HTTPException(status_code=404, detail="No LLM settings found!")
-
     if context == "":
         response = "I am sorry, there is no information available in the documents to answer your question."
 
@@ -117,81 +115,38 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         the chunk to the caller. After all chunks have been received and yielded, it schedules a background task
         to save the complete response to the database as a chat message from the 'bot' role.
         """
-
-        llm_response = ""
-
-        if isOpenAImodel(llm["llm_name"]):
-            async for chunk in generate_openai_response(
-                model=llm["llm_name"],
-                api_key=llm["api_key"],
-                max_tokens=1500,
+        try:
+            llm_response = ""
+            async for chunk in get_llm_response(
+                llm=llm,
                 user_query=user_query,
                 context=context,
             ):
                 llm_response += chunk
                 yield chunk
 
-            background_tasks.add_task(
-                save_chat_message_to_db,
-                chat_message=llm_response,
-                studyId=study_id,
-                role="bot",
-                user_uid=user_uid,
-            )
+                background_tasks.add_task(
+                    save_chat_message_to_db,
+                    chat_message=llm_response,
+                    studyId=study_id,
+                    role="bot",
+                    user_uid=user_uid,
+                )
 
-        if isAnthropicModel(
-            llm["llm_name"]
-        ):  # Changed to elif to avoid overlapping if conditions
-
-            async for chunk in generate_anthropic_response(
-                model=llm["llm_name"],
-                max_tokens=1500,
-                api_key=llm["api_key"],
-                user_query=user_query,
-                context=context,
-                previous_message=previous_message,
-            ):
-                llm_response += chunk
-                yield chunk
-
-            background_tasks.add_task(
-                save_chat_message_to_db,
-                chat_message=llm_response,
-                studyId=study_id,
-                role="bot",
-                user_uid=user_uid,
-            )
-        if isGoogleModel(llm["llm_name"]):
-            async for chunk in generate_google_response(
-                model=llm["llm_name"],
-                max_tokens=1500,
-                api_key=llm["api_key"],
-                user_query=user_query,
-                context=context,
-                previous_message=previous_message,
-            ):
-                llm_response += chunk
-                yield chunk
-
-            background_tasks.add_task(
-                save_chat_message_to_db,
-                chat_message=llm_response,
-                studyId=study_id,
-                role="bot",
-                user_uid=user_uid,
-            )
-
-        # TODO fix this
-        if (context == "") and (llm_response == ""):
-            llm_response = "I am sorry, there is no information available in the documents to answer your question."
-            yield llm_response
-            background_tasks.add_task(
-                save_chat_message_to_db,
-                chat_message=llm_response,
-                studyId=study_id,
-                role="bot",
-                user_uid=user_uid,
-            )
+            # TODO fix this
+            if context == "":
+                llm_response = "I am sorry, there is no information available in the documents to answer your question."
+                yield llm_response
+                background_tasks.add_task(
+                    save_chat_message_to_db,
+                    chat_message=llm_response,
+                    studyId=study_id,
+                    role="bot",
+                    user_uid=user_uid,
+                )
+        except Exception as e:
+            logger.error(e)
+            raise HTTPException(status_code=500, detail=str(e))
 
     return StreamingResponse(generate_llm_response())
 
