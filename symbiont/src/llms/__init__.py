@@ -34,7 +34,7 @@ def create_user_prompt(user_query: str, context: str):
         I'm sorry, but I don't know the answer to that question.
         AI assistant will not invent anything that is not drawn directly from the context.
         AI will be as detailed as possible.
-    Output Format: Return your answer in valid {output_format} Format
+        Output Format: Return your answer in valid {output_format} Format
     """
     )
 
