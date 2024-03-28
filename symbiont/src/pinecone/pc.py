@@ -36,7 +36,7 @@ pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
 voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
-co = cohere.Client(api_key=cohere_api_key)
+co = cohere.Client(api_key=cohere_api_key or "")
 
 
 class VectorInDB(BaseModel):
@@ -55,7 +55,7 @@ class PineconeService:
         study_id: str,
         resource_identifier: str,
         user_uid=None,
-        user_query=None,
+        user_query="",
         resource_download_url=None,
     ):
         self.user_uid = user_uid
@@ -69,6 +69,7 @@ class PineconeService:
         # )
 
         # TODO use model based on user's settings and api key provided
+        # TODO fix missing param error
         self.embed = VoyageAIEmbeddings(
             voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
         )
@@ -84,11 +85,13 @@ class PineconeService:
     def get_vectors_from_db(self):
         vec_ref = self.db.collection("users").document(self.user_uid)
         vec_data = vec_ref.get().to_dict()
+        # TODO fix type error
         if "vectors" not in vec_data:
             return None
         return vec_data["vectors"]
 
     # TODO refactor: confusing
+    # TODO fix type errors
     def create_vec_ref_in_db(self, md5_hash, metadata):
         db = firestore.client()
         vec_ref = db.collection("users").document(self.user_uid)
@@ -171,15 +174,13 @@ class PineconeService:
         vecs = [await self.embed_document(doc) for doc in docs]
         await self.upload_vecs_to_pinecone(vecs)
 
-    def get_chat_context(self, query: str, top_k=25):
+    def get_chat_context(self, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
             raise ValueError(
                 "Resource and user query must be provided to get chat context"
             )
         context = ""
-        pc_results = self.search_pinecone_index(
-            self.user_query, self.resource_identifier, top_k
-        )
+        pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
         logger.info(f"Found {len(pc_results.matches)} matches")
 
         vec_metadata = []
@@ -192,11 +193,12 @@ class PineconeService:
             vec_metadata.append(resource_vecs[match.id])
             context += resource_vecs[match.id]["text"]
         reranked_context = co.rerank(
-            query=query,
+            query=self.user_query,
             documents=vec_metadata,
             top_n=3,
             model="rerank-multilingual-v2.0",
         )
+        logger.info(f"Reranked context: {reranked_context}")
         # TODO get the text from the reranked type
         return reranked_context
 
@@ -258,12 +260,12 @@ class PineconeService:
 
         return docs
 
-    def get_query_embedding(self, query: str) -> List[float]:
-        vec = self.embed.embed_query(query)
+    def get_query_embedding(self) -> List[float]:
+        vec = self.embed.embed_query(self.user_query)
         return vec
 
-    def search_pinecone_index(self, query: str, file_identifier: str, top_k=25):
-        query_embedding = self.get_query_embedding(query)
+    def search_pinecone_index(self, file_identifier: str, top_k=25):
+        query_embedding = self.get_query_embedding()
         if pc_index is None:
             raise ValueError("Pinecone index is not initialized")
         query_matches = pc_index.query(
