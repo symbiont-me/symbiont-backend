@@ -171,41 +171,47 @@ async def process_youtube_video(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-    user_uid = request.state.verified_user["user_id"]
+    try:
+        user_uid = request.state.verified_user["user_id"]
 
-    # TODO allow multiple urls
-    # TODO auth verification if necessary
-    loader = YoutubeLoader.from_youtube_url(
-        str(video_resource.url),
-        add_video_info=True,
-        language=["en", "id"],
-        translation="en",
-    )
+        # TODO allow multiple urls
+        # TODO auth verification if necessary
+        loader = YoutubeLoader.from_youtube_url(
+            str(video_resource.url),
+            add_video_info=True,
+            language=["en", "id"],
+            translation="en",
+        )
 
-    logger.info(f"Processing youtube video {video_resource.url}")
+        logger.info(f"Processing youtube video {video_resource.url}")
 
-    # @dev there should only be a single document for this
-    doc = loader.load()[0]
-    study_resource = StudyResource(
-        studyId=video_resource.studyId,
-        identifier=make_file_identifier(doc.metadata["title"]),
-        name=doc.metadata["title"],
-        url=str(video_resource.url),
-        category="video",
-    )
-    pc_service = PineconeService(
-        study_id=video_resource.studyId,
-        resource_identifier=study_resource.identifier,
-        user_uid=user_uid,
-        user_query=None,
-    )
+        # @dev there should only be a single document for this
+        doc = loader.load()[0]
+        study_resource = StudyResource(
+            studyId=video_resource.studyId,
+            identifier=make_file_identifier(doc.metadata["title"]),
+            name=doc.metadata["title"],
+            url=str(video_resource.url),
+            category="video",
+        )
+        pc_service = PineconeService(
+            study_id=video_resource.studyId,
+            resource_identifier=study_resource.identifier,
+            user_uid=user_uid,
+            user_query=None,
+        )
 
-    study_service = StudyService(user_uid, video_resource.studyId)
-    study_service.add_resource_to_db(study_resource)
+        study_service = StudyService(user_uid, video_resource.studyId)
+        study_service.add_resource_to_db(study_resource)
 
-    await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
-    logger.info(f"Youtube video added to Pinecone {study_resource}")
-    return {"status_code": 200, "message": "Resource added."}
+        await pc_service.upload_yt_resource_to_pinecone(
+            study_resource, doc.page_content
+        )
+        logger.info(f"Youtube video added to Pinecone {study_resource}")
+        return {"status_code": 200, "message": "Resource added."}
+    except Exception as e:
+        logger.error(f"Error processing youtube video: {e}")
+        raise HTTPException(status_code=500, detail="Error processing youtube video")
 
 
 @router.post("/add-webpage-resource")
