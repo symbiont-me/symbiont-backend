@@ -31,9 +31,7 @@ def summarise_plain_text_resource(document_text):
     summary = ""
     try:
         nltk_text_splitter = NLTKTextSplitter()
-
         docs = nltk_text_splitter.create_documents([prompt])
-
         summary_chain = load_summarize_chain(
             llm=llm,
             chain_type="map_reduce",
