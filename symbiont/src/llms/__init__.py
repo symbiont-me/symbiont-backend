@@ -106,7 +106,7 @@ async def get_llm_response(llm, user_query: str, context: str):
 
     prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
     chain = prompt | llm
-    for chunk in chain.stream({1, 2}):
+    for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
         yield chunk.content
 
 
