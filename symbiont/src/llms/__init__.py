@@ -22,7 +22,7 @@ from typing import Union
 from .. import logger
 
 
-def create_user_prompt(user_query: str, context: str, previous_message=""):
+def create_user_prompt(user_query: str, context: str):
     prompt_template = PromptTemplate.from_template(
         """
         You are a well-informed AI assistant. 
@@ -34,16 +34,12 @@ def create_user_prompt(user_query: str, context: str, previous_message=""):
         I'm sorry, but I don't know the answer to that question.
         AI assistant will not invent anything that is not drawn directly from the context.
         AI will be as detailed as possible.
-    Previous Message: {previous_message}
-    Question: {query}
     Output Format: Return your answer in valid {output_format} Format
     """
     )
 
     prompt = prompt_template.format(
-        query=user_query,
         context=context,
-        previous_message=previous_message,
         output_format="Markdown",
     )
     return prompt
@@ -104,13 +100,13 @@ def init_llm(settings: UsersLLMSettings):
 
 
 async def get_llm_response(llm, user_query: str, context: str):
-    system_prompt = create_user_prompt(user_query, context, "")
+    system_prompt = create_user_prompt(user_query, context)
     system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
     human = user_query
 
     prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
     chain = prompt | llm
-    for chunk in chain.stream({}):
+    for chunk in chain.stream({1, 2}):
         yield chunk.content
 
 
