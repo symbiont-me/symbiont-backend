@@ -186,6 +186,7 @@ async def process_youtube_video(
         # @dev there should only be a single document for this
         doc = loader.load()[0]
         # @dev if the transcript is empty, the video is not processed
+        # TODO if the transcript is empty, extract audio and convert to text using whisper
         if doc.page_content == "":
             raise HTTPException(
                 status_code=404,
