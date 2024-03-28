@@ -67,7 +67,8 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     user_uid = request.state.verified_user["user_id"]
     user_query = chat.user_query
-    previous_message = ""  # TODO remove this feature as previous_message makes makes the context poorer
+    # TODO remove this feature as previous_message makes makes the context poorer
+    previous_message = ""
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
     background_tasks.add_task(
@@ -98,7 +99,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             user_uid=user_uid,
             user_query=user_query,
         )
-        print("CONTEXT", context)
         context = pc_service.get_chat_context()
 
     llm = get_user_llm_settings(user_uid)
