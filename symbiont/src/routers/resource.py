@@ -185,6 +185,7 @@ async def process_youtube_video(
         logger.info(f"Processing youtube video {video_resource.url}")
         # @dev there should only be a single document for this
         doc = loader.load()[0]
+        # @dev if the transcript is empty, the video is not processed
         if doc.page_content == "":
             raise HTTPException(
                 status_code=404,
