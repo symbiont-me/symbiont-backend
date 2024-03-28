@@ -79,7 +79,7 @@ class PineconeService:
 
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2500,
+            chunk_size=14000,
             chunk_overlap=20,
             length_function=len,
             is_separator_regex=False,
