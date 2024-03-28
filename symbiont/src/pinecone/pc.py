@@ -198,7 +198,7 @@ class PineconeService:
             top_n=3,
             model="rerank-multilingual-v2.0",
         )
-        logger.info(f"Reranked context: {reranked_context}")
+        logger.info(f"Context Reranked")
         # TODO get the text from the reranked type
         return reranked_context
 
