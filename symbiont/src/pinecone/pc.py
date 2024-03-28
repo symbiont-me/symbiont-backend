@@ -7,7 +7,7 @@ from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSpli
 from hashlib import md5
 
 from langchain_openai import OpenAIEmbeddings
-from symbiont.src.models import EmbeddingModels
+from symbiont.src.models import EmbeddingModels, CohereTextModels
 import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
@@ -196,7 +196,7 @@ class PineconeService:
             query=self.user_query,
             documents=vec_metadata,
             top_n=3,
-            model="rerank-multilingual-v2.0",
+            model=CohereTextModels.COHERE_RERANK_V2,
         )
         logger.info(f"Context Reranked")
         # TODO get the text from the reranked type
