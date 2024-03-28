@@ -23,10 +23,12 @@ from typing import Union
 from .. import logger
 from langchain_voyageai import VoyageAIEmbeddings
 import cohere
+import time
 
 nltk.download("punkt")
 
 load_dotenv()
+
 
 # TODO import all these from __init__.py
 cohere_api_key = os.getenv("CO_API_KEY")
@@ -70,6 +72,7 @@ class PineconeService:
 
         # TODO use model based on user's settings and api key provided
         # TODO fix missing param error
+        # NOTE: has a rate limit per seconds (I think) so it throws an error if you try to use it too much
         self.embed = VoyageAIEmbeddings(
             voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
         )
@@ -82,6 +85,8 @@ class PineconeService:
             is_separator_regex=False,
         )
 
+        self.text_splitter = self.nltk_text_splitter
+
     def get_vectors_from_db(self):
         vec_ref = self.db.collection("users").document(self.user_uid)
         vec_data = vec_ref.get().to_dict()
@@ -92,7 +97,7 @@ class PineconeService:
 
     # TODO refactor: confusing
     # TODO fix type errors
-    def create_vec_ref_in_db(self, md5_hash, metadata):
+    async def create_vec_ref_in_db(self, md5_hash, metadata):
         db = firestore.client()
         vec_ref = db.collection("users").document(self.user_uid)
         # Retrieve the current data to avoid overwriting
@@ -113,9 +118,12 @@ class PineconeService:
     async def embed_document(
         self, doc: Union[DocumentPage, Document]
     ) -> PineconeRecord:
+
         vec = await self.embed.aembed_query(doc.page_content)
+
         hash = md5(doc.page_content.encode("utf-8")).hexdigest()
-        self.create_vec_ref_in_db(hash, doc.metadata)
+
+        await self.create_vec_ref_in_db(hash, doc.metadata)
         return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
 
     def delete_vectors_from_pinecone(self, namespace):
@@ -157,7 +165,7 @@ class PineconeService:
 
     # TODO rename this function as it is used for more than just webpages
     async def upload_webpage_to_pinecone(self, resource, content):
-        split_texts = self.recursive_text_splitter.create_documents([content])
+        split_texts = self.text_splitter.create_documents([content])
         docs = [
             # TODO fix duplicate page_content
             DocumentPage(
@@ -171,7 +179,11 @@ class PineconeService:
             )
             for split_text in split_texts
         ]
+        s = time.time()
         vecs = [await self.embed_document(doc) for doc in docs]
+        elapsed = time.time() - s
+        logger.info("Vectorisation took (%s) s", elapsed)
+
         await self.upload_vecs_to_pinecone(vecs)
 
     def get_chat_context(self, top_k=25):
@@ -207,7 +219,7 @@ class PineconeService:
     ):
         # NOTE this is causing problems, it seems to be cutting off the text
         # content = truncate_string_by_bytes(content, 10000)
-        split_texts = self.recursive_text_splitter.create_documents([content])
+        split_texts = self.text_splitter.create_documents([content])
         # NOTE should be able to use the Document from langchain_core.documents everywhere
         docs = [
             DocumentPage(
@@ -244,7 +256,7 @@ class PineconeService:
     ) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
-        split_texts = self.recursive_text_splitter.create_documents([page_content])
+        split_texts = self.text_splitter.create_documents([page_content])
         docs = [
             DocumentPage(
                 page_content=split_text.page_content,
