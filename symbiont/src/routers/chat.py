@@ -86,10 +86,10 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     if not chat.combined and resource_identifier is None:
         raise HTTPException(  # TODO this should be a 400
-            status_code=404, detail="Resource Identifier Required"
+            status_code=404, detail="Please select a resource"
         )
     if chat.combined:
-        print("GETTING COMBINED CONTEXT")
+        logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
         context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
     if not chat.combined and resource_identifier is not None:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
