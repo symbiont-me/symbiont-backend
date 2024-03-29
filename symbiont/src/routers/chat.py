@@ -125,14 +125,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
                 llm_response += chunk
                 yield chunk
 
-                background_tasks.add_task(
-                    save_chat_message_to_db,
-                    chat_message=llm_response,
-                    studyId=study_id,
-                    role="bot",
-                    user_uid=user_uid,
-                )
-
             # TODO fix this
             if context == "":
                 llm_response = "I am sorry, there is no information available in the documents to answer your question."
@@ -144,6 +136,13 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
                     role="bot",
                     user_uid=user_uid,
                 )
+            background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=llm_response,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
         except Exception as e:
             logger.error(e)
             raise HTTPException(status_code=500, detail=str(e))
