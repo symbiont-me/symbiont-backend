@@ -234,7 +234,6 @@ async def add_webpage_resource(
     logger.info(f"Parsing {len(html_docs)} documents")
     for index, doc in enumerate(html_docs):
         identifier = make_file_identifier(doc.metadata["title"])
-        print(doc)
         study_resource = StudyResource(
             studyId=webpage_resource.studyId,
             identifier=identifier,
