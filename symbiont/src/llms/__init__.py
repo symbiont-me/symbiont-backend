@@ -88,10 +88,11 @@ def init_llm(settings: UsersLLMSettings):
             return llm
         elif isGoogleModel(settings["llm_name"]):
             llm = ChatGoogleGenerativeAI(
-                model_name=settings["llm_name"],
+                model=settings["llm_name"],
                 google_api_key=settings["api_key"],
                 max_tokens=1500,
                 temperature=0.75,
+                convert_system_message_to_human=True,
             )
             return llm
     except Exception as e:
