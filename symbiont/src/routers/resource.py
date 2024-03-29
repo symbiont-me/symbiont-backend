@@ -236,11 +236,10 @@ async def add_webpage_resource(
     html_docs = loader.load()
     studies = []
     transformed_docs_contents = []  # Collect transformed docs content here
-    print("PARSING WEBPAGE")
-    print(html_docs)
+    logger.info(f"Processing webpage {webpage_resource.urls}")
+    logger.info(f"Parsing {len(html_docs)} documents")
     for index, doc in enumerate(html_docs):
         identifier = make_file_identifier(doc.metadata["title"])
-        print(doc)
         study_resource = StudyResource(
             studyId=webpage_resource.studyId,
             identifier=identifier,
@@ -262,10 +261,10 @@ async def add_webpage_resource(
         transformed_docs_contents.append(
             (study_resource, docs_transformed[0].page_content)
         )
-        study_service.add_resource_to_db(study_resource)
         await pc_service.upload_webpage_to_pinecone(
             study_resource, docs_transformed[0].page_content
         )
+        study_service.add_resource_to_db(study_resource)
 
     # for study_resource, content in transformed_docs_contents:
     #     study_service.add_resource_to_db(study_resource)
