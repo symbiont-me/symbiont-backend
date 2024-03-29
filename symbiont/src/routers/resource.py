@@ -230,8 +230,8 @@ async def add_webpage_resource(
     html_docs = loader.load()
     studies = []
     transformed_docs_contents = []  # Collect transformed docs content here
-    print("PARSING WEBPAGE")
-    print(html_docs)
+    logger.info(f"Processing webpage {webpage_resource.urls}")
+    logger.info(f"Parsing {len(html_docs)} documents")
     for index, doc in enumerate(html_docs):
         identifier = make_file_identifier(doc.metadata["title"])
         print(doc)
