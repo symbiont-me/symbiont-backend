@@ -26,6 +26,8 @@ from ..llms import (
 )
 from ..pinecone.pc import PineconeService
 from .. import logger
+import time
+import datetime
 
 ####################################################
 #                   CHAT                           #
@@ -95,16 +97,39 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
     if not chat.combined and resource_identifier is not None:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
+        logger.debug("Initializing pc service")
         pc_service = PineconeService(
             study_id=study_id,
             resource_identifier=resource_identifier,
             user_uid=user_uid,
             user_query=user_query,
         )
+        logger.debug("fetching context")
+        context_start_time = time.time()
         context = pc_service.get_chat_context()
-
-    if context == "":
-        response = "I am sorry, there is no information available in the documents to answer your question."
+        context_elapsed_time = time.time() - context_start_time
+        logger.debug(f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}")
+    llm_response = ""
+    if not context:
+        
+        def return_no_context_response():
+            nonlocal llm_response
+            response = ['I', ' ', 'am', ' ', 'sorry,', ' ', 'there', ' ', 'is', ' ', 'no', ' ', 'information', ' ', 'available', ' ', 'in', ' ', 'the', ' ', 'documents', ' ', 'to', ' ', 'answer', ' ', 'your', ' ', 'question.']
+            gen = iter(response)
+            for chunk in gen:
+                llm_response += chunk
+                time.sleep(0.05)
+                yield chunk
+            logger.debug("Adding bg task")
+        background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=llm_response,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
+        logger.debug("Returning response")
+        return StreamingResponse(return_no_context_response(), media_type="text/event-stream")
 
     # NOTE a bit slow
     # TODO fix streaming response
@@ -125,29 +150,28 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
                 llm_response += chunk
                 yield chunk
 
-            # TODO fix this
-            if context == "":
-                llm_response = "I am sorry, there is no information available in the documents to answer your question."
-                yield llm_response
-                background_tasks.add_task(
-                    save_chat_message_to_db,
-                    chat_message=llm_response,
-                    studyId=study_id,
-                    role="bot",
-                    user_uid=user_uid,
-                )
-            background_tasks.add_task(
+            # # TODO fix this
+            # if context == "":
+            #     llm_response = "I am sorry, there is no information available in the documents to answer your question."
+            #     yield llm_response
+            #     background_tasks.add_task(
+            #         save_chat_message_to_db,
+            #         chat_message=llm_response,
+            #         studyId=study_id,
+            #         role="bot",
+            #         user_uid=user_uid,
+            #     )
+        except Exception as e:
+            logger.error(e)
+            raise HTTPException(status_code=500, detail=str(e))
+    background_tasks.add_task(
                 save_chat_message_to_db,
                 chat_message=llm_response,
                 studyId=study_id,
                 role="bot",
                 user_uid=user_uid,
             )
-        except Exception as e:
-            logger.error(e)
-            raise HTTPException(status_code=500, detail=str(e))
-
-    return StreamingResponse(generate_llm_response())
+    return StreamingResponse(generate_llm_response(), media_type="text/event-stream")
 
 
 @router.get("/get-chat-messages")

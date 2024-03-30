@@ -76,14 +76,14 @@ def init_llm(settings: UsersLLMSettings):
                 model=settings["llm_name"],
                 api_key=settings["api_key"],
                 max_tokens=1500,
-                temperature=0.75,
+                temperature=0,
             )
             return llm
         elif isAnthropicModel(settings["llm_name"]):
             llm = ChatAnthropic(
                 model_name=settings["llm_name"],
                 anthropic_api_key=settings["api_key"],
-                temperature=0.75,
+                temperature=0,
             )
             return llm
         elif isGoogleModel(settings["llm_name"]):
@@ -91,7 +91,7 @@ def init_llm(settings: UsersLLMSettings):
                 model=settings["llm_name"],
                 google_api_key=settings["api_key"],
                 max_tokens=1500,
-                temperature=0.75,
+                temperature=0,
                 convert_system_message_to_human=True,
             )
             return llm
@@ -102,13 +102,15 @@ def init_llm(settings: UsersLLMSettings):
 
 async def get_llm_response(llm, user_query: str, context: str):
     system_prompt = create_user_prompt(user_query, context)
-    system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
-    human = user_query
-
-    prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-    chain = prompt | llm
-    for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
+    for chunk in llm.stream(system_prompt):
         yield chunk.content
+    # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
+    # human = user_query
+
+    # prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
+    # chain = prompt | llm
+    # for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
+    #     yield chunk.content
 
 
 # TODO move to routers/llm_settings.py
