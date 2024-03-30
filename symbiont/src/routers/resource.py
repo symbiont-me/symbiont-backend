@@ -325,9 +325,6 @@ def delete_vector_refs_from_db(user_uid: str, identifier: str):
     return {"message": "Vector not found."}
 
 
-# TODO FIX !TRASH CODE
-
-
 @router.post("/delete-resource")
 async def delete_resource(identifier: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
