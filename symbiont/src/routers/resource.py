@@ -31,10 +31,12 @@ from .. import logger
 router = APIRouter()
 
 
-def delete_resource_from_storage(identifier: str):
+def delete_resource_from_storage(user_uid: str, identifier: str):
     bucket = storage.bucket()
-    blob = bucket.blob(identifier)
+    storage_url = f"userFiles/{user_uid}/{identifier}"
+    blob = bucket.blob(storage_url)
     blob.delete()
+    logger.info(f"Resource deleted from storage: userFiles/userId/{identifier}")
 
 
 # Generates a signed URL is a URL that includes a signature, allowing access to a resource for a limited time period.
