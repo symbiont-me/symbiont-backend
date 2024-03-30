@@ -31,10 +31,12 @@ from .. import logger
 router = APIRouter()
 
 
-def delete_resource_from_storage(identifier: str):
+def delete_resource_from_storage(user_uid: str, identifier: str):
     bucket = storage.bucket()
-    blob = bucket.blob(identifier)
+    storage_url = f"userFiles/{user_uid}/{identifier}"
+    blob = bucket.blob(storage_url)
     blob.delete()
+    logger.info(f"Resource deleted from storage: userFiles/userId/{identifier}")
 
 
 # Generates a signed URL is a URL that includes a signature, allowing access to a resource for a limited time period.
@@ -134,7 +136,7 @@ async def add_resource(
     study_ref = study_service.get_document_ref()
     if study_ref is None:
         # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
-        delete_resource_from_storage(study_resource.identifier)
+        delete_resource_from_storage(user_uid, study_resource.identifier)
         raise HTTPException(status_code=404, detail="No such document!")
     study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
     logger.info(f"Resource added to study {study_resource}")
@@ -309,33 +311,50 @@ async def add_plain_text_resource(
     return {"status_code": 200, "message": "Resource added."}
 
 
-# TODO FIX !TRASH CODE
+def delete_vector_refs_from_db(user_uid: str, identifier: str):
+    # @note study_id is not used here as user can send a delete request from the library instead of a study
+    study_docs = firestore.client().collection("users").document(user_uid).get()
+    doc_dict = study_docs.to_dict()
+    vectors = doc_dict.get("vectors", [])
+    if identifier in vectors:
+        vectors.pop(identifier, None)  # Remove the key-value pair if the key exists
+        study_docs.reference.update({"vectors": vectors})
+        logger.info(f"Vector deleted from DB: {identifier}")
+
+        return {"message": "Vector deleted."}
+    return {"message": "Vector not found."}
+
+
 @router.post("/delete-resource")
 async def delete_resource(identifier: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
+    logger.info(f"Deleting resource {identifier}")
     # @note study_id is not used here as user can send a delete request from the library instead of a study
     pc_service = PineconeService(
         study_id="", user_uid=user_uid, resource_identifier=identifier
     )
-    # TODO fix this
-    study_docs = (
-        firestore.client()
-        .collection("studies")
-        .where("userId", "==", user_uid)
-        .stream()
-    )
-    resource = None
-    for doc in study_docs:
-        doc_dict = doc.to_dict()
 
+    try:
+        study_doc = (
+            firestore.client()
+            .collection("studies")
+            .where("userId", "==", user_uid)
+            .get()[0]
+        )
+
+        doc_dict = study_doc.to_dict()
+        if study_doc is None or doc_dict is None:
+            return {"message": "Study not found."}
         resources = doc_dict.get("resources", [])
-        for res in resources:
-            if res.get("identifier") == identifier:
-                resources.remove(res)
-                doc.reference.update({"resources": resources})
-                if res.get("category") == "pdf":
-                    delete_resource_from_storage(identifier)
-                    pc_service.delete_vectors_from_pinecone(identifier)
+        for resource in resources:
+            if resource.get("identifier") == identifier:
+                resources.remove(resource)
+                study_doc.reference.update({"resources": resources})
+                pc_service.delete_vectors_from_pinecone(identifier)
+                delete_vector_refs_from_db(user_uid, identifier)
+                if resource.get("category") == "pdf":
+                    delete_resource_from_storage(user_uid, identifier)
                 return {"message": "Resource deleted."}
-    raise HTTPException(status_code=404, detail="Resource not found")
-    return {"message": "Resource deleted."}
+        return {"message": "Resource deleted."}
+    except Exception as e:
+        return {"message": str(e)}

@@ -137,7 +137,7 @@ class PineconeService:
         try:
             if pc_index:
                 pc_index.delete(delete_all=True, namespace=namespace)
-                print(f"Deleted namespace {namespace}")
+                logger.info(f"Deleted namespace from Pinecone {namespace}")
         except Exception as e:
             print(f"Error deleting namespace {namespace}: {str(e)}")
 
@@ -150,12 +150,14 @@ class PineconeService:
             for page in pages:
                 prepared_pages = await self.prepare_pdf_for_pinecone(page)
                 docs.extend(prepared_pages)
+
             vecs = [await self.embed_document(doc) for doc in docs]
             logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
             return vecs
         return []
 
     async def add_file_resource_to_pinecone(self):
+        s = time.time()
         if self.download_url is None:
             logger.error("Download URL must be provided to prepare file resource")
             raise ValueError("Download URL must be provided to prepare file resource")
@@ -171,8 +173,11 @@ class PineconeService:
             await self.upload_vecs_to_pinecone(vecs)
             await self.create_vec_ref_in_db()
             await delete_local_file(file_path)
+        elapsed = time.time() - s
+        logger.info("Took (%s) s to upload the file", elapsed)
 
     # TODO rename this function as it is used for more than just webpages
+
     async def upload_webpage_to_pinecone(self, resource, content):
         split_texts = self.text_splitter.create_documents([content])
         docs = [
