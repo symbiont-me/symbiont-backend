@@ -137,7 +137,7 @@ class PineconeService:
         try:
             if pc_index:
                 pc_index.delete(delete_all=True, namespace=namespace)
-                print(f"Deleted namespace {namespace}")
+                logger.info(f"Deleted namespace from Pinecone {namespace}")
         except Exception as e:
             print(f"Error deleting namespace {namespace}: {str(e)}")
 
