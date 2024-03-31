@@ -8,7 +8,7 @@ class Logger:
         self.logger = logging.getLogger(logger_name)
 
         # Set logger level based on the environment
-        if environment and environment.upper() == "PROD":
+        if environment and environment.lower() == "production":
             self.logger.setLevel(logging.WARNING)
         else:
             self.logger.setLevel(logging.DEBUG)
