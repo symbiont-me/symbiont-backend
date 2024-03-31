@@ -36,29 +36,6 @@ import datetime
 router = APIRouter()
 
 
-def get_combined_chat_context(study_id: str, user_uid: str, user_query: str):
-    study_service = StudyService(user_uid, study_id)
-    pc_service = PineconeService(user_uid, user_query, None, study_id)
-    all_resource_identifiers = []
-    # # get all resources for the study
-    # TODO use a function that does not require user_uid to be passed
-    study_dict = study_service.get_document_dict()
-    if study_dict is None:
-        raise HTTPException(status_code=404, detail="No such document!")
-    resources = study_dict.get("resources", [])
-    if resources is None:
-        raise HTTPException(status_code=404, detail="No Resources Found")
-    # get the identifier for each resource
-    all_resource_identifiers = [resource.get("identifier") for resource in resources]
-    # # get the context for each resource
-    contexts = [
-        pc_service.get_chat_context()[0]
-        for resource_identifier in all_resource_identifiers
-    ]
-    # # TODO keep the context within the model's max token limit
-    return " ".join(contexts)
-
-
 @router.post("/chat")
 async def chat(chat: ChatRequest, request: Request, background_tasks: BackgroundTasks):
 
@@ -71,8 +48,9 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     if llm is None:
         raise HTTPException(status_code=404, detail="No LLM settings found!")
 
-    # TODO remove this feature as previous_message makes makes the context poor
-    previous_message = ""
+    previous_message = (
+        ""  # TODO remove this feature as previous_message makes makes the context poor
+    )
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
     background_tasks.add_task(
@@ -87,52 +65,86 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     context = ""
     context_metadata = []
-
+    # TODO review these conditions
     if not chat.combined and resource_identifier is None:
-        raise HTTPException(  # TODO this should be a 400
-            status_code=404, detail="Please select a resource"
-        )
+        raise HTTPException(status_code=404, detail="Please select a resource")
+
+    if resource_identifier is None:
+        raise HTTPException(status_code=404, detail="Please select a resource")
+
+    logger.debug("Initializing pc service")
+    pc_service = PineconeService(
+        study_id=study_id,
+        resource_identifier=resource_identifier,
+        user_uid=user_uid,
+        user_query=user_query,
+    )
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
-        context = get_combined_chat_context(chat.study_id, user_uid, chat.user_query)
-    if not chat.combined and resource_identifier is not None:
+        context = await pc_service.get_combined_chat_context()
+    if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
-        logger.debug("Initializing pc service")
-        pc_service = PineconeService(
-            study_id=study_id,
-            resource_identifier=resource_identifier,
-            user_uid=user_uid,
-            user_query=user_query,
-        )
-        logger.debug("fetching context")
         context_start_time = time.time()
-        context = pc_service.get_chat_context()
+        context = await pc_service.get_single_chat_context()
         context_elapsed_time = time.time() - context_start_time
-        logger.debug(f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}")
+        logger.debug(
+            f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}"
+        )
     llm_response = ""
     if not context:
-        
+
         def return_no_context_response():
             nonlocal llm_response
-            response = ['I', ' ', 'am', ' ', 'sorry,', ' ', 'there', ' ', 'is', ' ', 'no', ' ', 'information', ' ', 'available', ' ', 'in', ' ', 'the', ' ', 'documents', ' ', 'to', ' ', 'answer', ' ', 'your', ' ', 'question.']
+            response = [
+                "I",
+                " ",
+                "am",
+                " ",
+                "sorry,",
+                " ",
+                "there",
+                " ",
+                "is",
+                " ",
+                "no",
+                " ",
+                "information",
+                " ",
+                "available",
+                " ",
+                "in",
+                " ",
+                "the",
+                " ",
+                "documents",
+                " ",
+                "to",
+                " ",
+                "answer",
+                " ",
+                "your",
+                " ",
+                "question.",
+            ]
             gen = iter(response)
             for chunk in gen:
                 llm_response += chunk
                 time.sleep(0.05)
                 yield chunk
             logger.debug("Adding bg task")
-        background_tasks.add_task(
-                save_chat_message_to_db,
-                chat_message=llm_response,
-                studyId=study_id,
-                role="bot",
-                user_uid=user_uid,
-            )
-        logger.debug("Returning response")
-        return StreamingResponse(return_no_context_response(), media_type="text/event-stream")
 
-    # NOTE a bit slow
-    # TODO fix streaming response
+        background_tasks.add_task(
+            save_chat_message_to_db,
+            chat_message=llm_response,
+            studyId=study_id,
+            role="bot",
+            user_uid=user_uid,
+        )
+        logger.debug("Returning response")
+        return StreamingResponse(
+            return_no_context_response(), media_type="text/event-stream"
+        )
+
     async def generate_llm_response() -> AsyncGenerator[str, None]:
         """
         This asynchronous generator function streams the response from the language model (LLM) in chunks.
@@ -145,32 +157,22 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             async for chunk in get_llm_response(
                 llm=llm,
                 user_query=user_query,
-                context=context,
+                context=context,  # TODO needs to be fixed
             ):
                 llm_response += chunk
                 yield chunk
 
-            # # TODO fix this
-            # if context == "":
-            #     llm_response = "I am sorry, there is no information available in the documents to answer your question."
-            #     yield llm_response
-            #     background_tasks.add_task(
-            #         save_chat_message_to_db,
-            #         chat_message=llm_response,
-            #         studyId=study_id,
-            #         role="bot",
-            #         user_uid=user_uid,
-            #     )
         except Exception as e:
             logger.error(e)
             raise HTTPException(status_code=500, detail=str(e))
+
     background_tasks.add_task(
-                save_chat_message_to_db,
-                chat_message=llm_response,
-                studyId=study_id,
-                role="bot",
-                user_uid=user_uid,
-            )
+        save_chat_message_to_db,
+        chat_message=llm_response,
+        studyId=study_id,
+        role="bot",
+        user_uid=user_uid,
+    )
     return StreamingResponse(generate_llm_response(), media_type="text/event-stream")
 
 

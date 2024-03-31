@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .. import logger
 import cohere
 import time
+from fastapi import HTTPException
 import datetime
 
 nltk.download("punkt")
@@ -82,7 +83,7 @@ class PineconeService:
             is_separator_regex=False,
         )
 
-        self.text_splitter = self.recursive_text_splitter
+        self.text_splitter = self.nltk_text_splitter
         self.db_vec_refs = {}
 
     def get_vectors_from_db(self):
@@ -198,16 +199,17 @@ class PineconeService:
         await self.upload_vecs_to_pinecone(vecs)
         await self.create_vec_ref_in_db()
 
-    def get_chat_context(self, top_k=25):
+    async def get_relevant_vectors(self, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
             raise ValueError(
                 "Resource and user query must be provided to get chat context"
             )
-        context = ""
-        
         logger.debug("search_pinecone_index")
         pinecone_start_time = time.time()
         pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
+        logger.info(
+            f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}"
+        )
         pinecone_elapsed_time = time.time() - pinecone_start_time
         logger.info(
             f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}"
@@ -225,27 +227,35 @@ class PineconeService:
         vec_metadata_start_time = time.time()
         vec_metadata = []
         vec_data = self.get_vectors_from_db()
-        for match in filtered_matches:
-            # logger.info(f"VEC DATA FROM DB: {vec_data}")
-            if vec_data is None:
-                logger.debug("vec_data is none")
-                return ""
+        if vec_data is None:
+            logger.error("No vectors found in the database")
+            return vec_data
+        for match in pc_results.matches:
+
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
-            context += resource_vecs[match.id]["text"]
+
         vec_metadata_elapsed_time = time.time() - vec_metadata_start_time
         logger.debug(
             f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}"
         )
-        
+        return vec_metadata
+
+    def rerank_context(self, context):
+        # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
+        if not context:
+            return ""
         logger.debug("Reranking")
         rerank_start_time = time.time()
         reranked_context = co.rerank(
             query=self.user_query,
-            documents=vec_metadata,
+            documents=context,
             top_n=3,
             model=CohereTextModels.COHERE_RERANK_V2,
         )
+        reranked_text = ""
+        for text in reranked_context.results:
+            reranked_text += text.document.get("text", "")
         rerank_elapsed_time = time.time() - rerank_start_time
         logger.info(
             f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}"
@@ -253,8 +263,43 @@ class PineconeService:
         logger.info(
             f"relevance scores: {[r.relevance_score for r in reranked_context]}"
         )
+        return reranked_text
 
+    async def get_single_chat_context(self):
+        context = await self.get_relevant_vectors()
+        if context is None:
+            return ""
+        reranked_context = self.rerank_context(context)
         return reranked_context
+
+    async def get_combined_chat_context(self):
+        s = time.time()
+        db = firestore.client()
+        all_resource_identifiers = []
+        study_dict = db.collection("studies").document(self.study_id).get().to_dict()
+
+        if study_dict is None:
+            raise HTTPException(status_code=404, detail="No such document!")
+        resources = study_dict.get("resources", [])
+
+        if resources is None:
+            raise HTTPException(status_code=404, detail="No Resources Found")
+        # get the identifier for each resource
+        all_resource_identifiers = [
+            resource.get("identifier") for resource in resources
+        ]
+        logger.info(f"Resource Identifiers: {all_resource_identifiers}")
+        # get the context for each resource
+        combined_vecs = []
+        for identifier in all_resource_identifiers:
+            # NOTE need to set the global resource identifier because get_relevant_vectors uses it
+            self.resource_identifier = identifier
+            vecs = await self.get_relevant_vectors(top_k=10)
+            combined_vecs.extend(vecs)
+        logger.info(f"Combined Context: {len(combined_vecs)}")
+        elapsed = time.time() - s
+        logger.info("Took (%s) s to get combined context", elapsed)
+        return self.rerank_context(combined_vecs)
 
     async def upload_yt_resource_to_pinecone(
         self, resource: StudyResource, content: str
@@ -283,7 +328,7 @@ class PineconeService:
     async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
         metadata = (
             {}
-        )  # TODO metadata is stored in the db. It should not be stored in Pinecone. Should have a better way to do this
+        )  # NOTE metadata is stored in the db. It should not be stored in Pinecone
         formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
         if pc_index is None:
             logger.error("Pinecone index is not initialized")
