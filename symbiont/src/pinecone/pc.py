@@ -222,8 +222,8 @@ class PineconeService:
         logger.debug(f"matches:\t{[match['score'] for match in filtered_matches]}")
         vec_metadata = []
         vec_metadata_start_time = time.time()
+        vec_data = self.get_vectors_from_db()
         for match in filtered_matches:
-            vec_data = self.get_vectors_from_db()
             # logger.info(f"VEC DATA FROM DB: {vec_data}")
             if vec_data is None:
                 logger.debug("vec_data is none")
