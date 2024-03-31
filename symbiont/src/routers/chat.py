@@ -100,7 +100,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             response = "I am sorry, there is no information available in the documents to answer your question."
             gen = iter(response.split())
             for chunk in gen:
-                no_context_response += chunk
+                no_context_response += chunk + " "
                 time.sleep(0.05)
                 yield chunk
             logger.debug("Adding bg task")
