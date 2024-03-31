@@ -146,11 +146,10 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             ):
                 llm_response += chunk
                 yield chunk
-
         except Exception as e:
             logger.error(e)
             raise HTTPException(status_code=500, detail=str(e))
-
+    
     background_tasks.add_task(
         save_chat_message_to_db,
         chat_message=llm_response,

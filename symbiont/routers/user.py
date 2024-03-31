@@ -12,7 +12,7 @@ class User(BaseModel):
 default_llm_settings = {
     "llm_name": "gpt-3.5-turbo",
     "api_key": "",
-    "temperature": 0.75,
+    "temperature": 0.0,
     "max_tokens": 1500,
 }
 
