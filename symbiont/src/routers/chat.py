@@ -1,7 +1,7 @@
 from requests import api
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from ..models import ChatRequest, ChatMessage, LLMModel
-
+from firebase_admin import firestore
 
 from langchain.prompts import PromptTemplate
 from fastapi.responses import StreamingResponse
@@ -199,12 +199,16 @@ async def delete_chat_messages(studyId: str, request: Request):
 
 
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str):
-    # TODO improve this
-    study_service = StudyService(user_uid, studyId)
-    doc_ref = study_service.get_document_ref()
-    if doc_ref is None:
+    db = firestore.client()
+    doc_ref = db.collection("studies").document(studyId)
+    if doc_ref.get().to_dict() is None:
         raise HTTPException(status_code=404, detail="No such document!")
     new_chat_message = ChatMessage(
-        role=role, content=chat_message, createdAt=datetime.now()
+        role=role, content=chat_message, createdAt=datetime.datetime.now()
     ).model_dump()
     doc_ref.update({"chatMessages": ArrayUnion([new_chat_message])})
+    if role == "bot":
+        logger.info("Bot message saved to db")
+    else:
+        logger.info("User message saved to db")
+    return {"message": "Chat message saved to db", "status_code": 200}
