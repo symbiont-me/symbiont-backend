@@ -90,7 +90,6 @@ class PineconeService:
         self.db_vec_refs = {}
 
     def get_combined_chat_context(self):
-        logger.info("get_combined_chat_context")
         db = firestore.client()
         all_resource_identifiers = []
         study_dict = db.collection("studies").document(self.study_id).get().to_dict()
