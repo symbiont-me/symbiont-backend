@@ -209,11 +209,13 @@ async def process_youtube_video(
         )
 
         study_service = StudyService(user_uid, video_resource.studyId)
-        study_service.add_resource_to_db(study_resource)
 
         await pc_service.upload_yt_resource_to_pinecone(
             study_resource, doc.page_content
         )
+        # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
+        study_service.add_resource_to_db(study_resource)
+
         logger.info(f"Youtube video added to Pinecone {study_resource}")
         return {"status_code": 200, "message": "Resource added."}
     except Exception as e:
