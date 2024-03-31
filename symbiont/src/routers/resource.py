@@ -119,39 +119,46 @@ async def add_resource(
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file provided!")
     user_uid = request.state.verified_user["user_id"]
-    upload_result = upload_to_firebase_storage(file, user_uid)
-    file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
+    try:
+        upload_result = upload_to_firebase_storage(file, user_uid)
+        file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
 
-    logger.debug(f"Resource uploaded identifier: {upload_result.identifier}")
+        logger.debug(f"Resource uploaded identifier: {upload_result.identifier}")
 
-    study_resource = StudyResource(
-        studyId=studyId,
-        identifier=upload_result.identifier,
-        name=upload_result.file_name,
-        url=upload_result.url,  # TODO should be view_url for clarity here and in the frontend
-        category=file_extension,
-    )
+        study_resource = StudyResource(
+            studyId=studyId,
+            identifier=upload_result.identifier,
+            name=upload_result.file_name,
+            url=upload_result.url,  # TODO should be view_url for clarity here and in the frontend
+            category=file_extension,
+        )
 
-    study_service = StudyService(user_uid, studyId)
-    study_ref = study_service.get_document_ref()
-    if study_ref is None:
-        # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
-        delete_resource_from_storage(user_uid, study_resource.identifier)
-        raise HTTPException(status_code=404, detail="No such document!")
-    study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-    logger.info(f"Resource added to study {study_resource}")
+        study_service = StudyService(user_uid, studyId)
+        study_ref = study_service.get_document_ref()
+        if study_ref is None:
+            # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
+            delete_resource_from_storage(user_uid, study_resource.identifier)
+            raise HTTPException(status_code=404, detail="No such document!")
+        study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+        logger.info(f"Resource added to study {study_resource}")
 
-    pc_service = PineconeService(
-        study_id=study_resource.studyId,
-        resource_identifier=study_resource.identifier,
-        user_uid=user_uid,
-        user_query=None,
-        resource_download_url=upload_result.download_url,
-    )
-    await pc_service.add_file_resource_to_pinecone()
-    study_service.add_resource_to_db(study_resource)
+        pc_service = PineconeService(
+            study_id=study_resource.studyId,
+            resource_identifier=study_resource.identifier,
+            user_uid=user_uid,
+            user_query=None,
+            resource_download_url=upload_result.download_url,
+        )
+        await pc_service.add_file_resource_to_pinecone()
+        study_service.add_resource_to_db(study_resource)
 
-    return {"resource": study_resource.model_dump(), "status_code": 200}
+        return {"resource": study_resource.model_dump(), "status_code": 200}
+    except Exception as e:
+        # Handle the exception here
+        # You can log the error or return a specific error response
+        # For example:
+        logger.error(f"Error occurred while adding resource: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/get-resources")
