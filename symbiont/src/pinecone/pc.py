@@ -24,6 +24,7 @@ from .. import logger
 from langchain_voyageai import VoyageAIEmbeddings
 import cohere
 import time
+from fastapi import HTTPException
 
 nltk.download("punkt")
 
@@ -85,8 +86,34 @@ class PineconeService:
             is_separator_regex=False,
         )
 
-        self.text_splitter = self.recursive_text_splitter
+        self.text_splitter = self.nltk_text_splitter
         self.db_vec_refs = {}
+
+    def get_combined_chat_context(self):
+        logger.info("get_combined_chat_context")
+        db = firestore.client()
+        all_resource_identifiers = []
+        study_dict = db.collection("studies").document(self.study_id).get().to_dict()
+
+        if study_dict is None:
+            raise HTTPException(status_code=404, detail="No such document!")
+        resources = study_dict.get("resources", [])
+
+        if resources is None:
+            raise HTTPException(status_code=404, detail="No Resources Found")
+        # get the identifier for each resource
+        all_resource_identifiers = [
+            resource.get("identifier") for resource in resources
+        ]
+        logger.info(f"Resource Identifiers: {all_resource_identifiers}")
+        # get the context for each resource
+        combined_context = []
+        for identifier in all_resource_identifiers:
+            # NOTE need to set the global resource identifier because get_chat_context uses it
+            self.resource_identifier = identifier
+            context = self.get_chat_context(top_k=5)
+            combined_context.append(context)
+        return combined_context
 
     def get_vectors_from_db(self):
         vec_ref = self.db.collection("users").document(self.user_uid)
@@ -208,7 +235,9 @@ class PineconeService:
             )
         context = ""
         pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
-        logger.info(f"Found {len(pc_results.matches)} matches")
+        logger.info(
+            f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}"
+        )
 
         vec_metadata = []
         for match in pc_results.matches:
@@ -219,6 +248,7 @@ class PineconeService:
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
             context += resource_vecs[match.id]["text"]
+
         reranked_context = co.rerank(
             query=self.user_query,
             documents=vec_metadata,
