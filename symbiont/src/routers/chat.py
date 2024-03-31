@@ -81,8 +81,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     )
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
-        context = str(pc_service.get_combined_chat_context())
-        logger.info(context)
+        context = pc_service.get_combined_chat_context()
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
         context = pc_service.get_chat_context()
