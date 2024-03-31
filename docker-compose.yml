@@ -12,7 +12,7 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    command: "uvicorn symbiont.src.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: "uvicorn symbiont.main:app --host 0.0.0.0 --port 8000 --reload"
     profiles: ["dev"]
 
   fastapi-prod:
@@ -23,5 +23,5 @@ services:
       - "80:8000"
     env_file:
       - .env
-    command: "uvicorn symbiont.src.main:app --host 0.0.0.0 --port 8000"
+    command: "uvicorn symbiont.main:app --host 0.0.0.0 --port 8000"
     profiles: ["prod"]

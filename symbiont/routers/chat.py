@@ -1,24 +1,14 @@
-from requests import api
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from ..models import ChatRequest, ChatMessage, LLMModel
+from ..models import ChatRequest, ChatMessage
 
 
-from langchain.prompts import PromptTemplate
 from fastapi.responses import StreamingResponse
-from datetime import datetime
+import datetime
 from typing import AsyncGenerator
 from google.cloud.firestore import ArrayUnion
 from ..utils.db_utils import StudyService
-from ..utils.llm_utils import truncate_prompt
-from pydantic import BaseModel
-from langchain.chains import LLMChain
-from pydantic import BaseModel
 
-from langchain_openai import OpenAI
-from langchain_community.chat_models import ChatOpenAI
 
-from langchain.chains.summarize import load_summarize_chain
-from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from ..llms import (
     get_user_llm_settings,
     init_llm,
@@ -27,7 +17,6 @@ from ..llms import (
 from ..pinecone.pc import PineconeService
 from .. import logger
 import time
-import datetime
 
 ####################################################
 #                   CHAT                           #
@@ -48,9 +37,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     if llm is None:
         raise HTTPException(status_code=404, detail="No LLM settings found!")
 
-    previous_message = (
-        ""  # TODO remove this feature as previous_message makes makes the context poor
-    )
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
     background_tasks.add_task(
@@ -64,7 +50,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     logger.info(resource_identifier)
 
     context = ""
-    context_metadata = []
     # TODO review these conditions
     if not chat.combined and resource_identifier is None:
         raise HTTPException(status_code=404, detail="Please select a resource")

@@ -13,7 +13,7 @@ class Logger:
         else:
             self.logger.setLevel(logging.DEBUG)
 
-        LOGFORMAT = "  %(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
+        LOGFORMAT = "%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
         # Create a formatter
         color_formatter = ColoredFormatter(LOGFORMAT)
 

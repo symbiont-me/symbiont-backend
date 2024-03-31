@@ -1,11 +1,11 @@
 from hashlib import md5
 from typing import List
-from symbiont.src.models import PineconeRecord, DocumentPage
-from symbiont.src.fb.storage import download_from_firebase_storage, delete_local_file
+from ..models import PineconeRecord, DocumentPage
+from ..fb.storage import download_from_firebase_storage, delete_local_file
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
-from symbiont.src.models import EmbeddingModels, CohereTextModels
+from ..models import EmbeddingModels, CohereTextModels
 import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
