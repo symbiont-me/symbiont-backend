@@ -35,12 +35,14 @@ def create_user_prompt(user_query: str, context: str):
         AI assistant will not invent anything that is not drawn directly from the context.
         AI will be as detailed as possible.
         Output Format: Return your answer in valid {output_format} Format
+        User Query: {user_query}
     """
     )
 
     prompt = prompt_template.format(
         context=context,
         output_format="Markdown",
+        user_query=user_query,
     )
     return prompt
 
@@ -101,13 +103,9 @@ def init_llm(settings: UsersLLMSettings):
 
 
 async def get_llm_response(llm, user_query: str, context: str):
-    system_prompt = create_user_prompt(user_query, context)
-    system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
-    human = user_query
 
-    prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-    chain = prompt | llm
-    for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
+    system_prompt = create_user_prompt(user_query, context)
+    for chunk in llm.stream(system_prompt):
         yield chunk.content
 
 
