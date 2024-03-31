@@ -35,7 +35,7 @@ COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
 WORKDIR $PYSETUP_PATH
 RUN poetry install --no-interaction --no-ansi --no-root
 WORKDIR /app
-# CMD ["pip", "list", ]
+CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 
 #####################
@@ -48,17 +48,5 @@ COPY --from=builder $POETRY_HOME $POETRY_HOME
 COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
 WORKDIR /app
 COPY ./symbiont ./
-RUN poetry install
-CMD ["pip", "list", ]
-# # Production image
-# FROM builder as production
-
-# WORKDIR /app
-
-# # Copy from builder
-# COPY --from=builder /usr/local/bin /usr/local/bin
-# COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-# COPY --from=builder /app /app
-
-# # Run the app
-# CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN poetry install --no-interaction --no-ansi --no-root
+CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000"]
