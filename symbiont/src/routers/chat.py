@@ -81,10 +81,10 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     )
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
-        context = pc_service.get_combined_chat_context()
+        context = await pc_service.get_combined_chat_context()
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
-        context = pc_service.get_chat_context()
+        context = await pc_service.get_single_chat_context()
 
     # if context == "":
     #     response = "I am sorry, there is no information available in the documents to answer your question."
