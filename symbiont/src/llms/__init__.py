@@ -103,9 +103,8 @@ def init_llm(settings: UsersLLMSettings):
 
 
 async def get_llm_response(llm, user_query: str, context: str):
-
-    system_prompt = create_user_prompt(user_query, context)
-    for chunk in llm.stream(system_prompt):
+    prompt = create_user_prompt(user_query, context)
+    for chunk in llm.stream(prompt):
         yield chunk.content
 
 
