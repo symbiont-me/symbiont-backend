@@ -274,6 +274,7 @@ class PineconeService:
         return reranked_context
 
     async def get_combined_chat_context(self):
+        s = time.time()
         db = firestore.client()
         all_resource_identifiers = []
         study_dict = db.collection("studies").document(self.study_id).get().to_dict()
@@ -297,6 +298,8 @@ class PineconeService:
             vecs = await self.get_relevant_vectors(top_k=10)
             combined_vecs.extend(vecs)
         logger.info(f"Combined Context: {len(combined_vecs)}")
+        elapsed = time.time() - s
+        logger.info("Took (%s) s to get combined context", elapsed)
         return self.rerank_context(combined_vecs)
 
     async def upload_yt_resource_to_pinecone(
