@@ -214,11 +214,12 @@ class PineconeService:
         )
 
         vec_metadata = []
+        vec_data = self.get_vectors_from_db()
+        if vec_data is None:
+            logger.error("No vectors found in the database")
+            return ""
         for match in pc_results.matches:
-            vec_data = self.get_vectors_from_db()
-            # logger.info(f"VEC DATA FROM DB: {vec_data}")
-            if vec_data is None:
-                return ""
+
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
 
