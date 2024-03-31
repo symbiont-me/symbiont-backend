@@ -22,7 +22,7 @@ from typing import Union
 from .. import logger
 
 
-def create_user_prompt(user_query: str, context: str):
+def create_prompt(user_query: str, context: str):
     prompt_template = PromptTemplate.from_template(
         """
         You are a well-informed AI assistant. 
@@ -35,7 +35,7 @@ def create_user_prompt(user_query: str, context: str):
         AI assistant will not invent anything that is not drawn directly from the context.
         AI will be as detailed as possible.
         Output Format: Return your answer in valid {output_format} Format
-        User Query: {user_query}
+        Question: {user_query}
     """
     )
 
@@ -78,14 +78,14 @@ def init_llm(settings: UsersLLMSettings):
                 model=settings["llm_name"],
                 api_key=settings["api_key"],
                 max_tokens=1500,
-                temperature=0.75,
+                temperature=0,
             )
             return llm
         elif isAnthropicModel(settings["llm_name"]):
             llm = ChatAnthropic(
                 model_name=settings["llm_name"],
                 anthropic_api_key=settings["api_key"],
-                temperature=0.75,
+                temperature=0,
             )
             return llm
         elif isGoogleModel(settings["llm_name"]):
@@ -93,7 +93,7 @@ def init_llm(settings: UsersLLMSettings):
                 model=settings["llm_name"],
                 google_api_key=settings["api_key"],
                 max_tokens=1500,
-                temperature=0.75,
+                temperature=0,
                 convert_system_message_to_human=True,
             )
             return llm
@@ -103,9 +103,16 @@ def init_llm(settings: UsersLLMSettings):
 
 
 async def get_llm_response(llm, user_query: str, context: str):
-    prompt = create_user_prompt(user_query, context)
+    prompt = create_prompt(user_query, context)
     for chunk in llm.stream(prompt):
         yield chunk.content
+    # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
+    # human = user_query
+
+    # prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
+    # chain = prompt | llm
+    # for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
+    #     yield chunk.content
 
 
 # TODO move to routers/llm_settings.py

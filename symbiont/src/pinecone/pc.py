@@ -25,6 +25,7 @@ from langchain_voyageai import VoyageAIEmbeddings
 import cohere
 import time
 from fastapi import HTTPException
+import datetime
 
 nltk.download("punkt")
 
@@ -60,12 +61,14 @@ class PineconeService:
         user_uid=None,
         user_query="",
         resource_download_url=None,
+        threshold=0.1,
     ):
         self.user_uid = user_uid
         self.user_query = user_query
         self.study_id = study_id
         self.resource_identifier = resource_identifier
         self.download_url = resource_download_url
+        self.threshold = threshold
         self.db = firestore.client()
         self.embed = OpenAIEmbeddings(
             model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
@@ -207,26 +210,44 @@ class PineconeService:
             raise ValueError(
                 "Resource and user query must be provided to get chat context"
             )
-
+        logger.debug("search_pinecone_index")
+        pinecone_start_time = time.time()
         pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
         logger.info(
             f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}"
         )
+        pinecone_elapsed_time = time.time() - pinecone_start_time
+        logger.info(
+            f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}"
+        )
+        filtered_matches = [
+            match for match in pc_results.matches if match["score"] > self.threshold
+        ]
+        logger.info(f"Found {len(filtered_matches)} matches after filtering")
+        if not filtered_matches:
+            return filtered_matches
+        logger.debug(f"matches:\t{[match['score'] for match in filtered_matches]}")
 
         vec_metadata = []
+        vec_metadata_start_time = time.time()
         vec_data = self.get_vectors_from_db()
         if vec_data is None:
             logger.error("No vectors found in the database")
-            return ""
+            return vec_data
         for match in pc_results.matches:
 
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
 
+        vec_metadata_elapsed_time = time.time() - vec_metadata_start_time
+        logger.debug(
+            f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}"
+        )
         return vec_metadata
 
     def rerank_context(self, context):
-        # TODO get the text from the reranked type
+        logger.debug("Reranking")
+        rerank_start_time = time.time()
         reranked_context = co.rerank(
             query=self.user_query,
             documents=context,
@@ -236,7 +257,13 @@ class PineconeService:
         reranked_text = ""
         for text in reranked_context.results:
             reranked_text += text.document.get("text", "")
-        logger.info(f"Context vectors reranked")
+        rerank_elapsed_time = time.time() - rerank_start_time
+        logger.info(
+            f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}"
+        )
+        logger.info(
+            f"relevance scores: {[r.relevance_score for r in reranked_context]}"
+        )
         return reranked_text
 
     async def get_single_chat_context(self):
