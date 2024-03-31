@@ -246,6 +246,9 @@ class PineconeService:
         return vec_metadata
 
     def rerank_context(self, context):
+        # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
+        if not context:
+            return ""
         logger.debug("Reranking")
         rerank_start_time = time.time()
         reranked_context = co.rerank(
