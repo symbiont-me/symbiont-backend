@@ -35,12 +35,14 @@ def create_user_prompt(user_query: str, context: str):
         AI assistant will not invent anything that is not drawn directly from the context.
         AI will be as detailed as possible.
         Output Format: Return your answer in valid {output_format} Format
+        Question: {user_query}
     """
     )
 
     prompt = prompt_template.format(
         context=context,
         output_format="Markdown",
+        user_query=user_query,
     )
     return prompt
 
