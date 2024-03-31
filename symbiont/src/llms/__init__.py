@@ -22,7 +22,7 @@ from typing import Union
 from .. import logger
 
 
-def create_user_prompt(user_query: str, context: str):
+def create_prompt(user_query: str, context: str):
     prompt_template = PromptTemplate.from_template(
         """
         You are a well-informed AI assistant. 
@@ -103,8 +103,8 @@ def init_llm(settings: UsersLLMSettings):
 
 
 async def get_llm_response(llm, user_query: str, context: str):
-    system_prompt = create_user_prompt(user_query, context)
-    for chunk in llm.stream(system_prompt):
+    prompt = create_prompt(user_query, context)
+    for chunk in llm.stream(prompt):
         yield chunk.content
     # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
     # human = user_query
