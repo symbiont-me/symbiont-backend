@@ -48,8 +48,9 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
     if llm is None:
         raise HTTPException(status_code=404, detail="No LLM settings found!")
 
-    # TODO remove this feature as previous_message makes makes the context poor
-    previous_message = ""
+    previous_message = (
+        ""  # TODO remove this feature as previous_message makes makes the context poor
+    )
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
     background_tasks.add_task(
@@ -64,16 +65,12 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
 
     context = ""
     context_metadata = []
-
+    # TODO review these conditions
     if not chat.combined and resource_identifier is None:
-        raise HTTPException(  # TODO this should be a 400
-            status_code=404, detail="Please select a resource"
-        )
+        raise HTTPException(status_code=404, detail="Please select a resource")
 
     if resource_identifier is None:
-        raise HTTPException(  # TODO this should be a 400
-            status_code=404, detail="Please select a resource"
-        )
+        raise HTTPException(status_code=404, detail="Please select a resource")
 
     logger.debug("Initializing pc service")
     pc_service = PineconeService(
@@ -165,17 +162,6 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
                 llm_response += chunk
                 yield chunk
 
-            # # TODO fix this
-            # if context == "":
-            #     llm_response = "I am sorry, there is no information available in the documents to answer your question."
-            #     yield llm_response
-            #     background_tasks.add_task(
-            #         save_chat_message_to_db,
-            #         chat_message=llm_response,
-            #         studyId=study_id,
-            #         role="bot",
-            #         user_uid=user_uid,
-            #     )
         except Exception as e:
             logger.error(e)
             raise HTTPException(status_code=500, detail=str(e))
