@@ -60,7 +60,7 @@ class PineconeService:
         user_uid=None,
         user_query="",
         resource_download_url=None,
-        threshold=0.1
+        threshold=0.1,
     ):
         self.user_uid = user_uid
         self.user_query = user_query
@@ -214,8 +214,12 @@ class PineconeService:
         pinecone_start_time = time.time()
         pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
         pinecone_elapsed_time = time.time() - pinecone_start_time
-        logger.info(f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}")
-        filtered_matches = [match for match in pc_results.matches if match['score']>self.threshold]
+        logger.info(
+            f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}"
+        )
+        filtered_matches = [
+            match for match in pc_results.matches if match["score"] > self.threshold
+        ]
         logger.info(f"Found {len(filtered_matches)} matches after filtering")
         if not filtered_matches:
             return filtered_matches
@@ -232,7 +236,9 @@ class PineconeService:
             vec_metadata.append(resource_vecs[match.id])
             context += resource_vecs[match.id]["text"]
         vec_metadata_elapsed_time = time.time() - vec_metadata_start_time
-        logger.debug(f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}")
+        logger.debug(
+            f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}"
+        )
         logger.debug("Reranking")
         rerank_start_time = time.time()
         reranked_context = co.rerank(
@@ -242,10 +248,13 @@ class PineconeService:
             model=CohereTextModels.COHERE_RERANK_V2,
         )
         rerank_elapsed_time = time.time() - rerank_start_time
-        logger.info(f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}")
-        logger.info(f"relevance scores: {[r.relevance_score for r in reranked_context]}")
-        # TODO get the text from the reranked type
-        logger.debug(f"Reranked context: {reranked_context}")
+        logger.info(
+            f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}"
+        )
+        logger.info(
+            f"relevance scores: {[r.relevance_score for r in reranked_context]}"
+        )
+
         return reranked_context
 
     async def upload_yt_resource_to_pinecone(
