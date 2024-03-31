@@ -90,52 +90,24 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         logger.debug(
             f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}"
         )
-    llm_response = ""
+
+    no_context_response = ""
     if not context:
+        logger.debug("No context found, retuning no context response")
 
         def return_no_context_response():
-            nonlocal llm_response
-            response = [
-                "I",
-                " ",
-                "am",
-                " ",
-                "sorry,",
-                " ",
-                "there",
-                " ",
-                "is",
-                " ",
-                "no",
-                " ",
-                "information",
-                " ",
-                "available",
-                " ",
-                "in",
-                " ",
-                "the",
-                " ",
-                "documents",
-                " ",
-                "to",
-                " ",
-                "answer",
-                " ",
-                "your",
-                " ",
-                "question.",
-            ]
-            gen = iter(response)
+            nonlocal no_context_response
+            response = "I am sorry, there is no information available in the documents to answer your question."
+            gen = iter(response.split())
             for chunk in gen:
-                llm_response += chunk
+                no_context_response += chunk
                 time.sleep(0.05)
                 yield chunk
             logger.debug("Adding bg task")
 
         background_tasks.add_task(
             save_chat_message_to_db,
-            chat_message=llm_response,
+            chat_message=no_context_response,
             studyId=study_id,
             role="bot",
             user_uid=user_uid,
@@ -166,13 +138,14 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             logger.error(e)
             raise HTTPException(status_code=500, detail=str(e))
 
-    background_tasks.add_task(
-        save_chat_message_to_db,
-        chat_message=llm_response,
-        studyId=study_id,
-        role="bot",
-        user_uid=user_uid,
-    )
+        background_tasks.add_task(
+            save_chat_message_to_db,
+            chat_message=llm_response,
+            studyId=study_id,
+            role="bot",
+            user_uid=user_uid,
+        )
+
     return StreamingResponse(generate_llm_response(), media_type="text/event-stream")
 
 
