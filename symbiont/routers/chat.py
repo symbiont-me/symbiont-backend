@@ -81,40 +81,15 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
         def return_no_context_response():
             nonlocal llm_response
             response = [
-                "I",
-                " ",
-                "am",
-                " ",
-                "sorry,",
-                " ",
-                "there",
-                " ",
-                "is",
-                " ",
-                "no",
-                " ",
-                "information",
-                " ",
-                "available",
-                " ",
-                "in",
-                " ",
-                "the",
-                " ",
-                "documents",
-                " ",
-                "to",
-                " ",
-                "answer",
-                " ",
-                "your",
-                " ",
-                "question.",
+                "I am sorry,", 
+                " there is no information", 
+                " available in the documents",
+                " to answer your question."
             ]
             gen = iter(response)
             for chunk in gen:
                 llm_response += chunk
-                time.sleep(0.05)
+                time.sleep(0.1)
                 yield chunk
             logger.debug("Adding bg task")
 
