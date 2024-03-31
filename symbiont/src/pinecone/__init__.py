@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 from pinecone import Pinecone
 import time
+from .. import logger
 
 
 load_dotenv()
@@ -22,4 +23,4 @@ while not pc.describe_index("symbiont-me").status["ready"]:
 if pc_index is None:
     raise Exception("Pinecone index not found")
 
-print("Pinecone initialized")
+logger.info("Pinecone initialized")

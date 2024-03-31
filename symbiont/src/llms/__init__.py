@@ -1,24 +1,12 @@
-import os
-from ..models import LLMModel
 import re
 from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel
-from langchain_openai import OpenAI
 from firebase_admin import firestore
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.prompts.chat import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
-)
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from typing import AsyncGenerator
 from fastapi import HTTPException
 from pydantic import SecretStr
-from typing import Union
 from .. import logger
 
 
@@ -30,8 +18,8 @@ def create_prompt(user_query: str, context: str):
         AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation.
         AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.
         START DOCUMENT BLOCK {context} END OF DOCUMENT BLOCK
-        If the context does not provide the answer to the question or the context is empty, the AI assistant will say,
-        I'm sorry, but I don't know the answer to that question.
+        If the context does not provide the answer to the question or the context is empty, the AI assistant will say:
+        "I'm sorry, but I don't know the answer to that question."
         AI assistant will not invent anything that is not drawn directly from the context.
         AI will be as detailed as possible.
         Output Format: Return your answer in valid {output_format} Format

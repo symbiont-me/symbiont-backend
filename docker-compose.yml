@@ -1,8 +1,10 @@
 version: "3.8"
 
 services:
-  fastapi-app:
-    build: .
+  fastapi-dev:
+    build:
+      context: .
+      target: development
     volumes:
       - .:/app
       - ./symbiont/tmp:/tmp
@@ -10,4 +12,19 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    command: "uvicorn symbiont.src.main:app --host 0.0.0.0 --port 8000 --reload"
+    profiles: ["dev"]
+
+  fastapi-prod:
+    build:
+      context: .
+      target: production
+    volumes:
+      - .:/app
+      - ./symbiont/tmp:/tmp
+    ports:
+      - "80:8000"
+    env_file:
+      - .env
     command: "uvicorn symbiont.src.main:app --host 0.0.0.0 --port 8000"
+    profiles: ["prod"]

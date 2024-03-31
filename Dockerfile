@@ -1,35 +1,64 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9 as builder
+# https://gist.github.com/marcelo-clarifai/3f616a9e7bbb75d062ad79fb959d2f16
 
-# Set environment varibles
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+##############
+# Base Image #
+##############
+FROM python:3.10.14-slim-bookworm as builder
 
-# Set work directory
+RUN apt-get update && apt-get install --no-install-recommends -y curl build-essential
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    POETRY_HOME="/opt/poetry" \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false \  
+    PYSETUP_PATH="/opt/pysetup"
+    
+RUN curl -sSL https://install.python-poetry.org | python3
+ENV PATH="$POETRY_HOME/bin:$PATH"
+
+WORKDIR $PYSETUP_PATH
+COPY poetry.lock pyproject.toml ./
+RUN poetry install --no-interaction --no-ansi --no-root
+
+
+#####################
+# Development Image #
+#####################
+FROM builder as development
+ENV FASTAPI_ENV=development
+COPY --from=builder $POETRY_HOME $POETRY_HOME
+COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
+WORKDIR $PYSETUP_PATH
+RUN poetry install --no-interaction --no-ansi --no-root
 WORKDIR /app
+# CMD ["pip", "list", ]
 
-# Install Poetry
-RUN pip install --no-cache-dir poetry
 
-# Copy only requirements to cache them in docker layer
-COPY pyproject.toml poetry.lock* /app/
-
-# Install dependencies
-RUN poetry config virtualenvs.create false
-RUN poetry install --no-interaction --no-ansi
-
-# Now copy all project
-COPY . /app
-
-# Production image
-FROM python:3.9-slim as production
-
+#####################
+# Production Image #
+#####################
+FROM builder as prodcution
+ENV FASTAPI_ENV=production
+WORKDIR $PYSETUP_PATH
+COPY --from=builder $POETRY_HOME $POETRY_HOME
+COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
 WORKDIR /app
+COPY ./symbiont ./
+RUN poetry install
+CMD ["pip", "list", ]
+# # Production image
+# FROM builder as production
 
-# Copy from builder
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
-COPY --from=builder /app /app
+# WORKDIR /app
 
-# Run the app
-CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# # Copy from builder
+# COPY --from=builder /usr/local/bin /usr/local/bin
+# COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+# COPY --from=builder /app /app
+
+# # Run the app
+# CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000"]

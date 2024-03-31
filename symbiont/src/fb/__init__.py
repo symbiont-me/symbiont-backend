@@ -2,6 +2,7 @@ import firebase_admin
 import os
 import json
 import base64
+from .. import logger
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       FIREBASE INIT
@@ -16,4 +17,4 @@ if not firebase_admin._apps:
     cred = firebase_admin.credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred, {"storageBucket": "symbiont-e7f06.appspot.com"})
     firebase_admin.get_app()
-    print("Firebase initialized")
+    logger.info("Firebase initialized")
