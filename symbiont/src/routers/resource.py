@@ -237,48 +237,48 @@ async def add_webpage_resource(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-
     user_uid = request.state.verified_user["user_id"]
-
     study_service = StudyService(user_uid, webpage_resource.studyId)
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
-
-    loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
-    html_docs = loader.load()
-    studies = []
-    transformed_docs_contents = []  # Collect transformed docs content here
-    logger.info(f"Processing webpage {webpage_resource.urls}")
-    logger.info(f"Parsing {len(html_docs)} documents")
-    for index, doc in enumerate(html_docs):
-        identifier = make_file_identifier(doc.metadata["title"])
-        study_resource = StudyResource(
-            studyId=webpage_resource.studyId,
-            identifier=identifier,
-            name=doc.metadata["title"],
-            url=str(webpage_resource.urls[index]),  # Assign URL based on index
-            category="webpage",
-            summary="",
-        )
-        pc_service = PineconeService(
-            study_id=webpage_resource.studyId,
-            resource_identifier=identifier,
-            user_uid=user_uid,
-        )
-        studies.append(study_resource)
-        bs_transformer = BeautifulSoupTransformer()
-        docs_transformed = bs_transformer.transform_documents(
-            [doc], tags_to_extract=["p", "li", "span", "div"]
-        )
-        transformed_docs_contents.append(
-            (study_resource, docs_transformed[0].page_content)
-        )
-        await pc_service.upload_webpage_to_pinecone(
-            study_resource, docs_transformed[0].page_content
-        )
-        study_service.add_resource_to_db(study_resource)
-
-    # for study_resource, content in transformed_docs_contents:
-    #     study_service.add_resource_to_db(study_resource)
+    try:
+        loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
+        html_docs = loader.load()
+        studies = []
+        transformed_docs_contents = []  # Collect transformed docs content here
+        logger.info(f"Processing webpage {webpage_resource.urls}")
+        logger.info(f"Parsing {len(html_docs)} documents")
+        for index, doc in enumerate(html_docs):
+            identifier = make_file_identifier(doc.metadata["title"])
+            study_resource = StudyResource(
+                studyId=webpage_resource.studyId,
+                identifier=identifier,
+                name=doc.metadata["title"],
+                url=str(webpage_resource.urls[index]),  # Assign URL based on index
+                category="webpage",
+                summary="",
+            )
+            pc_service = PineconeService(
+                study_id=webpage_resource.studyId,
+                resource_identifier=identifier,
+                user_uid=user_uid,
+            )
+            studies.append(study_resource)
+            bs_transformer = BeautifulSoupTransformer()
+            docs_transformed = bs_transformer.transform_documents(
+                [doc], tags_to_extract=["p", "li", "span", "div"]
+            )
+            transformed_docs_contents.append(
+                (study_resource, docs_transformed[0].page_content)
+            )
+            await pc_service.upload_webpage_to_pinecone(
+                study_resource, docs_transformed[0].page_content
+            )
+            study_service.add_resource_to_db(study_resource)
+        logger.info(f"Webpage added to Pinecone {studies}")
+        return {"status_code": 200, "message": "Web Resource added."}
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error processing webpage")
 
 
 class AddPlainTextResourceRequest(BaseModel):
