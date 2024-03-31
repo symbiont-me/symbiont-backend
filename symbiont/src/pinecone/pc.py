@@ -89,31 +89,6 @@ class PineconeService:
         self.text_splitter = self.nltk_text_splitter
         self.db_vec_refs = {}
 
-    def get_combined_chat_context(self):
-        db = firestore.client()
-        all_resource_identifiers = []
-        study_dict = db.collection("studies").document(self.study_id).get().to_dict()
-
-        if study_dict is None:
-            raise HTTPException(status_code=404, detail="No such document!")
-        resources = study_dict.get("resources", [])
-
-        if resources is None:
-            raise HTTPException(status_code=404, detail="No Resources Found")
-        # get the identifier for each resource
-        all_resource_identifiers = [
-            resource.get("identifier") for resource in resources
-        ]
-        logger.info(f"Resource Identifiers: {all_resource_identifiers}")
-        # get the context for each resource
-        combined_context = []
-        for identifier in all_resource_identifiers:
-            # NOTE need to set the global resource identifier because get_chat_context uses it
-            self.resource_identifier = identifier
-            context = self.get_chat_context(top_k=5)
-            combined_context.append(context)
-        return combined_context
-
     def get_vectors_from_db(self):
         vec_ref = self.db.collection("users").document(self.user_uid)
         vec_data = vec_ref.get().to_dict()
@@ -227,12 +202,12 @@ class PineconeService:
         await self.upload_vecs_to_pinecone(vecs)
         await self.create_vec_ref_in_db()
 
-    def get_chat_context(self, top_k=25):
+    async def get_relevant_vectors(self, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
             raise ValueError(
                 "Resource and user query must be provided to get chat context"
             )
-        context = ""
+
         pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
         logger.info(
             f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}"
@@ -246,17 +221,55 @@ class PineconeService:
                 return ""
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
-            context += resource_vecs[match.id]["text"]
 
+        return vec_metadata
+
+    def rerank_context(self, context):
+        # TODO get the text from the reranked type
         reranked_context = co.rerank(
             query=self.user_query,
-            documents=vec_metadata,
+            documents=context,
             top_n=3,
             model=CohereTextModels.COHERE_RERANK_V2,
         )
-        logger.info(f"Context Reranked")
-        # TODO get the text from the reranked type
+        reranked_text = ""
+        for text in reranked_context.results:
+            reranked_text += text.document.get("text", "")
+        logger.info(f"Context vectors reranked")
+        return reranked_text
+
+    async def get_single_chat_context(self):
+        context = await self.get_relevant_vectors()
+        if context is None:
+            return ""
+        reranked_context = self.rerank_context(context)
         return reranked_context
+
+    async def get_combined_chat_context(self):
+        db = firestore.client()
+        all_resource_identifiers = []
+        study_dict = db.collection("studies").document(self.study_id).get().to_dict()
+
+        if study_dict is None:
+            raise HTTPException(status_code=404, detail="No such document!")
+        resources = study_dict.get("resources", [])
+
+        if resources is None:
+            raise HTTPException(status_code=404, detail="No Resources Found")
+        # get the identifier for each resource
+        all_resource_identifiers = [
+            resource.get("identifier") for resource in resources
+        ]
+        logger.info(f"Resource Identifiers: {all_resource_identifiers}")
+        # get the context for each resource
+        combined_vecs = []
+        for identifier in all_resource_identifiers:
+            # NOTE need to set the global resource identifier because get_relevant_vectors uses it
+            self.resource_identifier = identifier
+            vecs = await self.get_relevant_vectors(top_k=10)
+            combined_vecs.extend(vecs)
+        logger.info(f"Combined Context: {len(combined_vecs)}")
+        return self.rerank_context(combined_vecs)
 
     async def upload_yt_resource_to_pinecone(
         self, resource: StudyResource, content: str
