@@ -1,24 +1,14 @@
-import os
-from ..models import LLMModel
 import re
 from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel
-from langchain_openai import OpenAI
 from firebase_admin import firestore
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.prompts.chat import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
-)
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from typing import AsyncGenerator
 from fastapi import HTTPException
 from pydantic import SecretStr
-from typing import Union
+import time
+import datetime
 from .. import logger
 
 
@@ -30,12 +20,13 @@ def create_prompt(user_query: str, context: str):
         AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation.
         AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.
         START DOCUMENT BLOCK {context} END OF DOCUMENT BLOCK
-        If the context does not provide the answer to the question or the context is empty, the AI assistant will say,
-        I'm sorry, but I don't know the answer to that question.
+        If the context does not provide the answer to the question or the context is empty, the AI assistant will say:
+        "I'm sorry, but I don't know the answer to that question."
         AI assistant will not invent anything that is not drawn directly from the context.
         AI will be as detailed as possible.
         Output Format: Return your answer in valid {output_format} Format
         Question: {user_query}
+        Answer: 
     """
     )
 
@@ -104,8 +95,18 @@ def init_llm(settings: UsersLLMSettings):
 
 async def get_llm_response(llm, user_query: str, context: str):
     prompt = create_prompt(user_query, context)
+    num_chunks = 0
+    llm_start_time = time.time()
     for chunk in llm.stream(prompt):
+        if num_chunks == 0:
+                    time_to_first_token = time.time() - llm_start_time
+                    logger.info(f"Time to first token (TTFT) {str(datetime.timedelta(seconds=time_to_first_token))}")
+        num_chunks += 1
         yield chunk.content
+    llm_elapsed_time = time.time() - llm_start_time
+    speed = num_chunks / llm_elapsed_time
+    logger.debug(f"Generated {num_chunks} chunks in {str(datetime.timedelta(seconds=llm_elapsed_time))} at a spped of {round(speed,2)} chunk/s.")
+
     # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
     # human = user_query
 

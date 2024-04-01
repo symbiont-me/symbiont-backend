@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from typing import Callable
 from firebase_admin import auth

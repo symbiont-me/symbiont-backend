@@ -1,27 +1,21 @@
 from hashlib import md5
 from typing import List
-from symbiont.src.models import PineconeRecord, DocumentPage
-from symbiont.src.fb.storage import download_from_firebase_storage, delete_local_file
+from ..models import PineconeRecord, DocumentPage
+from ..fb.storage import download_from_firebase_storage, delete_local_file
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
-from hashlib import md5
-
 from langchain_openai import OpenAIEmbeddings
-from symbiont.src.models import EmbeddingModels, CohereTextModels
+from ..models import EmbeddingModels, CohereTextModels
 import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
-from typing import List, Union
-from langchain_community.embeddings import CohereEmbeddings
+from typing import Union
 from . import pc_index
-from ..models import EmbeddingModels, StudyResource
+from ..models import StudyResource
 from firebase_admin import firestore
 import nltk
 from pydantic import BaseModel
-from ..models import Study
-from typing import Union
 from .. import logger
-from langchain_voyageai import VoyageAIEmbeddings
 import cohere
 import time
 from fastapi import HTTPException
@@ -220,6 +214,7 @@ class PineconeService:
         logger.info(
             f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}"
         )
+        
         filtered_matches = [
             match for match in pc_results.matches if match["score"] > self.threshold
         ]
@@ -227,9 +222,10 @@ class PineconeService:
         if not filtered_matches:
             return filtered_matches
         logger.debug(f"matches:\t{[match['score'] for match in filtered_matches]}")
-
-        vec_metadata = []
+        
+        logger.debug("Fetching vector metadata from db")
         vec_metadata_start_time = time.time()
+        vec_metadata = []
         vec_data = self.get_vectors_from_db()
         if vec_data is None:
             logger.error("No vectors found in the database")

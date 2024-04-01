@@ -8,12 +8,12 @@ class Logger:
         self.logger = logging.getLogger(logger_name)
 
         # Set logger level based on the environment
-        if environment and environment.upper() == "PROD":
+        if environment and environment.lower() == "production":
             self.logger.setLevel(logging.WARNING)
         else:
             self.logger.setLevel(logging.DEBUG)
 
-        LOGFORMAT = "  %(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
+        LOGFORMAT = "%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
         # Create a formatter
         color_formatter = ColoredFormatter(LOGFORMAT)
 
