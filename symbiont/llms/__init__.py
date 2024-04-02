@@ -101,13 +101,17 @@ async def get_llm_response(llm, user_query: str, context: str):
     llm_start_time = time.time()
     for chunk in llm.stream(prompt):
         if num_chunks == 0:
-                    time_to_first_token = time.time() - llm_start_time
-                    logger.info(f"Time to first token (TTFT) {str(datetime.timedelta(seconds=time_to_first_token))}")
+            time_to_first_token = time.time() - llm_start_time
+            logger.info(
+                f"Time to first token (TTFT) {str(datetime.timedelta(seconds=time_to_first_token))}"
+            )
         num_chunks += 1
         yield chunk.content
     llm_elapsed_time = time.time() - llm_start_time
     speed = num_chunks / llm_elapsed_time
-    logger.debug(f"Generated {num_chunks} chunks in {str(datetime.timedelta(seconds=llm_elapsed_time))} at a spped of {round(speed,2)} chunk/s.")
+    logger.debug(
+        f"Generated {num_chunks} chunks in {str(datetime.timedelta(seconds=llm_elapsed_time))} at a spped of {round(speed,2)} chunk/s."
+    )
 
     # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
     # human = user_query
