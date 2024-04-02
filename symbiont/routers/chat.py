@@ -26,6 +26,7 @@ from typing import Annotated
 router = APIRouter()
 
 
+# TODO wrap in try except
 @router.post("/chat")
 async def chat(
     chat: ChatRequest,
