@@ -87,16 +87,17 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             for chunk in gen:
                 no_context_response += chunk + " "
                 time.sleep(0.05)
-                yield chunk
+                yield chunk + " "
             logger.debug("Adding bg task")
 
-        background_tasks.add_task(
-            save_chat_message_to_db,
-            chat_message=no_context_response,
-            studyId=study_id,
-            role="bot",
-            user_uid=user_uid,
-        )
+            background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=no_context_response,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
+
         logger.debug("Returning response")
         return StreamingResponse(
             return_no_context_response(), media_type="text/event-stream"
