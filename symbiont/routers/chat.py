@@ -17,6 +17,7 @@ from ..llms import (
 from ..pinecone.pc import PineconeService
 from .. import logger
 import time
+from typing import Annotated
 
 ####################################################
 #                   CHAT                           #
@@ -26,16 +27,20 @@ router = APIRouter()
 
 
 @router.post("/chat")
-async def chat(chat: ChatRequest, request: Request, background_tasks: BackgroundTasks):
-
+async def chat(
+    chat: ChatRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    api_key: Annotated[str | None, Cookie()] = None,
+):
+    logger.debug("API KEY: " + str(api_key))
     user_uid = request.state.verified_user["user_id"]
+    if api_key is None:
+        raise HTTPException(status_code=404, detail="No API key found!")
     user_query = chat.user_query
     #### INIT LLM ####
     llm_settings = get_user_llm_settings(user_uid)
-    llm = init_llm(llm_settings)
-    # TODO remove after testing, shouldn't be needing this as error is handled in init_llm
-    if llm is None:
-        raise HTTPException(status_code=404, detail="No LLM settings found!")
+    llm = init_llm(llm_settings, api_key)
 
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
@@ -115,7 +120,7 @@ async def chat(chat: ChatRequest, request: Request, background_tasks: Background
             async for chunk in get_llm_response(
                 llm=llm,
                 user_query=user_query,
-                context=context,  # TODO needs to be fixed
+                context=context,
             ):
                 llm_response += chunk
                 yield chunk
