@@ -53,21 +53,23 @@ def isGoogleModel(llm_name: str) -> bool:
 
 class UsersLLMSettings(BaseModel):
     llm_name: str
-    api_key: SecretStr
+    # api_key: SecretStr
     # max_tokens: int
     # temperature: float
 
 
-def init_llm(settings: UsersLLMSettings):
+def init_llm(settings: UsersLLMSettings, api_key: str):
     if settings is None:
         raise HTTPException(status_code=400, detail="Please set LLM Settings")
+    if api_key is None:
+        raise HTTPException(status_code=400, detail="Please provide an API key")
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
         llm = None
         if isOpenAImodel(settings["llm_name"]):
             llm = ChatOpenAI(
                 model=settings["llm_name"],
-                api_key=settings["api_key"],
+                api_key=api_key,
                 max_tokens=1500,
                 temperature=0,
             )
@@ -75,14 +77,14 @@ def init_llm(settings: UsersLLMSettings):
         elif isAnthropicModel(settings["llm_name"]):
             llm = ChatAnthropic(
                 model_name=settings["llm_name"],
-                anthropic_api_key=settings["api_key"],
+                anthropic_api_key=api_key,
                 temperature=0,
             )
             return llm
         elif isGoogleModel(settings["llm_name"]):
             llm = ChatGoogleGenerativeAI(
                 model=settings["llm_name"],
-                google_api_key=settings["api_key"],
+                google_api_key=api_key,
                 max_tokens=1500,
                 temperature=0,
                 convert_system_message_to_human=True,
