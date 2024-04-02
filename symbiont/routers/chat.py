@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Cookie
 from ..models import ChatRequest, ChatMessage, LLMModel
 from firebase_admin import firestore
 
