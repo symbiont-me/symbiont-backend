@@ -1,4 +1,5 @@
 from hashlib import md5
+from logging import raiseExceptions
 from typing import List
 from ..models import PineconeRecord, DocumentPage
 from ..fb.storage import download_from_firebase_storage, delete_local_file
@@ -20,6 +21,7 @@ import cohere
 import time
 from fastapi import HTTPException
 import datetime
+from langchain_voyageai import VoyageAIEmbeddings
 
 nltk.download("punkt")
 
@@ -64,16 +66,15 @@ class PineconeService:
         self.download_url = resource_download_url
         self.threshold = threshold
         self.db = firestore.client()
-        self.embed = OpenAIEmbeddings(
-            model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
-        )
+        # self.embed = OpenAIEmbeddings(
+        #     model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
+        # )
 
         # TODO use model based on user's settings and api key provided
         # TODO fix missing param error
         # NOTE: has a rate limit per seconds (I think) so it throws an error if you try to use it too much
-        # self.embed = VoyageAIEmbeddings(
-        #     voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
-        # )
+        self.embed = VoyageAIEmbeddings(
+            voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
         )
 
         self.nltk_text_splitter = NLTKTextSplitter()
