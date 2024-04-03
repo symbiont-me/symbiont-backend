@@ -22,7 +22,7 @@ from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
-
+from ..fb.storage import delete_local_file
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -133,15 +133,6 @@ async def add_resource(
         )
 
         study_service = StudyService(user_uid, studyId)
-        # TODO update this
-        # study_ref = study_service.get_document_ref()
-        # if study_ref is None:
-        #     # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
-        #     delete_resource_from_storage(user_uid, study_resource.identifier)
-        #     raise HTTPException(status_code=404, detail="No such document!")
-        # study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-        # logger.info(f"Resource added to study {study_resource}")
-
         pc_service = PineconeService(
             study_id=study_resource.studyId,
             resource_identifier=study_resource.identifier,
