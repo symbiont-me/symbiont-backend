@@ -122,8 +122,7 @@ async def add_resource(
     try:
         upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
-
-        logger.debug(f"Resource uploaded identifier: {upload_result.identifier}")
+        logger.info(f"File resource uploaded to Firebase")
 
         study_resource = StudyResource(
             studyId=studyId,
