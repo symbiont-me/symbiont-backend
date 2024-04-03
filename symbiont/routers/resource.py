@@ -153,9 +153,9 @@ async def add_resource(
         study_service.add_resource_to_db(study_resource)
         return {"resource": study_resource.model_dump(), "status_code": 200}
     except Exception as e:
-        # Handle the exception here
-        # You can log the error or return a specific error response
-        # For example:
+        # todo delete from storage if it fails
+        delete_resource_from_storage(user_uid, study_resource.identifier)
+        await delete_local_file(study_resource.identifier)
         logger.error(f"Error occurred while adding resource: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
