@@ -319,17 +319,21 @@ async def add_plain_text_resource(
     return {"status_code": 200, "message": "Resource added."}
 
 
+# TODO the whole DELETE section should be refactored
 def delete_vector_refs_from_db(user_uid: str, identifier: str):
-    # @note study_id is not used here as user can send a delete request from the library instead of a study
-    study_docs = firestore.client().collection("users").document(user_uid).get()
-    doc_dict = study_docs.to_dict()
-    vectors = doc_dict.get("vectors", [])
-    if identifier in vectors:
-        vectors.pop(identifier, None)  # Remove the key-value pair if the key exists
-        study_docs.reference.update({"vectors": vectors})
-        logger.info(f"Vector deleted from DB: {identifier}")
+    logger.info(f"Deleting vector from DB")
+    study_doc = (
+        firestore.client().collection("studies").where("userId", "==", user_uid).get()
+    )
 
-        return {"message": "Vector deleted."}
+    for study_docs in study_doc:
+        doc_dict = study_docs.to_dict()
+        vectors = doc_dict.get("vectors", [])
+        if identifier in vectors:
+            vectors.pop(identifier, None)  # Remove the key-value pair if the key exists
+            study_docs.reference.update({"vectors": vectors})
+            logger.info(f"Vector for {identifier} deleted from DB")
+            return {"message": "Vectors deleted."}
     return {"message": "Vector not found."}
 
 
