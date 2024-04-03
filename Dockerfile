@@ -37,16 +37,3 @@ RUN poetry install --no-interaction
 WORKDIR /app
 CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-
-#####################
-# Production Image #
-#####################
-FROM builder as prodcution
-ENV FASTAPI_ENV=production
-WORKDIR $PYSETUP_PATH
-COPY --from=builder $POETRY_HOME $POETRY_HOME
-COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
-WORKDIR /app
-COPY ./symbiont ./
-RUN poetry install --no-interaction 
-CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000"]
