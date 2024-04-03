@@ -22,7 +22,7 @@ ENV PATH="$POETRY_HOME/bin:$PATH"
 
 WORKDIR $PYSETUP_PATH
 COPY poetry.lock pyproject.toml ./
-RUN poetry install --no-interaction 
+RUN poetry install --no-interaction --no-ansi --no-root
 
 
 #####################
@@ -35,5 +35,6 @@ COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
 WORKDIR $PYSETUP_PATH
 RUN poetry install --no-interaction 
 WORKDIR /app
-CMD ["uvicorn", "symbiont.src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+COPY . .
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
