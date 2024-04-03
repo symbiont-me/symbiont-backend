@@ -342,28 +342,29 @@ async def delete_resource(identifier: str, request: Request):
     pc_service = PineconeService(
         study_id="", user_uid=user_uid, resource_identifier=identifier
     )
-
+    resource_identifier = identifier
     try:
         study_doc = (
             firestore.client()
             .collection("studies")
             .where("userId", "==", user_uid)
-            .get()[0]
+            .get()
         )
-
-        doc_dict = study_doc.to_dict()
-        if study_doc is None or doc_dict is None:
-            return {"message": "Study not found."}
-        resources = doc_dict.get("resources", [])
-        for resource in resources:
-            if resource.get("identifier") == identifier:
-                resources.remove(resource)
-                study_doc.reference.update({"resources": resources})
-                pc_service.delete_vectors_from_pinecone(identifier)
-                delete_vector_refs_from_db(user_uid, identifier)
-                if resource.get("category") == "pdf":
-                    delete_resource_from_storage(user_uid, identifier)
-                return {"message": "Resource deleted."}
-        return {"message": "Resource deleted."}
+        # TODO refactor: this is bad because of how the db is structured
+        # another way to do this would be to get study_id in the request
+        for study in study_doc:
+            resources = study.to_dict().get("resources", [])
+            for resource in resources:
+                identifier = resource.get("identifier")
+                if identifier == resource_identifier:
+                    pc_service.delete_vectors_from_pinecone(identifier)
+                    delete_vector_refs_from_db(user_uid, identifier)
+                    resources.remove(resource)
+                    study.reference.update({"resources": resources})
+                    logger.info(f"Resource deleted from DB: {identifier}")
+                    if resource.get("category") == "pdf":
+                        delete_resource_from_storage(user_uid, identifier)
+                        logger.info(f"Resource deleted from storage: {identifier}")
+                    return {"message": "Resource deleted."}
     except Exception as e:
         return {"message": str(e)}
