@@ -133,13 +133,14 @@ async def add_resource(
         )
 
         study_service = StudyService(user_uid, studyId)
-        study_ref = study_service.get_document_ref()
-        if study_ref is None:
-            # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
-            delete_resource_from_storage(user_uid, study_resource.identifier)
-            raise HTTPException(status_code=404, detail="No such document!")
-        study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-        logger.info(f"Resource added to study {study_resource}")
+        # TODO update this
+        # study_ref = study_service.get_document_ref()
+        # if study_ref is None:
+        #     # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
+        #     delete_resource_from_storage(user_uid, study_resource.identifier)
+        #     raise HTTPException(status_code=404, detail="No such document!")
+        # study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
+        # logger.info(f"Resource added to study {study_resource}")
 
         pc_service = PineconeService(
             study_id=study_resource.studyId,
@@ -150,7 +151,6 @@ async def add_resource(
         )
         await pc_service.add_file_resource_to_pinecone()
         study_service.add_resource_to_db(study_resource)
-
         return {"resource": study_resource.model_dump(), "status_code": 200}
     except Exception as e:
         # Handle the exception here
