@@ -43,4 +43,6 @@ async def set_llm_settings(
     response.set_cookie(
         key="llm_name", value=settings.llm_name, samesite="None", secure=True
     )
+    logger.info("LLM settings updated")
+
     return {"message": "LLM settings saved"}
