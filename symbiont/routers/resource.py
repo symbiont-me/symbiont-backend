@@ -146,8 +146,7 @@ async def add_resource(
     except Exception as e:
         # todo delete from storage if it fails
         delete_resource_from_storage(user_uid, study_resource.identifier)
-        await delete_local_file(study_resource.identifier)
-        logger.error(f"Error occurred while adding resource: {str(e)}")
+        logger.error(f"Error occur while adding resource: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
