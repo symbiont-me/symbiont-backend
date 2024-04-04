@@ -66,16 +66,16 @@ class PineconeService:
         self.download_url = resource_download_url
         self.threshold = threshold
         self.db = firestore.client()
-        # self.embed = OpenAIEmbeddings(
-        #     model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
-        # )
+        self.embed = OpenAIEmbeddings(
+            model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
+        )
 
         # TODO use model based on user's settings and api key provided
         # TODO fix missing param error
         # NOTE: has a rate limit per seconds (I think) so it throws an error if you try to use it too much
-        self.embed = VoyageAIEmbeddings(
-            voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
-        )
+        # self.embed = VoyageAIEmbeddings(
+        #     voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
+        # )
 
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
