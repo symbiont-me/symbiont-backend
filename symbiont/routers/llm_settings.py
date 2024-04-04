@@ -46,3 +46,20 @@ async def set_llm_settings(
     logger.info("LLM settings updated")
 
     return {"message": "LLM settings saved"}
+
+
+@router.get("/get-llm-settings")
+async def get_llm_settings(
+    request: Request, api_key: Annotated[str | None, Cookie()] = None
+):
+    user_uid = request.state.verified_user["user_id"]
+    user_settings = get_user_llm_settings(user_uid)
+    if user_settings is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    logger.info(f"LLM settings retrieved: {user_settings}")
+    logger.info("Appending api_key to response from cookie")
+    user_settings["api_key"] = api_key
+    return user_settings

@@ -1,4 +1,5 @@
 from hashlib import md5
+from logging import raiseExceptions
 from typing import List
 from ..models import PineconeRecord, DocumentPage
 from ..fb.storage import download_from_firebase_storage, delete_local_file
@@ -20,6 +21,7 @@ import cohere
 import time
 from fastapi import HTTPException
 import datetime
+from langchain_voyageai import VoyageAIEmbeddings
 
 nltk.download("punkt")
 
@@ -87,45 +89,45 @@ class PineconeService:
         self.db_vec_refs = {}
 
     def get_vectors_from_db(self):
-        vec_ref = self.db.collection("users").document(self.user_uid)
+        logger.info("Getting vectors from Firestore")
+        vec_ref = self.db.collection("studies").document(self.study_id)
         vec_data = vec_ref.get().to_dict()
         # TODO fix type error
         if "vectors" not in vec_data:
+            logger.error("No vectors")
             return None
         return vec_data["vectors"]
 
-    # TODO refactor: confusing
-    # TODO fix type errors
     async def create_vec_ref_in_db(self):
         if self.db_vec_refs is None:
             raise ValueError("No vectors to save in the database")
         try:
             db = firestore.client()
-            vec_ref = db.collection("users").document(self.user_uid)
+            vec_ref = db.collection("studies").document(self.study_id)
             # Retrieve the current data to avoid overwriting
             current_data = vec_ref.get().to_dict()
             # Initialize 'vectors' as a mapping if it doesn't exist
             if "vectors" not in current_data:
                 current_data["vectors"] = {}
-            # Update the document with the new mapping of vectors under the specific resource identifier
+            # # Update the document with the new mapping of vectors under the specific resource identifier
             identifier = self.resource_identifier
             if identifier not in current_data["vectors"]:
                 current_data["vectors"][identifier] = {}
             current_data["vectors"][identifier].update(self.db_vec_refs)
-
             # Save the updated data back to Firestore
             vec_ref.set(current_data)
             logger.info(f"Updated vectors in Firestore for {self.resource_identifier}")
             return vec_ref
         except Exception as e:
             logger.error(f"Error updating vectors in Firestore: {str(e)}")
-            return None
+            raise HTTPException(
+                status_code=500, detail="Error updating vectors in Firestore"
+            )
 
     # make this generic it should take various types of resources
     async def embed_document(
         self, doc: Union[DocumentPage, Document]
     ) -> PineconeRecord:
-
         vec = await self.embed.aembed_query(doc.page_content)
         hash = md5(doc.page_content.encode("utf-8")).hexdigest()
         self.db_vec_refs[hash] = VectorInDB(**doc.metadata).dict()
@@ -166,6 +168,7 @@ class PineconeService:
 
         # handle pdf only for now
         if file_path is not None and file_path.endswith(".pdf"):
+            logger.info("Handling PDF file resource")
             vecs = await self.handle_pdf_resource(file_path)
             logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
             await self.upload_vecs_to_pinecone(vecs)
@@ -214,7 +217,7 @@ class PineconeService:
         logger.info(
             f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}"
         )
-        
+
         filtered_matches = [
             match for match in pc_results.matches if match["score"] > self.threshold
         ]
@@ -222,16 +225,16 @@ class PineconeService:
         if not filtered_matches:
             return filtered_matches
         logger.debug(f"matches:\t{[match['score'] for match in filtered_matches]}")
-        
+
         logger.debug("Fetching vector metadata from db")
         vec_metadata_start_time = time.time()
         vec_metadata = []
+        logger.debug("Getting vectors from db")
         vec_data = self.get_vectors_from_db()
         if vec_data is None:
             logger.error("No vectors found in the database")
             return vec_data
         for match in pc_results.matches:
-
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
 
