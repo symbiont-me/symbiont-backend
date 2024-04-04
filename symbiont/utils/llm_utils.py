@@ -3,13 +3,13 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter, NLTKTextSplitter
 from langchain_openai import OpenAI
 from ..models import LLMModel
-from ..llms import get_user_llm_settings
+from ..llms import get_user_llm_settings, google_api_key
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 # TODO fix summariser
 # sort of a dumb tokenizer but works
 def truncate_prompt(prompt: str, query_size=500, model_context_window=4096) -> str:
-
     max_prompt_tokens = model_context_window - query_size
     tokens = prompt.split()
     if len(tokens) > max_prompt_tokens:
@@ -20,14 +20,14 @@ def truncate_prompt(prompt: str, query_size=500, model_context_window=4096) -> s
 
 # NOTE used for webpages and plain text
 def summarise_plain_text_resource(document_text):
-    llm_settings = get_user_llm_settings("user_uid")
-    if not llm_settings:
-        return "An error occurred: LLM settings not found."
-    llm = OpenAI(
-        temperature=0, name=llm_settings.llm_name, api_key=llm_settings.api_key
+    # initialise Gemini LLM
+    llm = ChatGoogleGenerativeAI(
+        model=LLMModel.GEMINI_1_PRO_LATEST,
+        google_api_key=google_api_key,
+        temperature=0,
+        convert_system_message_to_human=True,
     )
-
-    prompt = truncate_prompt(document_text)
+    prompt = document_text
     summary = ""
     try:
         nltk_text_splitter = NLTKTextSplitter()
