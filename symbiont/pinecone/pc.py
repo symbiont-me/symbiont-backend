@@ -168,6 +168,7 @@ class PineconeService:
 
         # handle pdf only for now
         if file_path is not None and file_path.endswith(".pdf"):
+            logger.info("Handling PDF file resource")
             vecs = await self.handle_pdf_resource(file_path)
             logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
             await self.upload_vecs_to_pinecone(vecs)
