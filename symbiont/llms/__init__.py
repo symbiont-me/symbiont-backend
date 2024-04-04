@@ -15,9 +15,6 @@ import os
 google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 
 
-logger.debug(f"Google API key: {google_api_key}")
-
-
 def create_prompt(user_query: str, context: str):
     prompt_template = PromptTemplate.from_template(
         """
