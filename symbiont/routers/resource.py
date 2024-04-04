@@ -22,7 +22,7 @@ from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
-
+from ..fb.storage import delete_local_file
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -122,8 +122,7 @@ async def add_resource(
     try:
         upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
-
-        logger.debug(f"Resource uploaded identifier: {upload_result.identifier}")
+        logger.info(f"File resource uploaded to Firebase")
 
         study_resource = StudyResource(
             studyId=studyId,
@@ -134,14 +133,6 @@ async def add_resource(
         )
 
         study_service = StudyService(user_uid, studyId)
-        study_ref = study_service.get_document_ref()
-        if study_ref is None:
-            # NOTE if the study does not exist, the resource will not be added to the database and the file should not exist in the storage
-            delete_resource_from_storage(user_uid, study_resource.identifier)
-            raise HTTPException(status_code=404, detail="No such document!")
-        study_ref.update({"resources": ArrayUnion([study_resource.model_dump()])})
-        logger.info(f"Resource added to study {study_resource}")
-
         pc_service = PineconeService(
             study_id=study_resource.studyId,
             resource_identifier=study_resource.identifier,
@@ -151,13 +142,11 @@ async def add_resource(
         )
         await pc_service.add_file_resource_to_pinecone()
         study_service.add_resource_to_db(study_resource)
-
         return {"resource": study_resource.model_dump(), "status_code": 200}
     except Exception as e:
-        # Handle the exception here
-        # You can log the error or return a specific error response
-        # For example:
-        logger.error(f"Error occurred while adding resource: {str(e)}")
+        # todo delete from storage if it fails
+        delete_resource_from_storage(user_uid, study_resource.identifier)
+        logger.error(f"Error occur while adding resource: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -320,17 +309,21 @@ async def add_plain_text_resource(
     return {"status_code": 200, "message": "Resource added."}
 
 
+# TODO the whole DELETE section should be refactored
 def delete_vector_refs_from_db(user_uid: str, identifier: str):
-    # @note study_id is not used here as user can send a delete request from the library instead of a study
-    study_docs = firestore.client().collection("users").document(user_uid).get()
-    doc_dict = study_docs.to_dict()
-    vectors = doc_dict.get("vectors", [])
-    if identifier in vectors:
-        vectors.pop(identifier, None)  # Remove the key-value pair if the key exists
-        study_docs.reference.update({"vectors": vectors})
-        logger.info(f"Vector deleted from DB: {identifier}")
+    logger.info(f"Deleting vector from DB")
+    study_doc = (
+        firestore.client().collection("studies").where("userId", "==", user_uid).get()
+    )
 
-        return {"message": "Vector deleted."}
+    for study_docs in study_doc:
+        doc_dict = study_docs.to_dict()
+        vectors = doc_dict.get("vectors", [])
+        if identifier in vectors:
+            vectors.pop(identifier, None)  # Remove the key-value pair if the key exists
+            study_docs.reference.update({"vectors": vectors})
+            logger.info(f"Vector for {identifier} deleted from DB")
+            return {"message": "Vectors deleted."}
     return {"message": "Vector not found."}
 
 
