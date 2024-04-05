@@ -34,7 +34,7 @@ from pydantic import BaseModel
 router = APIRouter()
 
 
-class ResourceAddedResponse(BaseModel):
+class ResourceResponse(BaseModel):
     status_code: int
     message: str
     resources: list
@@ -163,7 +163,7 @@ async def add_resource(
         )
         await pc_service.add_file_resource_to_pinecone()
         study_service.add_resource_to_db(study_resource)
-        return ResourceAddedResponse(
+        return ResourceResponse(
             status_code=200, message="Resource added.", resources=[study_resource]
         )
     except Exception as e:
@@ -182,8 +182,11 @@ async def get_resources(studyId: str, request: Request):
     if study_dict is None:
         raise HTTPException(status_code=404, detail="Study not found")
     resources = study_dict.get("resources", [])
-    return GetResourcesResponse(
-        resources=[StudyResource(**resource) for resource in resources]
+    logger.debug(f"Resources: {resources}")
+    return ResourceResponse(
+        resources=[StudyResource(**resource) for resource in resources],
+        status_code=200,
+        message="Resources retrieved",
     )
 
 
@@ -244,7 +247,7 @@ async def process_youtube_video(
             doc.page_content,
         )
 
-        return ResourceAddedResponse(
+        return ResourceResponse(
             status_code=200, message="Resource added.", resources=[study_resource]
         )
     except Exception as e:
@@ -304,7 +307,7 @@ async def add_webpage_resource(
                 docs_transformed[0].page_content,
             )
 
-        return ResourceAddedResponse(
+        return ResourceResponse(
             status_code=200, message="Resource added.", resources=study_resources
         )
     except Exception as e:
@@ -354,7 +357,7 @@ async def add_plain_text_resource(
         study_resource,
         plain_text_resource.content,
     )
-    return ResourceAddedResponse(
+    return ResourceResponse(
         status_code=200, message="Resource added.", resources=[study_resource]
     )
 
