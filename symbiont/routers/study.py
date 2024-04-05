@@ -6,6 +6,8 @@ from ..utils.db_utils import StudyService
 from datetime import datetime
 from ..models import Study, Chat
 from ..utils.db_utils import UserService
+from .. import logger
+import time
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
@@ -13,6 +15,28 @@ from ..utils.db_utils import UserService
 
 
 router = APIRouter()
+
+
+@router.get("/get-current-study")
+async def get_current_study(studyId: str, request: Request):
+    s = time.time()
+    logger.info("Getting current study")
+    user_uid = request.state.verified_user["user_id"]
+    db = firestore.client()
+    user_studies = (
+        db.collection("users").document(user_uid).get().to_dict().get("studies")
+    )
+    # TODO fix type error
+    if studyId not in user_studies:
+        logger.error("User does not have access to this study.")
+        return JSONResponse(
+            status_code=403,
+            content={"message": "User does not have access to this study."},
+        )
+    study = db.collection("studies").document(studyId).get().to_dict()
+    elapsed = time.time() - s
+    logger.info(f"Getting current study took {elapsed} seconds")
+    return {"study": study, "status_code": 200}
 
 
 @router.get("/get-user-studies")
@@ -84,7 +108,6 @@ async def create_study(study: CreateStudyRequest, request: Request):
 
 @router.delete("/delete-study")
 async def delete_study(studyId: str, request: Request):
-
     user_uid = request.state.verified_user["user_id"]
     user_service = UserService(user_uid)
 
