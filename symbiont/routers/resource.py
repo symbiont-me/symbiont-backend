@@ -417,6 +417,7 @@ def remove_resource_and_vector(user_uid: str, study_id: str, resource_identifier
 
 @router.post("/delete-resource")
 async def delete_resource(delete_request: DeleteResourceRequest, request: Request):
+    s = time.time()
     logger.debug(f"Deleting resource {delete_request.identifier}")
     identifier = delete_request.identifier
     user_uid = request.state.verified_user["user_id"]
@@ -434,5 +435,6 @@ async def delete_resource(delete_request: DeleteResourceRequest, request: Reques
     for study_id in user_studies_list:
         remove_resource_and_vector(user_uid, study_id, identifier)
         pc_service.delete_vectors_from_pinecone(identifier)
-
+    elapsed = time.time() - s
+    logger.info(f"Resource deleted in {elapsed} seconds")
     return {"message": "Resource deleted."}
