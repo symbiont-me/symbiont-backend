@@ -381,6 +381,11 @@ class DeleteResourceRequest(BaseModel):
     study_id: str = ""
 
 
+class DeleteResourceResponse(BaseModel):
+    message: str
+    status_code: int
+
+
 @router.post("/delete-resource")
 async def delete_resource(resource: DeleteResourceRequest, request: Request):
     user_uid = request.state.verified_user["user_id"]
@@ -413,6 +418,8 @@ async def delete_resource(resource: DeleteResourceRequest, request: Request):
                     if resource.get("category") == "pdf":
                         delete_resource_from_storage(user_uid, identifier)
                         logger.info(f"Resource deleted from storage: {identifier}")
-                    return {"message": "Resource deleted."}
+                    return DeleteResourceResponse(
+                        status_code=200, message="Resource deleted."
+                    )
     except Exception as e:
-        return {"message": str(e)}
+        raise HTTPException(status_code=500, detail=f"Error deleting resource:str{e}")
