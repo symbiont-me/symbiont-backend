@@ -66,14 +66,17 @@ async def get_user_studies(request: Request):
         studies_data = [
             {"id": study.id, **(study.to_dict() or {})} for study in studies
         ]
-        return {"studies": studies_data}
+        elapsed = time.time() - s
+        logger.info(f"Getting user studies took {elapsed} seconds")
+        return StudyResponse(
+            message="User studies retrieved successfully",
+            status_code=200,
+            studies=studies_data,
+        )
     except Exception as e:
-        return JSONResponse(
+        raise HTTPException(
+            detail=str(e),
             status_code=500,
-            content={
-                "message": "An error occurred while fetching user studies.",
-                "details": str(e),
-            },
         )
 
 
