@@ -31,27 +31,33 @@ async def get_current_study(studyId: str, request: Request):
     logger.info("Getting current study")
     user_uid = request.state.verified_user["user_id"]
     db = firestore.client()
-    user_studies = (
-        db.collection("users").document(user_uid).get().to_dict().get("studies")
-    )
-    # TODO fix type error
+    study_ref = db.collection("studies").document(studyId)
+    study = study_ref.get().to_dict()
+    if study is None:
+        logger.error("Study does not exist.")
+        raise HTTPException(status_code=404, detail="Study does not exist.")
+
+    user_doc = db.collection("users").document(user_uid).get().to_dict()
+    if user_doc is None:
+        logger.error("User does not exist.")
+        raise HTTPException(status_code=404, detail="User does not exist.")
+    user_studies = user_doc.get("studies", [])
     if studyId not in user_studies:
         logger.error("User does not have access to this study.")
-        return JSONResponse(
-            status_code=403,
-            content={"message": "User does not have access to this study."},
+        raise HTTPException(
+            status_code=403, detail="User does not have access to this study."
         )
-    study = db.collection("studies").document(studyId).get().to_dict()
     elapsed = time.time() - s
     logger.info(f"Getting current study took {elapsed} seconds")
-    return {"study": study, "status_code": 200}
+    return StudyResponse(message="", status_code=200, studies=[study])
 
 
 @router.get("/get-user-studies")
 async def get_user_studies(request: Request):
     user_uid = request.state.verified_user["user_id"]
-    # TODO fix pattern for returning data, cf. other routers
+
     try:
+        s = time.time()
         db = firestore.client()
         studies_ref = db.collection("studies")
         query = studies_ref.where("userId", "==", user_uid)
