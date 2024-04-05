@@ -387,9 +387,9 @@ class DeleteResourceResponse(BaseModel):
 
 
 @router.post("/delete-resource")
-async def delete_resource(resource: DeleteResourceRequest, request: Request):
+async def delete_resource(delete_request: DeleteResourceRequest, request: Request):
     user_uid = request.state.verified_user["user_id"]
-    identifier = resource.identifier
+    identifier = delete_request.identifier
 
     logger.info(f"Deleting resource {identifier}")
     # @note study_id is not used here as user can send a delete request from the library instead of a study
@@ -398,18 +398,21 @@ async def delete_resource(resource: DeleteResourceRequest, request: Request):
     )
     resource_identifier = identifier
     db = firestore.client()
-    user_studies = (
-        db.collection("users").document(user_uid).get().to_dict().get("studies")
-    )
+    user_doc = db.collection("users").document(user_uid).get()
+    if user_doc is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_studies = user_doc.to_dict().get("studies")
     if not user_studies:
         raise HTTPException(status_code=404, detail="User studies not found")
     logger.info(f"User studies: {user_studies}")
     for study_id in user_studies:
         try:
             study_doc = db.collection("studies").document(study_id).get().to_dict()
+            if study_doc is None:
+                raise HTTPException(status_code=404, detail="Study not found")
             resources = study_doc.get("resources", [])
             for resource in resources:
-                if resource.get("identifier") == resource_identifier:
+                if resource and resource.get("identifier") == resource_identifier:
                     pc_service.delete_vectors_from_pinecone(resource_identifier)
                     delete_vector_refs_from_db(user_uid, resource_identifier)
                     resources.remove(resource)
@@ -417,7 +420,7 @@ async def delete_resource(resource: DeleteResourceRequest, request: Request):
                         {"resources": resources}
                     )
                     logger.info(f"Resource deleted from DB: {resource_identifier}")
-                    if resource.get("category") == "pdf":
+                    if resource and resource.get("category") == "pdf":
                         delete_resource_from_storage(user_uid, resource_identifier)
                         logger.info(
                             f"Resource deleted from storage: {resource_identifier}"
