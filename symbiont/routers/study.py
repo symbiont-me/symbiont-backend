@@ -174,15 +174,3 @@ async def delete_study(studyId: str, request: Request):
     return DeleteStudyResponse(
         message="Study deleted successfully", status_code=200, studyId=studyId
     )
-
-
-@router.get("/get-study")
-async def get_study(studyId: str, request: Request):
-    # user_uid = request.state.verified_user["user_id"]
-    # study_ref = get_document_ref("studies", "userId", user_uid, studyId)
-    # if study_ref is None:
-    # raise HTTPException(status_code=404, detail="No such document!")
-    # study = study_ref.get()
-    # if study.exists:
-    # return {"study": study.to_dict()}
-    return {"study": "study"}
