@@ -236,6 +236,13 @@ async def process_youtube_video(
         study_service.add_resource_to_db(study_resource)
 
         logger.info(f"Youtube video added to Pinecone {study_resource}")
+        background_tasks.add_task(
+            save_summary,
+            study_resource.studyId,
+            study_resource,
+            doc.page_content,
+        )
+
         return ResourceAddedResponse(
             status_code=200, message="Resource added.", resources=[study_resource]
         )
