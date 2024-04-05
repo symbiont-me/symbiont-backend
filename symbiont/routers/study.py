@@ -89,31 +89,40 @@ async def create_study(study: CreateStudyRequest, request: Request):
         description=study.description,
         userId=user_uid,
         image=study.image,
-        createdAt=str(datetime.now()),
+        createdAt=datetime.now().isoformat(),  # Use ISO format for consistency
         resources=[],
         chat=Chat(),
     )
     try:
+        s = time.time()
         db = firestore.client()
+        batch = db.batch()
+
         # Create a new document for the study
         study_doc_ref = db.collection("studies").document()
-        study_doc_ref.set(new_study.model_dump())
-        study_id = study_doc_ref.id
+        batch.set(study_doc_ref, new_study.model_dump())
 
         # Get the user document and update the studies array
         user_doc_ref = db.collection("users").document(user_uid)
         user_doc = user_doc_ref.get()
         if user_doc.exists:
-            user_data = user_doc.to_dict()
-            user_studies = user_data.get("studies", [])
-            user_studies.append(study_id)
-            user_doc_ref.update({"studies": user_studies})
+            user_studies = user_doc.to_dict().get("studies", [])
+            user_studies.append(study_doc_ref.id)
+            batch.update(user_doc_ref, {"studies": user_studies})
         else:
             # If the user does not exist, create a new document with the study
-            user_doc_ref.set({"studies": [study_id]})
+            batch.set(user_doc_ref, {"studies": [study_doc_ref.id]})
 
-        return {"message": "Study created successfully", "study": study.model_dump()}
+        batch.commit()
+        elapsed = time.time() - s
+        logger.info(f"Creating study took {elapsed} seconds")
+        return StudyResponse(
+            message="Study created successfully",
+            status_code=200,
+            studies=[{"id": study_doc_ref.id, **new_study.model_dump()}],
+        )
     except Exception as e:
+        logger.error(f"Error Creating New Study {e}")
         return JSONResponse(
             status_code=500,
             content={
