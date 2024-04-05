@@ -378,6 +378,7 @@ def delete_vector_refs_from_db(user_uid: str, identifier: str):
 
 class DeleteResourceRequest(BaseModel):
     identifier: str
+    study_id: str = ""
 
 
 @router.post("/delete-resource")
