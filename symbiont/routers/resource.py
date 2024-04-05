@@ -23,6 +23,8 @@ from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
 from ..fb.storage import delete_local_file
+from ..utils.llm_utils import summarise_plain_text_resource
+import time
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -98,15 +100,27 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
 
 # NOTE I don't like this
 # TODO move this someplace else
-async def get_and_save_summary_to_db(
-    study_resource: StudyResource, content: str, studyId: str, user_uid: str
-):
-    # TODO Fix summariser
-    # TODO add the resource to db straight away
-    study_service = StudyService(user_uid, studyId)
-    study_service.add_resource_to_db(study_resource)
-    # summary = summarise_plain_text_resource(content)
-    # study_service.update_resource_summary(study_resource.identifier, summary)
+async def save_summary(study_id: str, study_resource: StudyResource, content: str):
+    s = time.time()
+    summary = summarise_plain_text_resource(content)
+    logger.info("Content summarised")
+    logger.info("Now adding summary to DB")
+    if summary == "":
+        summary = "No summary available."
+    db = firestore.client()
+    study_ref = db.collection("studies").document(study_id)
+    study_dict = study_ref.get().to_dict()
+    if study_dict is None:
+        raise HTTPException(status_code=404, detail="Study not found")
+    resources = study_dict.get("resources", [])
+    for resource in resources:
+        if resource.get("identifier") == study_resource.identifier:
+            resource["summary"] = summary
+            study_ref.update({"resources": resources})
+            logger.info(f"Summary added to resource {study_resource.identifier}")
+            elapsed = time.time() - s
+            logger.info(f"Summary added in {elapsed} seconds")
+            return {"message": "Summary added."}
 
 
 @router.post("/upload-resource")
@@ -264,6 +278,7 @@ async def add_webpage_resource(
             )
             study_service.add_resource_to_db(study_resource)
         logger.info(f"Webpage added to Pinecone {studies}")
+
         return {"status_code": 200, "message": "Web Resource added."}
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")

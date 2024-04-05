@@ -10,6 +10,9 @@ from pydantic import SecretStr
 import time
 import datetime
 from .. import logger
+import os
+
+google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 
 
 def create_prompt(user_query: str, context: str):
