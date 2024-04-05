@@ -390,36 +390,40 @@ class DeleteResourceResponse(BaseModel):
 async def delete_resource(resource: DeleteResourceRequest, request: Request):
     user_uid = request.state.verified_user["user_id"]
     identifier = resource.identifier
+
     logger.info(f"Deleting resource {identifier}")
     # @note study_id is not used here as user can send a delete request from the library instead of a study
     pc_service = PineconeService(
         study_id="", user_uid=user_uid, resource_identifier=identifier
     )
     resource_identifier = identifier
-    try:
-        study_doc = (
-            firestore.client()
-            .collection("studies")
-            .where("userId", "==", user_uid)
-            .get()
-        )
-        # TODO refactor: this is bad because of how the db is structured
-        # another way to do this would be to get study_id in the request
-        for study in study_doc:
-            resources = study.to_dict().get("resources", [])
+    db = firestore.client()
+    user_studies = (
+        db.collection("users").document(user_uid).get().to_dict().get("studies")
+    )
+    if not user_studies:
+        raise HTTPException(status_code=404, detail="User studies not found")
+    logger.info(f"User studies: {user_studies}")
+    for study_id in user_studies:
+        try:
+            study_doc = db.collection("studies").document(study_id).get().to_dict()
+            resources = study_doc.get("resources", [])
             for resource in resources:
-                identifier = resource.get("identifier")
-                if identifier == resource_identifier:
-                    pc_service.delete_vectors_from_pinecone(identifier)
-                    delete_vector_refs_from_db(user_uid, identifier)
+                if resource.get("identifier") == resource_identifier:
+                    pc_service.delete_vectors_from_pinecone(resource_identifier)
+                    delete_vector_refs_from_db(user_uid, resource_identifier)
                     resources.remove(resource)
-                    study.reference.update({"resources": resources})
-                    logger.info(f"Resource deleted from DB: {identifier}")
-                    if resource.get("category") == "pdf":
-                        delete_resource_from_storage(user_uid, identifier)
-                        logger.info(f"Resource deleted from storage: {identifier}")
-                    return DeleteResourceResponse(
-                        status_code=200, message="Resource deleted."
+                    db.collection("studies").document(study_id).update(
+                        {"resources": resources}
                     )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error deleting resource:str{e}")
+                    logger.info(f"Resource deleted from DB: {resource_identifier}")
+                    if resource.get("category") == "pdf":
+                        delete_resource_from_storage(user_uid, resource_identifier)
+                        logger.info(
+                            f"Resource deleted from storage: {resource_identifier}"
+                        )
+                    return {"message": "Resource deleted."}
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"Error deleting resource:str{e}"
+            )
