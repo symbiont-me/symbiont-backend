@@ -25,12 +25,19 @@ from .. import logger
 from ..fb.storage import delete_local_file
 from ..utils.llm_utils import summarise_plain_text_resource
 import time
+from pydantic import BaseModel
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 router = APIRouter()
+
+
+class ResourceAddedResponse(BaseModel):
+    status_code: int
+    message: str
+    resources: list
 
 
 def delete_resource_from_storage(user_uid: str, identifier: str):
@@ -156,7 +163,9 @@ async def add_resource(
         )
         await pc_service.add_file_resource_to_pinecone()
         study_service.add_resource_to_db(study_resource)
-        return {"resource": study_resource.model_dump(), "status_code": 200}
+        return ResourceAddedResponse(
+            status_code=200, message="Resource added.", resources=[study_resource]
+        )
     except Exception as e:
         # todo delete from storage if it fails
         delete_resource_from_storage(user_uid, study_resource.identifier)
@@ -227,7 +236,9 @@ async def process_youtube_video(
         study_service.add_resource_to_db(study_resource)
 
         logger.info(f"Youtube video added to Pinecone {study_resource}")
-        return {"status_code": 200, "message": "Resource added."}
+        return ResourceAddedResponse(
+            status_code=200, message="Resource added.", resources=[study_resource]
+        )
     except Exception as e:
         logger.error(f"Error processing youtube video: {e}")
         # TODO delete from db if it fails
@@ -246,7 +257,7 @@ async def add_webpage_resource(
     try:
         loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
         html_docs = loader.load()
-        studies = []
+        study_resources = []
         transformed_docs_contents = []  # Collect transformed docs content here
         logger.info(f"Processing webpage {webpage_resource.urls}")
         logger.info(f"Parsing {len(html_docs)} documents")
@@ -265,7 +276,7 @@ async def add_webpage_resource(
                 resource_identifier=identifier,
                 user_uid=user_uid,
             )
-            studies.append(study_resource)
+            study_resources.append(study_resource)
             bs_transformer = BeautifulSoupTransformer()
             docs_transformed = bs_transformer.transform_documents(
                 [doc], tags_to_extract=["p", "li", "span", "div"]
@@ -277,9 +288,17 @@ async def add_webpage_resource(
                 study_resource, docs_transformed[0].page_content
             )
             study_service.add_resource_to_db(study_resource)
-        logger.info(f"Webpage added to Pinecone {studies}")
+            logger.info(f"Web Resource added {study_resource}")
+            background_tasks.add_task(
+                save_summary,
+                webpage_resource.studyId,
+                study_resource,
+                docs_transformed[0].page_content,
+            )
 
-        return {"status_code": 200, "message": "Web Resource added."}
+        return ResourceAddedResponse(
+            status_code=200, message="Resource added.", resources=study_resources
+        )
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail="Error processing webpage")
@@ -321,7 +340,15 @@ async def add_plain_text_resource(
     )
 
     study_service.add_resource_to_db(study_resource)
-    return {"status_code": 200, "message": "Resource added."}
+    background_tasks.add_task(
+        save_summary,
+        plain_text_resource.studyId,
+        study_resource,
+        plain_text_resource.content,
+    )
+    return ResourceAddedResponse(
+        status_code=200, message="Resource added.", resources=[study_resource]
+    )
 
 
 # TODO the whole DELETE section should be refactored
