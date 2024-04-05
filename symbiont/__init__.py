@@ -8,4 +8,4 @@ if os.getenv("FASTAPI_ENV") is None:
 if os.getenv("FASTAPI_ENV") == "production":
     logger.warning("Running in production environment")
 else:
-    logger.warning(f"Environment: {os.getenv('FASTAPI_ENV')}")
+    logger.info(f"Environment: {os.getenv('FASTAPI_ENV')}")
