@@ -376,9 +376,14 @@ def delete_vector_refs_from_db(user_uid: str, identifier: str):
     return {"message": "Vector not found."}
 
 
+class DeleteResourceRequest(BaseModel):
+    identifier: str
+
+
 @router.post("/delete-resource")
-async def delete_resource(identifier: str, request: Request):
+async def delete_resource(resource: DeleteResourceRequest, request: Request):
     user_uid = request.state.verified_user["user_id"]
+    identifier = resource.identifier
     logger.info(f"Deleting resource {identifier}")
     # @note study_id is not used here as user can send a delete request from the library instead of a study
     pc_service = PineconeService(
