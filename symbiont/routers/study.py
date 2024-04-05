@@ -8,6 +8,8 @@ from ..models import Study, Chat
 from ..utils.db_utils import UserService
 from .. import logger
 import time
+from pydantic import BaseModel
+from typing import Any, Dict, List, Optional
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
@@ -15,6 +17,12 @@ import time
 
 
 router = APIRouter()
+
+
+class StudyResponse(BaseModel):
+    message: str
+    status_code: int
+    studies: Optional[List[Dict[str, Any]]]
 
 
 @router.get("/get-current-study")
