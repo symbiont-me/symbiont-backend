@@ -6,6 +6,6 @@ if os.getenv("FASTAPI_ENV") is None:
     logger.info("Run: 'export FASTAPI_ENV=development' in terminal")
     raise ValueError("FASTAPI_ENV environment variable not set")
 if os.getenv("FASTAPI_ENV") == "production":
-    logger.warning("Running in production environment")
+    logger.critical("Running in production environment")
 else:
     logger.info(f"Environment: {os.getenv('FASTAPI_ENV')}")
