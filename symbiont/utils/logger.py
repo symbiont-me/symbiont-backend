@@ -13,9 +13,17 @@ class Logger:
         else:
             self.logger.setLevel(logging.DEBUG)
 
-        LOGFORMAT = "%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
+        log_colors = {
+            "DEBUG": "cyan",
+            "INFO": "white",
+            "WARNING": "blue",
+            "ERROR": "red",
+            "CRITICAL": "bold_red",
+        }
+
+        LOGFORMAT = "\n%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"
         # Create a formatter
-        color_formatter = ColoredFormatter(LOGFORMAT)
+        color_formatter = ColoredFormatter(LOGFORMAT, log_colors=log_colors)
 
         # Create a console handler and set the formatter
         console_handler = logging.StreamHandler()
