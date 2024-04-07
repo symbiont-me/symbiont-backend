@@ -8,8 +8,6 @@ from .. import logger
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-
-
 if not firebase_admin._apps:
     base_64_cred = os.getenv("FIREBASE_CREDENTIALS")
     storage_bucket = os.getenv("FIREBASE_STORAGE_BUCKET")

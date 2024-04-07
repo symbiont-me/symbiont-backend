@@ -28,7 +28,7 @@ origins = [
     "http://localhost",
     "http://localhost:3000",
     "https://symbiont.vercel.app/",
-    "https://symbiont-frontend-dev.vercel.app/"
+    "https://symbiont-frontend-dev.vercel.app/",
 ]
 
 

@@ -12,6 +12,3 @@ if ENVIRONMENT == "production":
 if ENVIRONMENT == "development":
     load_dotenv(".env.development")
     logger.info("Running in development environment")
-
-
-

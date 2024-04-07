@@ -336,9 +336,7 @@ class PineconeService:
         await self.create_vec_ref_in_db()
 
     async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
-        metadata = (
-            {}
-        )  # NOTE metadata is stored in the db. It should not be stored in Pinecone
+        metadata = {}  # NOTE metadata is stored in the db. It should not be stored in Pinecone
         formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
         if pc_index is None:
             logger.error("Pinecone index is not initialized")
