@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
 from ..models import TextUpdateRequest
-from firebase_admin import firestore
 from ..utils.db_utils import StudyService
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

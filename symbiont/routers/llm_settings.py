@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Cookie
+from fastapi import APIRouter, HTTPException, status, Cookie
 from pydantic import BaseModel
-from firebase_admin import firestore, auth, credentials, storage
+from firebase_admin import firestore
 from fastapi import Request, Response
 from ..llms import get_user_llm_settings
-from ..utils.db_utils import StudyService
 from typing import Annotated
 from .. import logger
 

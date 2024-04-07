@@ -1,7 +1,5 @@
-from langchain import OpenAI
 from langchain.chains.summarize import load_summarize_chain
-from langchain.text_splitter import RecursiveCharacterTextSplitter, NLTKTextSplitter
-from langchain_openai import OpenAI
+from langchain.text_splitter import NLTKTextSplitter
 from ..models import LLMModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from .. import logger

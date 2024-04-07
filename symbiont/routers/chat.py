@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Cookie
-from ..models import ChatRequest, ChatMessage, LLMModel
+from ..models import ChatRequest, ChatMessage
 from firebase_admin import firestore
 
 from fastapi.responses import StreamingResponse

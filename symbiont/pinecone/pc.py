@@ -1,5 +1,4 @@
 from hashlib import md5
-from logging import raiseExceptions
 from typing import List
 from ..models import PineconeRecord, DocumentPage
 from ..fb.storage import download_from_firebase_storage, delete_local_file

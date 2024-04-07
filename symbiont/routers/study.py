@@ -2,10 +2,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from ..models import CreateStudyRequest
 from firebase_admin import firestore
-from ..utils.db_utils import StudyService
 from datetime import datetime
 from ..models import Study, Chat
-from ..utils.db_utils import UserService
 from .. import logger
 import time
 from pydantic import BaseModel

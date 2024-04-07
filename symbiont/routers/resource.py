@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from google.cloud.firestore import ArrayUnion
 from firebase_admin import firestore, storage
 from fastapi import (
     APIRouter,
@@ -10,7 +9,6 @@ from fastapi import (
 )
 from ..models import (
     FileUploadResponse,
-    GetResourcesResponse,
     StudyResource,
     AddYoutubeVideoRequest,
     AddWebpageResourceRequest,
@@ -22,10 +20,8 @@ from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
-from ..fb.storage import delete_local_file
 from ..utils.llm_utils import summarise_plain_text_resource
 import time
-from pydantic import BaseModel
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
