@@ -112,7 +112,8 @@ async def get_llm_response(llm, user_query: str, context: str):
     llm_elapsed_time = time.time() - llm_start_time
     speed = num_chunks / llm_elapsed_time
     logger.debug(
-        f"Generated {num_chunks} chunks in {str(datetime.timedelta(seconds=llm_elapsed_time))} at a spped of {round(speed,2)} chunk/s."
+        f"Generated {num_chunks} chunks in {str(datetime.timedelta(seconds=llm_elapsed_time))}"
+        f"at a speed of {round(speed,2)} chunk/s."
     )
 
     # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
