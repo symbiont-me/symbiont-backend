@@ -44,5 +44,5 @@ def summarise_plain_text_resource(document_text):
         return summary
     except Exception as e:
         logger.error(f"An error occurred: {e}")
-        summary = f"An error occurred: Summary could not be generated."
+        summary = "An error occurred: Summary could not be generated."
     return summary
