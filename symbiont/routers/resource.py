@@ -159,15 +159,11 @@ async def add_resource(
         )
         await pc_service.add_file_resource_to_pinecone()
         study_service.add_resource_to_db(study_resource)
-        return ResourceResponse(
-            status_code=200, message="Resource added.", resources=[study_resource]
-        )
+        return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
     except Exception as e:
         # TODO delete from storage if it fails
         logger.error(f"Error occur while adding resource: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail="Failed to add resource. Try Again."
-        )
+        raise HTTPException(status_code=500, detail="Failed to add resource. Try Again.")
 
 
 @router.post("/get-resources")
@@ -229,9 +225,7 @@ async def process_youtube_video(
 
         study_service = StudyService(user_uid, video_resource.studyId)
 
-        await pc_service.upload_yt_resource_to_pinecone(
-            study_resource, doc.page_content
-        )
+        await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
         # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
         study_service.add_resource_to_db(study_resource)
 
@@ -243,9 +237,7 @@ async def process_youtube_video(
             doc.page_content,
         )
 
-        return ResourceResponse(
-            status_code=200, message="Resource added.", resources=[study_resource]
-        )
+        return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
     except Exception as e:
         logger.error(f"Error processing youtube video: {e}")
         # TODO delete from db if it fails
@@ -285,15 +277,9 @@ async def add_webpage_resource(
             )
             study_resources.append(study_resource)
             bs_transformer = BeautifulSoupTransformer()
-            docs_transformed = bs_transformer.transform_documents(
-                [doc], tags_to_extract=["p", "li", "span", "div"]
-            )
-            transformed_docs_contents.append(
-                (study_resource, docs_transformed[0].page_content)
-            )
-            await pc_service.upload_webpage_to_pinecone(
-                study_resource, docs_transformed[0].page_content
-            )
+            docs_transformed = bs_transformer.transform_documents([doc], tags_to_extract=["p", "li", "span", "div"])
+            transformed_docs_contents.append((study_resource, docs_transformed[0].page_content))
+            await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
             study_service.add_resource_to_db(study_resource)
             logger.info(f"Web Resource added {study_resource}")
             background_tasks.add_task(
@@ -303,9 +289,7 @@ async def add_webpage_resource(
                 docs_transformed[0].page_content,
             )
 
-        return ResourceResponse(
-            status_code=200, message="Resource added.", resources=study_resources
-        )
+        return ResourceResponse(status_code=200, message="Resource added.", resources=study_resources)
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail="Error processing webpage")
@@ -342,9 +326,7 @@ async def add_plain_text_resource(
     study_service = StudyService(user_uid, plain_text_resource.studyId)
 
     # TODO rename the method as used for both plain text and webpage
-    await pc_service.upload_webpage_to_pinecone(
-        study_resource, plain_text_resource.content
-    )
+    await pc_service.upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
 
     study_service.add_resource_to_db(study_resource)
     background_tasks.add_task(
@@ -353,9 +335,7 @@ async def add_plain_text_resource(
         study_resource,
         plain_text_resource.content,
     )
-    return ResourceResponse(
-        status_code=200, message="Resource added.", resources=[study_resource]
-    )
+    return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
 
 
 class DeleteResourceRequest(BaseModel):
