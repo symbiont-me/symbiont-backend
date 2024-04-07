@@ -42,9 +42,7 @@ async def get_current_study(studyId: str, request: Request):
     user_studies = user_doc.get("studies", [])
     if studyId not in user_studies:
         logger.error("User does not have access to this study.")
-        raise HTTPException(
-            status_code=403, detail="User does not have access to this study."
-        )
+        raise HTTPException(status_code=403, detail="User does not have access to this study.")
     elapsed = time.time() - s
     logger.info(f"Getting current study took {elapsed} seconds")
     return StudyResponse(message="", status_code=200, studies=[study])
@@ -61,9 +59,7 @@ async def get_user_studies(request: Request):
         query = studies_ref.where("userId", "==", user_uid)
         studies = query.stream()
         # Create a list of dictionaries, each containing the studyId and the study's data
-        studies_data = [
-            {"id": study.id, **(study.to_dict() or {})} for study in studies
-        ]
+        studies_data = [{"id": study.id, **(study.to_dict() or {})} for study in studies]
         elapsed = time.time() - s
         logger.info(f"Getting user studies took {elapsed} seconds")
         return StudyResponse(
@@ -158,9 +154,7 @@ async def delete_study(studyId: str, request: Request):
             raise HTTPException(status_code=404, detail="User does not exist.")
         user_studies = user_doc.to_dict().get("studies", [])
         if studyId not in user_studies:
-            raise HTTPException(
-                status_code=403, detail="Study not found in user's studies."
-            )
+            raise HTTPException(status_code=403, detail="Study not found in user's studies.")
 
         # Remove the study from the user's list of studies
         user_studies.remove(studyId)
@@ -170,9 +164,7 @@ async def delete_study(studyId: str, request: Request):
 
         elapsed = time.time() - s
         logger.info(f"Deleting study took {elapsed} seconds")
-        return DeleteStudyResponse(
-            message="Study deleted successfully", status_code=200, studyId=studyId
-        )
+        return DeleteStudyResponse(message="Study deleted successfully", status_code=200, studyId=studyId)
     except Exception as e:
         logger.error(f"Error Deleting Study {e}")
         raise HTTPException(

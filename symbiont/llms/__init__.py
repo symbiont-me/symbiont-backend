@@ -104,9 +104,7 @@ async def get_llm_response(llm, user_query: str, context: str):
     for chunk in llm.stream(prompt):
         if num_chunks == 0:
             time_to_first_token = time.time() - llm_start_time
-            logger.info(
-                f"Time to first token (TTFT) {str(datetime.timedelta(seconds=time_to_first_token))}"
-            )
+            logger.info(f"Time to first token (TTFT) {str(datetime.timedelta(seconds=time_to_first_token))}")
         num_chunks += 1
         yield chunk.content
     llm_elapsed_time = time.time() - llm_start_time

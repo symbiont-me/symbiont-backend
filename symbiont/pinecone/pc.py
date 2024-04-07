@@ -41,14 +41,10 @@ co = cohere.Client(api_key=cohere_api_key or "")
 embeddings_model = None
 
 if os.getenv("FASTAPI_ENV") == "test":
-    embeddings_model = VoyageAIEmbeddings(
-        voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
-    )
+    embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
     logger.info("Using Free Embeddings Model: VoyageAI")
 else:
-    embeddings_model = OpenAIEmbeddings(
-        model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
-    )
+    embeddings_model = OpenAIEmbeddings(model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536)
     logger.info("Using OpenAI Embeddings")
 
 
@@ -126,14 +122,10 @@ class PineconeService:
             return vec_ref
         except Exception as e:
             logger.error(f"Error updating vectors in Firestore: {str(e)}")
-            raise HTTPException(
-                status_code=500, detail="Error updating vectors in Firestore"
-            )
+            raise HTTPException(status_code=500, detail="Error updating vectors in Firestore")
 
     # make this generic it should take various types of resources
-    async def embed_document(
-        self, doc: Union[DocumentPage, Document]
-    ) -> PineconeRecord:
+    async def embed_document(self, doc: Union[DocumentPage, Document]) -> PineconeRecord:
         vec = await self.embed.aembed_query(doc.page_content)
         hash = md5(doc.page_content.encode("utf-8")).hexdigest()
         self.db_vec_refs[hash] = VectorInDB(**doc.metadata).dict()
@@ -168,9 +160,7 @@ class PineconeService:
             logger.error("Download URL must be provided to prepare file resource")
             raise ValueError("Download URL must be provided to prepare file resource")
 
-        file_path = await download_from_firebase_storage(
-            self.resource_identifier, self.download_url
-        )
+        file_path = await download_from_firebase_storage(self.resource_identifier, self.download_url)
 
         # handle pdf only for now
         if file_path is not None and file_path.endswith(".pdf"):
@@ -210,23 +200,17 @@ class PineconeService:
 
     async def get_relevant_vectors(self, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
-            raise ValueError(
-                "Resource and user query must be provided to get chat context"
-            )
+            raise ValueError("Resource and user query must be provided to get chat context")
         logger.debug("search_pinecone_index")
         pinecone_start_time = time.time()
         pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
-        logger.info(
-            f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}"
-        )
+        logger.info(f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}")
         pinecone_elapsed_time = time.time() - pinecone_start_time
         logger.info(
             f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}"
         )
 
-        filtered_matches = [
-            match for match in pc_results.matches if match["score"] > self.threshold
-        ]
+        filtered_matches = [match for match in pc_results.matches if match["score"] > self.threshold]
         logger.info(f"Found {len(filtered_matches)} matches after filtering")
         if not filtered_matches:
             return filtered_matches
@@ -245,9 +229,7 @@ class PineconeService:
             vec_metadata.append(resource_vecs[match.id])
 
         vec_metadata_elapsed_time = time.time() - vec_metadata_start_time
-        logger.debug(
-            f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}"
-        )
+        logger.debug(f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}")
         return vec_metadata
 
     def rerank_context(self, context):
@@ -266,12 +248,8 @@ class PineconeService:
         for text in reranked_context.results:
             reranked_text += text.document.get("text", "")
         rerank_elapsed_time = time.time() - rerank_start_time
-        logger.info(
-            f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}"
-        )
-        logger.info(
-            f"relevance scores: {[r.relevance_score for r in reranked_context]}"
-        )
+        logger.info(f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}")
+        logger.info(f"relevance scores: {[r.relevance_score for r in reranked_context]}")
         return reranked_text
 
     async def get_single_chat_context(self):
@@ -294,9 +272,7 @@ class PineconeService:
         if resources is None:
             raise HTTPException(status_code=404, detail="No Resources Found")
         # get the identifier for each resource
-        all_resource_identifiers = [
-            resource.get("identifier") for resource in resources
-        ]
+        all_resource_identifiers = [resource.get("identifier") for resource in resources]
         logger.info(f"Resource Identifiers: {all_resource_identifiers}")
         # get the context for each resource
         combined_vecs = []
@@ -310,9 +286,7 @@ class PineconeService:
         logger.info("Took (%s) s to get combined context", elapsed)
         return self.rerank_context(combined_vecs)
 
-    async def upload_yt_resource_to_pinecone(
-        self, resource: StudyResource, content: str
-    ):
+    async def upload_yt_resource_to_pinecone(self, resource: StudyResource, content: str):
         # NOTE this is causing problems, it seems to be cutting off the text
         # content = truncate_string_by_bytes(content, 10000)
         split_texts = self.text_splitter.create_documents([content])
@@ -347,9 +321,7 @@ class PineconeService:
         truncated_string = encoded_string[:num_bytes]
         return truncated_string.decode("utf-8", "ignore")
 
-    async def prepare_pdf_for_pinecone(
-        self, pdf_page: DocumentPage
-    ) -> List[DocumentPage]:
+    async def prepare_pdf_for_pinecone(self, pdf_page: DocumentPage) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
         split_texts = self.text_splitter.create_documents([page_content])

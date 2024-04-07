@@ -14,18 +14,14 @@ class StudyService:
         self.db = firestore.client()
 
     def get_document_dict(self) -> Optional[dict]:
-        documents_stream = (
-            self.db.collection("studies").where("userId", "==", self.user_uid).stream()
-        )
+        documents_stream = self.db.collection("studies").where("userId", "==", self.user_uid).stream()
         for document in documents_stream:
             if document.id == self.study_id:
                 return document.to_dict()
         return None
 
     def get_document_ref(self):
-        documents_stream = (
-            self.db.collection("studies").where("userId", "==", self.user_uid).stream()
-        )
+        documents_stream = self.db.collection("studies").where("userId", "==", self.user_uid).stream()
         for document in documents_stream:
             if document.id == self.study_id:
                 return self.db.collection("studies").document(self.study_id)

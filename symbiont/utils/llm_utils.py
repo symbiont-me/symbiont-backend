@@ -6,9 +6,7 @@ from .. import logger
 from ..llms import google_api_key
 
 if google_api_key is None:
-    logger.error(
-        "GOOGLE_GEMINI_API_KEY is not set in the environment variables. Summaries will not work."
-    )
+    logger.error("GOOGLE_GEMINI_API_KEY is not set in the environment variables. Summaries will not work.")
 
 
 # TODO fix summariser

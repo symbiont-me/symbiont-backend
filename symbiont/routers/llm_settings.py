@@ -36,21 +36,15 @@ async def set_llm_settings(
     # @note don't save the api_key in the database
     user_settings["llm_name"] = settings.llm_name
     user_doc.update({"settings": user_settings})
-    response.set_cookie(
-        key="api_key", value=settings.api_key, samesite="None", secure=True
-    )
-    response.set_cookie(
-        key="llm_name", value=settings.llm_name, samesite="None", secure=True
-    )
+    response.set_cookie(key="api_key", value=settings.api_key, samesite="None", secure=True)
+    response.set_cookie(key="llm_name", value=settings.llm_name, samesite="None", secure=True)
     logger.info("LLM settings updated")
 
     return {"message": "LLM settings saved"}
 
 
 @router.get("/get-llm-settings")
-async def get_llm_settings(
-    request: Request, api_key: Annotated[str | None, Cookie()] = None
-):
+async def get_llm_settings(request: Request, api_key: Annotated[str | None, Cookie()] = None):
     user_uid = request.state.verified_user["user_id"]
     user_settings = get_user_llm_settings(user_uid)
     if user_settings is None:

@@ -20,7 +20,7 @@ async def download_from_firebase_storage(resource_identifier: str, download_url:
     return None
 
 
-# TODO maybe delete the entire directory because 
+# TODO maybe delete the entire directory because
 # we do not want to keep the user id in the file path
 async def delete_local_file(local_file_path: str):
     os.remove(local_file_path)

@@ -78,9 +78,7 @@ async def chat(
         context_start_time = time.time()
         context = await pc_service.get_single_chat_context()
         context_elapsed_time = time.time() - context_start_time
-        logger.debug(
-            f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}"
-        )
+        logger.debug(f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}")
 
     no_context_response = ""
     if not context:
@@ -105,9 +103,7 @@ async def chat(
             )
 
         logger.debug("Returning response")
-        return StreamingResponse(
-            return_no_context_response(), media_type="text/event-stream"
-        )
+        return StreamingResponse(return_no_context_response(), media_type="text/event-stream")
 
     async def generate_llm_response() -> AsyncGenerator[str, None]:
         """
@@ -167,9 +163,7 @@ def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid
     doc_ref = db.collection("studies").document(studyId)
     if doc_ref.get().to_dict() is None:
         raise HTTPException(status_code=404, detail="No such document!")
-    new_chat_message = ChatMessage(
-        role=role, content=chat_message, createdAt=datetime.datetime.now()
-    ).model_dump()
+    new_chat_message = ChatMessage(role=role, content=chat_message, createdAt=datetime.datetime.now()).model_dump()
     doc_ref.update({"chatMessages": ArrayUnion([new_chat_message])})
     if role == "bot":
         logger.info("Bot message saved to db")

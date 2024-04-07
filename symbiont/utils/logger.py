@@ -20,7 +20,7 @@ class Logger:
             "ERROR": "red",
             "CRITICAL": "bold_red",
         }
-        
+
         LOGFORMAT = "\n%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"  # noqa: E501
         # Create a formatter
         color_formatter = ColoredFormatter(LOGFORMAT, log_colors=log_colors)
@@ -33,9 +33,7 @@ class Logger:
         # If a log file is specified, create a file handler and set the formatter
         if log_file:
             file_handler = logging.FileHandler(log_file)
-            file_format = (
-                "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s"
-            )
+            file_format = "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s"
             file_formatter = logging.Formatter(file_format)
 
             file_handler.setFormatter(file_formatter)
