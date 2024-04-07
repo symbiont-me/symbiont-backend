@@ -44,6 +44,9 @@ delete_namespace = "symbiont/scripts/delete_pinecone_vecs.py"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.ruff]
+line-length = 120
+
 [tool.ruff.lint]
-# Add the `line-too-long` rule to the enforced rule set.
 extend-select = ["E501"]
+
