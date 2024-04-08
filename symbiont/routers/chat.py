@@ -62,7 +62,6 @@ async def chat(
         role="user",
         user_uid=user_uid,
     )
-
     logger.info(resource_identifier)
 
     context = ""
@@ -83,7 +82,22 @@ async def chat(
     )
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
-        context = await pc_service.get_combined_chat_context()
+        chat_context_results = await pc_service.get_combined_chat_context()
+        if chat_context_results is None:
+            logger.debug("No context found, retuning no context response")
+            no_context_response = (
+                "I am sorry, there is no information available in the documents to answer your question."
+            )
+            save_chat_message_to_db(
+                chat_message=no_context_response,
+                citations=citations,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
+            return StreamingResponse(return_no_context_response(no_context_response), media_type="text/event-stream")
+        context = chat_context_results[0]
+        citations = chat_context_results[1]
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
         context_start_time = time.time()

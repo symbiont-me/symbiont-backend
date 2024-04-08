@@ -260,7 +260,7 @@ class PineconeService:
         reranked_context = self.rerank_context(context)
         return reranked_context
 
-    async def get_combined_chat_context(self):
+    async def get_combined_chat_context(self) -> Union[Tuple[str, List[Citation]], None]:
         s = time.time()
         db = firestore.client()
         all_resource_identifiers = []
@@ -285,7 +285,8 @@ class PineconeService:
         logger.info(f"Combined Context: {len(combined_vecs)}")
         elapsed = time.time() - s
         logger.info("Took (%s) s to get combined context", elapsed)
-        return self.rerank_context(combined_vecs)
+        reranked_context = self.rerank_context(combined_vecs)
+        return reranked_context
 
     async def upload_yt_resource_to_pinecone(self, resource: StudyResource, content: str):
         # NOTE this is causing problems, it seems to be cutting off the text
