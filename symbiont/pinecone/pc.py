@@ -28,7 +28,7 @@ load_dotenv()
 
 # TODO import all these from __init__.py
 cohere_api_key = os.getenv("CO_API_KEY")
-api_key = os.getenv("OPENAI_API_KEY")
+api_key = os.getenv("OPENAI_API_KEY_FOR_EMBEDDINGS")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
@@ -43,7 +43,9 @@ if os.getenv("FASTAPI_ENV") == "test":
     embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
     logger.info("Using Free Embeddings Model: VoyageAI")
 else:
-    embeddings_model = OpenAIEmbeddings(model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536)
+    embeddings_model = OpenAIEmbeddings(
+        model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536, api_key=api_key
+    )
     logger.info("Using OpenAI Embeddings")
 
 
