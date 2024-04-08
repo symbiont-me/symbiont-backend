@@ -43,6 +43,7 @@ async def chat(
     background_tasks: BackgroundTasks,
     api_key: Annotated[str | None, Cookie()] = None,
 ):
+    s = time.time()
     logger.debug("API KEY: " + str(api_key))
     user_uid = request.state.verified_user["user_id"]
     if api_key is None:
@@ -54,8 +55,7 @@ async def chat(
 
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
-    background_tasks.add_task(
-        save_chat_message_to_db,
+    save_chat_message_to_db(
         chat_message=user_query,
         studyId=study_id,
         role="user",
@@ -127,8 +127,7 @@ async def chat(
             logger.error(e)
             raise HTTPException(status_code=500, detail=str(e))
 
-        background_tasks.add_task(
-            save_chat_message_to_db,
+        save_chat_message_to_db(
             chat_message=llm_response,
             citations=citations,
             studyId=study_id,
@@ -136,6 +135,8 @@ async def chat(
             user_uid=user_uid,
         )
 
+    elasped_time = time.time() - s
+    logger.info(f"It took {elasped_time} to start the chat ")
     return StreamingResponse(generate_llm_response(), media_type="text/event-stream")
 
 
