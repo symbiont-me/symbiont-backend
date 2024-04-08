@@ -44,7 +44,6 @@ async def chat(
     api_key: Annotated[str | None, Cookie()] = None,
 ):
     s = time.time()
-    logger.debug("API KEY: " + str(api_key))
     user_uid = request.state.verified_user["user_id"]
     if api_key is None:
         raise HTTPException(status_code=404, detail="No API key found!")
