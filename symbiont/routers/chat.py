@@ -55,6 +55,7 @@ async def chat(
 
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
+    # TODO batch the write operations
     save_chat_message_to_db(
         chat_message=user_query,
         studyId=study_id,
@@ -92,8 +93,7 @@ async def chat(
             no_context_response = (
                 "I am sorry, there is no information available in the documents to answer your question."
             )
-            background_tasks.add_task(
-                save_chat_message_to_db,
+            save_chat_message_to_db(
                 chat_message=no_context_response,
                 citations=citations,
                 studyId=study_id,
