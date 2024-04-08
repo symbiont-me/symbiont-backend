@@ -18,12 +18,21 @@ from ..pinecone.pc import PineconeService
 from .. import logger
 import time
 from typing import Annotated, List
+import asyncio
 
 ####################################################
 #                   CHAT                           #
 ####################################################
 
 router = APIRouter()
+
+
+async def return_no_context_response(response: str = "") -> AsyncGenerator[str, None]:
+    gen = iter(response.split())
+    for chunk in gen:
+        response += chunk + " "
+        await asyncio.sleep(0.05)
+        yield chunk + " "
 
 
 # TODO wrap in try except
@@ -79,30 +88,19 @@ async def chat(
         context_start_time = time.time()
         result = await pc_service.get_single_chat_context()
         if result is None:
-            # TODO move this to a function
-            no_context_response = ""
             logger.debug("No context found, retuning no context response")
-
-            def return_no_context_response():
-                nonlocal no_context_response
-                response = "I am sorry, there is no information available in the documents to answer your question."
-                gen = iter(response.split())
-                for chunk in gen:
-                    no_context_response += chunk + " "
-                    time.sleep(0.05)
-                    yield chunk + " "
-
-                background_tasks.add_task(
-                    save_chat_message_to_db,
-                    chat_message=no_context_response,
-                    citations=citations,
-                    studyId=study_id,
-                    role="bot",
-                    user_uid=user_uid,
-                )
-
-            logger.debug("Returning response")
-            return StreamingResponse(return_no_context_response(), media_type="text/event-stream")
+            no_context_response = (
+                "I am sorry, there is no information available in the documents to answer your question."
+            )
+            background_tasks.add_task(
+                save_chat_message_to_db,
+                chat_message=no_context_response,
+                citations=citations,
+                studyId=study_id,
+                role="bot",
+                user_uid=user_uid,
+            )
+            return StreamingResponse(return_no_context_response(no_context_response), media_type="text/event-stream")
 
         context = result[0]
         citations = result[1]
