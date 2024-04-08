@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Cookie
-from ..models import ChatRequest, ChatMessage
+from ..models import ChatRequest, ChatMessage, Citation
 from firebase_admin import firestore
 
 from fastapi.responses import StreamingResponse
@@ -17,7 +17,7 @@ from ..llms import (
 from ..pinecone.pc import PineconeService
 from .. import logger
 import time
-from typing import Annotated
+from typing import Annotated, List
 
 ####################################################
 #                   CHAT                           #
@@ -56,6 +56,7 @@ async def chat(
     logger.info(resource_identifier)
 
     context = ""
+    citations = []
     # TODO review these conditions
     if not chat.combined and resource_identifier is None:
         raise HTTPException(status_code=404, detail="Please select a resource")
@@ -76,34 +77,37 @@ async def chat(
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
         context_start_time = time.time()
-        context = await pc_service.get_single_chat_context()
+        result = await pc_service.get_single_chat_context()
+        if result is None:
+            # TODO move this to a function
+            no_context_response = ""
+            logger.debug("No context found, retuning no context response")
+
+            def return_no_context_response():
+                nonlocal no_context_response
+                response = "I am sorry, there is no information available in the documents to answer your question."
+                gen = iter(response.split())
+                for chunk in gen:
+                    no_context_response += chunk + " "
+                    time.sleep(0.05)
+                    yield chunk + " "
+
+                background_tasks.add_task(
+                    save_chat_message_to_db,
+                    chat_message=no_context_response,
+                    citations=citations,
+                    studyId=study_id,
+                    role="bot",
+                    user_uid=user_uid,
+                )
+
+            logger.debug("Returning response")
+            return StreamingResponse(return_no_context_response(), media_type="text/event-stream")
+
+        context = result[0]
+        citations = result[1]
         context_elapsed_time = time.time() - context_start_time
         logger.debug(f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}")
-
-    no_context_response = ""
-    if not context:
-        logger.debug("No context found, retuning no context response")
-
-        def return_no_context_response():
-            nonlocal no_context_response
-            response = "I am sorry, there is no information available in the documents to answer your question."
-            gen = iter(response.split())
-            for chunk in gen:
-                no_context_response += chunk + " "
-                time.sleep(0.05)
-                yield chunk + " "
-            logger.debug("Adding bg task")
-
-            background_tasks.add_task(
-                save_chat_message_to_db,
-                chat_message=no_context_response,
-                studyId=study_id,
-                role="bot",
-                user_uid=user_uid,
-            )
-
-        logger.debug("Returning response")
-        return StreamingResponse(return_no_context_response(), media_type="text/event-stream")
 
     async def generate_llm_response() -> AsyncGenerator[str, None]:
         """
@@ -117,7 +121,7 @@ async def chat(
             async for chunk in get_llm_response(
                 llm=llm,
                 user_query=user_query,
-                context=context,
+                context=context,  # TODO fix type issue
             ):
                 llm_response += chunk
                 yield chunk
@@ -128,6 +132,7 @@ async def chat(
         background_tasks.add_task(
             save_chat_message_to_db,
             chat_message=llm_response,
+            citations=citations,
             studyId=study_id,
             role="bot",
             user_uid=user_uid,
@@ -158,12 +163,14 @@ async def delete_chat_messages(studyId: str, request: Request):
     return {"message": "Chat messages deleted!", "status_code": 200}
 
 
-def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str):
+def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str, citations: List[Citation] = []):
     db = firestore.client()
     doc_ref = db.collection("studies").document(studyId)
     if doc_ref.get().to_dict() is None:
         raise HTTPException(status_code=404, detail="No such document!")
-    new_chat_message = ChatMessage(role=role, content=chat_message, createdAt=datetime.datetime.now()).model_dump()
+    new_chat_message = ChatMessage(
+        role=role, content=chat_message, citations=citations, createdAt=datetime.datetime.now()
+    ).model_dump()
     doc_ref.update({"chatMessages": ArrayUnion([new_chat_message])})
     if role == "bot":
         logger.info("Bot message saved to db")

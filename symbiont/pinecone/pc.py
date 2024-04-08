@@ -1,6 +1,6 @@
 from hashlib import md5
-from typing import List
-from ..models import PineconeRecord, DocumentPage
+from typing import List, Union, Tuple
+from ..models import PineconeRecord, DocumentPage, Citation
 from ..fb.storage import download_from_firebase_storage, delete_local_file
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
@@ -9,7 +9,6 @@ from ..models import EmbeddingModels, CohereTextModels
 import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
-from typing import Union
 from . import pc_index
 from ..models import StudyResource
 from firebase_admin import firestore
@@ -232,10 +231,10 @@ class PineconeService:
         logger.debug(f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}")
         return vec_metadata
 
-    def rerank_context(self, context):
+    def rerank_context(self, context) -> Union[Tuple[str, List[Citation]], None]:
         # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
         if not context:
-            return ""
+            return None
         logger.debug("Reranking")
         rerank_start_time = time.time()
         reranked_context = co.rerank(
@@ -244,18 +243,20 @@ class PineconeService:
             top_n=3,
             model=CohereTextModels.COHERE_RERANK_V2,
         )
+        reranked_indices = [r.index for r in reranked_context.results]
+        citations = [context[i] for i in reranked_indices]
         reranked_text = ""
         for text in reranked_context.results:
             reranked_text += text.document.get("text", "")
         rerank_elapsed_time = time.time() - rerank_start_time
         logger.info(f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}")
         logger.info(f"relevance scores: {[r.relevance_score for r in reranked_context]}")
-        return reranked_text
+        return (reranked_text, citations)
 
-    async def get_single_chat_context(self):
+    async def get_single_chat_context(self) -> Union[Tuple[str, List[Citation]], None]:
         context = await self.get_relevant_vectors()
         if context is None:
-            return ""
+            return None
         reranked_context = self.rerank_context(context)
         return reranked_context
 

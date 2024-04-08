@@ -103,9 +103,16 @@ class AddChatMessageRequest(BaseModel):
     role: str
 
 
+class Citation(BaseModel):
+    page: int
+    source: str
+    text: str
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
+    citations: List = []
     createdAt: datetime
 
 
