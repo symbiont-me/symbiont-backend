@@ -1,3 +1,4 @@
+# TODO update to get information from .env file
 from pinecone import Pinecone
 import os
 
@@ -9,11 +10,11 @@ if not os.getenv("PINECONE_API_KEY"):
     raise Exception("PINECONE_API_KEY is not set")
 
 api_key = os.getenv("PINECONE_API_KEY")
-index_name = "symbiont-me"
+index_name = "symbiont-dev"
 region = "us-west-2"
 
 pc = Pinecone(api_key=api_key, region=region)
-index = pc.Index("symbiont-me")
+index = pc.Index("symbiont-dev")
 namespaces = []
 if index:
     res = index.describe_index_stats()
