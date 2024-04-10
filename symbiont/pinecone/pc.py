@@ -347,8 +347,12 @@ class PineconeService:
         return docs
 
     def get_query_embedding(self) -> List[float]:
-        vec = self.embed.embed_query(self.user_query)
-        return vec
+        try:
+            vec = self.embed.embed_query(self.user_query)
+            return vec
+        except Exception as e:
+            logger.error(f"Error embedding query: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error embedding query")
 
     def search_pinecone_index(self, file_identifier: str, top_k=25):
         query_embedding = self.get_query_embedding()
