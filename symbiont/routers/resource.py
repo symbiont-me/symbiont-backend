@@ -379,7 +379,7 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
                 resources_list.remove(resource)
                 resource_to_delete = resource
         logger.debug(f"Resource {identifier} deleted from study {delete_request.study_id}")
-        logger.debug(f"delete vectors from db")
+        logger.debug("delete vectors from db")
         vectors.pop(identifier)
         batch.update(db.collection("studies").document(delete_request.study_id), {"resources": resources_list})
         batch.update(db.collection("studies").document(delete_request.study_id), {"vectors": vectors})
