@@ -21,9 +21,7 @@ class AuthTokenMiddleware(BaseHTTPMiddleware):
 
         authorization: str = request.headers.get("Authorization", "")
         if authorization is None:
-            return JSONResponse(
-                status_code=401, content={"detail": "Authorization header missing"}
-            )
+            return JSONResponse(status_code=401, content={"detail": "Authorization header missing"})
 
         try:
             id_token = authorization.split("Bearer ")[1]

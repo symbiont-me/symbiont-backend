@@ -1,7 +1,6 @@
 from hashlib import md5
-from logging import raiseExceptions
-from typing import List
-from ..models import PineconeRecord, DocumentPage
+from typing import List, Union, Tuple
+from ..models import PineconeRecord, DocumentPage, Citation
 from ..fb.storage import download_from_firebase_storage, delete_local_file
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
@@ -10,7 +9,6 @@ from ..models import EmbeddingModels, CohereTextModels
 import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
-from typing import Union
 from . import pc_index
 from ..models import StudyResource
 from firebase_admin import firestore
@@ -30,13 +28,22 @@ load_dotenv()
 
 # TODO import all these from __init__.py
 cohere_api_key = os.getenv("CO_API_KEY")
-api_key = os.getenv("OPENAI_API_KEY")
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
-pinecone_index = os.getenv("PINECONE_INDEX")
-pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
+api_key = os.getenv("OPENAI_API_KEY_FOR_EMBEDDINGS")
 voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
 co = cohere.Client(api_key=cohere_api_key or "")
+
+
+embeddings_model = None
+
+if os.getenv("FASTAPI_ENV") == "test":
+    embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
+    logger.info("Using Free Embeddings Model: VoyageAI")
+else:
+    embeddings_model = OpenAIEmbeddings(
+        model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536, api_key=api_key
+    )
+    logger.info("Using OpenAI Embeddings")
 
 
 class VectorInDB(BaseModel):
@@ -66,17 +73,10 @@ class PineconeService:
         self.download_url = resource_download_url
         self.threshold = threshold
         self.db = firestore.client()
-        self.embed = OpenAIEmbeddings(
-            model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536
-        )
-
+        self.embed = embeddings_model
         # TODO use model based on user's settings and api key provided
         # TODO fix missing param error
         # NOTE: has a rate limit per seconds (I think) so it throws an error if you try to use it too much
-        # self.embed = VoyageAIEmbeddings(
-        #     voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE
-        # )
-
         self.nltk_text_splitter = NLTKTextSplitter()
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=14000,
@@ -120,18 +120,26 @@ class PineconeService:
             return vec_ref
         except Exception as e:
             logger.error(f"Error updating vectors in Firestore: {str(e)}")
-            raise HTTPException(
-                status_code=500, detail="Error updating vectors in Firestore"
-            )
+            raise HTTPException(status_code=500, detail="Error updating vectors in Firestore")
 
     # make this generic it should take various types of resources
-    async def embed_document(
-        self, doc: Union[DocumentPage, Document]
-    ) -> PineconeRecord:
+    async def embed_document(self, doc: Union[DocumentPage, Document]) -> PineconeRecord:
         vec = await self.embed.aembed_query(doc.page_content)
         hash = md5(doc.page_content.encode("utf-8")).hexdigest()
         self.db_vec_refs[hash] = VectorInDB(**doc.metadata).dict()
         return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
+
+    async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
+        try:
+            metadata = {}  # NOTE metadata is stored in the db. It should not be stored in Pinecone
+            formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
+            if pc_index is None:
+                logger.error("Pinecone index is not initialized")
+                raise ValueError("Pinecone index is not initialized")
+            pc_index.upsert(vectors=formatted_vecs, namespace=self.resource_identifier)
+        except Exception as e:
+            logger.error(f"Error upserting vectors to Pinecone: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error upserting vectors to Pinecone")
 
     def delete_vectors_from_pinecone(self, namespace):
         try:
@@ -162,9 +170,7 @@ class PineconeService:
             logger.error("Download URL must be provided to prepare file resource")
             raise ValueError("Download URL must be provided to prepare file resource")
 
-        file_path = await download_from_firebase_storage(
-            self.resource_identifier, self.download_url
-        )
+        file_path = await download_from_firebase_storage(self.resource_identifier, self.download_url)
 
         # handle pdf only for now
         if file_path is not None and file_path.endswith(".pdf"):
@@ -204,23 +210,17 @@ class PineconeService:
 
     async def get_relevant_vectors(self, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
-            raise ValueError(
-                "Resource and user query must be provided to get chat context"
-            )
+            raise ValueError("Resource and user query must be provided to get chat context")
         logger.debug("search_pinecone_index")
         pinecone_start_time = time.time()
         pc_results = self.search_pinecone_index(self.resource_identifier, top_k)
-        logger.info(
-            f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}"
-        )
+        logger.info(f"Found {len(pc_results.matches)} matches from resource {self.resource_identifier}")
         pinecone_elapsed_time = time.time() - pinecone_start_time
         logger.info(
             f"Found {len(pc_results.matches)} matches in {str(datetime.timedelta(seconds=pinecone_elapsed_time))}"
         )
 
-        filtered_matches = [
-            match for match in pc_results.matches if match["score"] > self.threshold
-        ]
+        filtered_matches = [match for match in pc_results.matches if match["score"] > self.threshold]
         logger.info(f"Found {len(filtered_matches)} matches after filtering")
         if not filtered_matches:
             return filtered_matches
@@ -239,15 +239,13 @@ class PineconeService:
             vec_metadata.append(resource_vecs[match.id])
 
         vec_metadata_elapsed_time = time.time() - vec_metadata_start_time
-        logger.debug(
-            f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}"
-        )
+        logger.debug(f"Retrieved vec data in {str(datetime.timedelta(seconds=vec_metadata_elapsed_time))}")
         return vec_metadata
 
-    def rerank_context(self, context):
+    def rerank_context(self, context) -> Union[Tuple[str, List[Citation]], None]:
         # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
         if not context:
-            return ""
+            return None
         logger.debug("Reranking")
         rerank_start_time = time.time()
         reranked_context = co.rerank(
@@ -256,26 +254,24 @@ class PineconeService:
             top_n=3,
             model=CohereTextModels.COHERE_RERANK_V2,
         )
+        reranked_indices = [r.index for r in reranked_context.results]
+        citations = [context[i] for i in reranked_indices]
         reranked_text = ""
         for text in reranked_context.results:
             reranked_text += text.document.get("text", "")
         rerank_elapsed_time = time.time() - rerank_start_time
-        logger.info(
-            f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}"
-        )
-        logger.info(
-            f"relevance scores: {[r.relevance_score for r in reranked_context]}"
-        )
-        return reranked_text
+        logger.info(f"Context Reranked in {str(datetime.timedelta(seconds=rerank_elapsed_time))}")
+        logger.info(f"relevance scores: {[r.relevance_score for r in reranked_context]}")
+        return (reranked_text, citations)
 
-    async def get_single_chat_context(self):
+    async def get_single_chat_context(self) -> Union[Tuple[str, List[Citation]], None]:
         context = await self.get_relevant_vectors()
         if context is None:
-            return ""
+            return None
         reranked_context = self.rerank_context(context)
         return reranked_context
 
-    async def get_combined_chat_context(self):
+    async def get_combined_chat_context(self) -> Union[Tuple[str, List[Citation]], None]:
         s = time.time()
         db = firestore.client()
         all_resource_identifiers = []
@@ -288,9 +284,7 @@ class PineconeService:
         if resources is None:
             raise HTTPException(status_code=404, detail="No Resources Found")
         # get the identifier for each resource
-        all_resource_identifiers = [
-            resource.get("identifier") for resource in resources
-        ]
+        all_resource_identifiers = [resource.get("identifier") for resource in resources]
         logger.info(f"Resource Identifiers: {all_resource_identifiers}")
         # get the context for each resource
         combined_vecs = []
@@ -302,11 +296,10 @@ class PineconeService:
         logger.info(f"Combined Context: {len(combined_vecs)}")
         elapsed = time.time() - s
         logger.info("Took (%s) s to get combined context", elapsed)
-        return self.rerank_context(combined_vecs)
+        reranked_context = self.rerank_context(combined_vecs)
+        return reranked_context
 
-    async def upload_yt_resource_to_pinecone(
-        self, resource: StudyResource, content: str
-    ):
+    async def upload_yt_resource_to_pinecone(self, resource: StudyResource, content: str):
         # NOTE this is causing problems, it seems to be cutting off the text
         # content = truncate_string_by_bytes(content, 10000)
         split_texts = self.text_splitter.create_documents([content])
@@ -328,24 +321,12 @@ class PineconeService:
         await self.upload_vecs_to_pinecone(vecs)
         await self.create_vec_ref_in_db()
 
-    async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
-        metadata = (
-            {}
-        )  # NOTE metadata is stored in the db. It should not be stored in Pinecone
-        formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
-        if pc_index is None:
-            logger.error("Pinecone index is not initialized")
-            raise ValueError("Pinecone index is not initialized")
-        pc_index.upsert(vectors=formatted_vecs, namespace=self.resource_identifier)
-
     def truncate_string_by_bytes(self, string, num_bytes):
         encoded_string = string.encode("utf-8")
         truncated_string = encoded_string[:num_bytes]
         return truncated_string.decode("utf-8", "ignore")
 
-    async def prepare_pdf_for_pinecone(
-        self, pdf_page: DocumentPage
-    ) -> List[DocumentPage]:
+    async def prepare_pdf_for_pinecone(self, pdf_page: DocumentPage) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
         split_texts = self.text_splitter.create_documents([page_content])
@@ -365,21 +346,26 @@ class PineconeService:
         return docs
 
     def get_query_embedding(self) -> List[float]:
-        vec = self.embed.embed_query(self.user_query)
-        return vec
+        try:
+            vec = self.embed.embed_query(self.user_query)
+            return vec
+        except Exception as e:
+            logger.error(f"Error embedding query: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error embedding query")
 
     def search_pinecone_index(self, file_identifier: str, top_k=25):
-        query_embedding = self.get_query_embedding()
-        if pc_index is None:
-            raise ValueError("Pinecone index is not initialized")
-        query_matches = pc_index.query(
-            vector=query_embedding,
-            top_k=top_k,
-            namespace=file_identifier,
-            include_metadata=True,
-        )
+        try:
+            query_embedding = self.get_query_embedding()
+            if pc_index is None:
+                raise ValueError("Pinecone index is not initialized")
+            query_matches = pc_index.query(
+                vector=query_embedding,
+                top_k=top_k,
+                namespace=file_identifier,
+                include_metadata=True,
+            )
 
-        return query_matches
-
-    def add_resource_to_pinecone(self):
-        pass
+            return query_matches
+        except Exception as e:
+            logger.error(f"Error querying Pinecone index: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error querying Pinecone index")

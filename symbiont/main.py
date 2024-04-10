@@ -7,7 +7,7 @@ from .routers import chat as chat_router
 from .routers import resource as resource_handling_router
 from .routers import summary as summary_router
 from .routers import llm_settings as llm_settings_router
-
+from .routers import tests as tests_router
 
 app = FastAPI()
 
@@ -22,12 +22,13 @@ app.include_router(chat_router.router)
 app.include_router(resource_handling_router.router)
 app.include_router(summary_router.router)
 app.include_router(llm_settings_router.router)
-
+app.include_router(tests_router.router)  # This is for testing purposes only
 
 origins = [
     "http://localhost",
     "http://localhost:3000",
     "https://symbiont.vercel.app/",
+    "https://symbiont-frontend-dev.vercel.app/",
 ]
 
 

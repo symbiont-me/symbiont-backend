@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from google.cloud.firestore import ArrayUnion
 from firebase_admin import firestore, storage
 from fastapi import (
     APIRouter,
@@ -10,7 +9,6 @@ from fastapi import (
 )
 from ..models import (
     FileUploadResponse,
-    GetResourcesResponse,
     StudyResource,
     AddYoutubeVideoRequest,
     AddWebpageResourceRequest,
@@ -22,13 +20,20 @@ from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
-from ..fb.storage import delete_local_file
+from ..utils.llm_utils import summarise_plain_text_resource
+import time
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 router = APIRouter()
+
+
+class ResourceResponse(BaseModel):
+    status_code: int
+    message: str
+    resources: list
 
 
 def delete_resource_from_storage(user_uid: str, identifier: str):
@@ -98,15 +103,27 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
 
 # NOTE I don't like this
 # TODO move this someplace else
-async def get_and_save_summary_to_db(
-    study_resource: StudyResource, content: str, studyId: str, user_uid: str
-):
-    # TODO Fix summariser
-    # TODO add the resource to db straight away
-    study_service = StudyService(user_uid, studyId)
-    study_service.add_resource_to_db(study_resource)
-    # summary = summarise_plain_text_resource(content)
-    # study_service.update_resource_summary(study_resource.identifier, summary)
+async def save_summary(study_id: str, study_resource: StudyResource, content: str):
+    s = time.time()
+    summary = summarise_plain_text_resource(content)
+    logger.info("Content summarised")
+    logger.info("Now adding summary to DB")
+    if summary == "":
+        summary = "No summary available."
+    db = firestore.client()
+    study_ref = db.collection("studies").document(study_id)
+    study_dict = study_ref.get().to_dict()
+    if study_dict is None:
+        raise HTTPException(status_code=404, detail="Study not found")
+    resources = study_dict.get("resources", [])
+    for resource in resources:
+        if resource.get("identifier") == study_resource.identifier:
+            resource["summary"] = summary
+            study_ref.update({"resources": resources})
+            logger.info(f"Summary added to resource {study_resource.identifier}")
+            elapsed = time.time() - s
+            logger.info(f"Summary added in {elapsed} seconds")
+            return {"message": "Summary added."}
 
 
 @router.post("/upload-resource")
@@ -122,7 +139,7 @@ async def add_resource(
     try:
         upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
-        logger.info(f"File resource uploaded to Firebase")
+        logger.info("File resource uploaded to Firebase")
 
         study_resource = StudyResource(
             studyId=studyId,
@@ -142,12 +159,11 @@ async def add_resource(
         )
         await pc_service.add_file_resource_to_pinecone()
         study_service.add_resource_to_db(study_resource)
-        return {"resource": study_resource.model_dump(), "status_code": 200}
+        return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
     except Exception as e:
-        # todo delete from storage if it fails
-        delete_resource_from_storage(user_uid, study_resource.identifier)
+        # TODO delete from storage if it fails
         logger.error(f"Error occur while adding resource: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail="Failed to add resource. Try Again.")
 
 
 @router.post("/get-resources")
@@ -158,8 +174,11 @@ async def get_resources(studyId: str, request: Request):
     if study_dict is None:
         raise HTTPException(status_code=404, detail="Study not found")
     resources = study_dict.get("resources", [])
-    return GetResourcesResponse(
-        resources=[StudyResource(**resource) for resource in resources]
+    logger.debug(f"Resources: {resources}")
+    return ResourceResponse(
+        resources=[StudyResource(**resource) for resource in resources],
+        status_code=200,
+        message="Resources retrieved",
     )
 
 
@@ -206,14 +225,19 @@ async def process_youtube_video(
 
         study_service = StudyService(user_uid, video_resource.studyId)
 
-        await pc_service.upload_yt_resource_to_pinecone(
-            study_resource, doc.page_content
-        )
+        await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
         # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
         study_service.add_resource_to_db(study_resource)
 
         logger.info(f"Youtube video added to Pinecone {study_resource}")
-        return {"status_code": 200, "message": "Resource added."}
+        background_tasks.add_task(
+            save_summary,
+            study_resource.studyId,
+            study_resource,
+            doc.page_content,
+        )
+
+        return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
     except Exception as e:
         logger.error(f"Error processing youtube video: {e}")
         # TODO delete from db if it fails
@@ -232,7 +256,7 @@ async def add_webpage_resource(
     try:
         loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
         html_docs = loader.load()
-        studies = []
+        study_resources = []
         transformed_docs_contents = []  # Collect transformed docs content here
         logger.info(f"Processing webpage {webpage_resource.urls}")
         logger.info(f"Parsing {len(html_docs)} documents")
@@ -251,20 +275,21 @@ async def add_webpage_resource(
                 resource_identifier=identifier,
                 user_uid=user_uid,
             )
-            studies.append(study_resource)
+            study_resources.append(study_resource)
             bs_transformer = BeautifulSoupTransformer()
-            docs_transformed = bs_transformer.transform_documents(
-                [doc], tags_to_extract=["p", "li", "span", "div"]
-            )
-            transformed_docs_contents.append(
-                (study_resource, docs_transformed[0].page_content)
-            )
-            await pc_service.upload_webpage_to_pinecone(
-                study_resource, docs_transformed[0].page_content
-            )
+            docs_transformed = bs_transformer.transform_documents([doc], tags_to_extract=["p", "li", "span", "div"])
+            transformed_docs_contents.append((study_resource, docs_transformed[0].page_content))
+            await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
             study_service.add_resource_to_db(study_resource)
-        logger.info(f"Webpage added to Pinecone {studies}")
-        return {"status_code": 200, "message": "Web Resource added."}
+            logger.info(f"Web Resource added {study_resource}")
+            background_tasks.add_task(
+                save_summary,
+                webpage_resource.studyId,
+                study_resource,
+                docs_transformed[0].page_content,
+            )
+
+        return ResourceResponse(status_code=200, message="Resource added.", resources=study_resources)
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail="Error processing webpage")
@@ -301,63 +326,76 @@ async def add_plain_text_resource(
     study_service = StudyService(user_uid, plain_text_resource.studyId)
 
     # TODO rename the method as used for both plain text and webpage
-    await pc_service.upload_webpage_to_pinecone(
-        study_resource, plain_text_resource.content
-    )
+    await pc_service.upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
 
     study_service.add_resource_to_db(study_resource)
-    return {"status_code": 200, "message": "Resource added."}
-
-
-# TODO the whole DELETE section should be refactored
-def delete_vector_refs_from_db(user_uid: str, identifier: str):
-    logger.info(f"Deleting vector from DB")
-    study_doc = (
-        firestore.client().collection("studies").where("userId", "==", user_uid).get()
+    background_tasks.add_task(
+        save_summary,
+        plain_text_resource.studyId,
+        study_resource,
+        plain_text_resource.content,
     )
-
-    for study_docs in study_doc:
-        doc_dict = study_docs.to_dict()
-        vectors = doc_dict.get("vectors", [])
-        if identifier in vectors:
-            vectors.pop(identifier, None)  # Remove the key-value pair if the key exists
-            study_docs.reference.update({"vectors": vectors})
-            logger.info(f"Vector for {identifier} deleted from DB")
-            return {"message": "Vectors deleted."}
-    return {"message": "Vector not found."}
+    return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
 
 
-@router.post("/delete-resource")
-async def delete_resource(identifier: str, request: Request):
-    user_uid = request.state.verified_user["user_id"]
-    logger.info(f"Deleting resource {identifier}")
-    # @note study_id is not used here as user can send a delete request from the library instead of a study
-    pc_service = PineconeService(
-        study_id="", user_uid=user_uid, resource_identifier=identifier
-    )
-    resource_identifier = identifier
+class DeleteResourceRequest(BaseModel):
+    study_id: str
+    identifier: str
+
+
+class DeleteResourceResponse(BaseModel):
+    message: str
+    status_code: int
+    resource: StudyResource
+
+
+@router.post("/delete-resource-from-study")
+async def delete_resource_from_study(delete_request: DeleteResourceRequest, request: Request):
     try:
-        study_doc = (
-            firestore.client()
-            .collection("studies")
-            .where("userId", "==", user_uid)
-            .get()
+        s = time.time()
+        db = firestore.client()
+        batch = db.batch()
+        logger.debug(f"Deleting resource {delete_request.identifier}")
+        logger.debug(f"Deleting resource {delete_request.study_id}")
+        identifier = delete_request.identifier
+        user_uid = request.state.verified_user["user_id"]
+        pc_service = PineconeService(
+            study_id=str(delete_request.study_id),
+            resource_identifier=identifier,
+            user_uid=user_uid,
         )
-        # TODO refactor: this is bad because of how the db is structured
-        # another way to do this would be to get study_id in the request
-        for study in study_doc:
-            resources = study.to_dict().get("resources", [])
-            for resource in resources:
-                identifier = resource.get("identifier")
-                if identifier == resource_identifier:
-                    pc_service.delete_vectors_from_pinecone(identifier)
-                    delete_vector_refs_from_db(user_uid, identifier)
-                    resources.remove(resource)
-                    study.reference.update({"resources": resources})
-                    logger.info(f"Resource deleted from DB: {identifier}")
-                    if resource.get("category") == "pdf":
-                        delete_resource_from_storage(user_uid, identifier)
-                        logger.info(f"Resource deleted from storage: {identifier}")
-                    return {"message": "Resource deleted."}
+        db = firestore.client()
+        study = db.collection("studies").document(delete_request.study_id)
+        if study is None:
+            raise HTTPException(status_code=404, detail="Study not found")
+
+        resources_list = study.get().to_dict().get("resources")
+        vectors = study.get().to_dict().get("vectors")
+        if resources_list and vectors is None:
+            raise HTTPException(status_code=404, detail="Resources or Vector not found")
+        resource_to_delete = None
+        for resource in resources_list:
+            if resource["identifier"] == identifier:
+                resources_list.remove(resource)
+                resource_to_delete = resource
+        logger.debug(f"Resource {identifier} deleted from study {delete_request.study_id}")
+        logger.debug(f"delete vectors from db")
+        vectors.pop(identifier)
+        batch.update(db.collection("studies").document(delete_request.study_id), {"resources": resources_list})
+        batch.update(db.collection("studies").document(delete_request.study_id), {"vectors": vectors})
+        pc_service.delete_vectors_from_pinecone(identifier)
+        if resource["category"] in ["pdf", "audio", "image"]:
+            delete_resource_from_storage(user_uid, identifier)
+            logger.info(f"Resource {identifier} deleted from storage")
+        elapsed = time.time() - s
+        logger.info(f"Resource deleted in {elapsed} seconds")
+
+        batch.commit()
+        return DeleteResourceResponse(
+            message="Resource deleted.",
+            status_code=200,
+            resource=resource_to_delete,
+        )
     except Exception as e:
-        return {"message": str(e)}
+        logger.error(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error deleting resource")

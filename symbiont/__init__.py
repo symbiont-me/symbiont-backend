@@ -1,5 +1,14 @@
 import os
 from .utils.logger import Logger
+from dotenv import load_dotenv, find_dotenv
+
 
 logger = Logger(__name__, environment=os.getenv("FASTAPI_ENV"))
-logger.info(f"Logger initialized\tEnvironment: {os.getenv('FASTAPI_ENV')}")
+ENVIRONMENT = os.getenv("FASTAPI_ENV", default="development")
+
+if ENVIRONMENT == "production":
+    load_dotenv(find_dotenv(".env.production"))
+    logger.critical("Running in production environment")
+if ENVIRONMENT == "development":
+    load_dotenv(find_dotenv(".env.development"))
+    logger.info("Running in development environment")

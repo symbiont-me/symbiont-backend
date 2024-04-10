@@ -1,15 +1,18 @@
 import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
+from langchain_core.pydantic_v1 import ValidationError
 from pydantic import BaseModel
 from firebase_admin import firestore
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from fastapi import HTTPException
-from pydantic import SecretStr
 import time
 import datetime
 from .. import logger
+import os
+
+google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 
 
 def create_prompt(user_query: str, context: str):
@@ -17,16 +20,16 @@ def create_prompt(user_query: str, context: str):
         """
         You are a well-informed AI assistant. 
         The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness.
-        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly any question about any topic in conversation.
-        AI assistant will take into account any DOCUMENT BLOCK that is provided in a conversation.
-        START DOCUMENT BLOCK {context} END OF DOCUMENT BLOCK
-        If the context does not provide the answer to the question or the context is empty, the AI assistant will say:
-        "I'm sorry, but I don't know the answer to that question."
-        AI assistant will not invent anything that is not drawn directly from the context.
-        AI will be as detailed as possible.
-        Output Format: Return your answer in valid {output_format} Format
-        Question: {user_query}
-        Answer: 
+        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly 
+        any question about any topic in conversation.
+        AI assistant will take into account any information that is provided and construct 
+        a reasonable and well thought response.
+        START OF INFORMATION {context} END OF INFORMATION
+        If it is not enought to provide a reasonable answer to the question, the AI assistant will say:
+        "I'm sorry, but I don't know the answer to that question. But my educated opinion would..."
+        AI assistant will not invent anything and do its best to provide accurate information.
+        Output Format: Return your answer in valid {output_format} format
+        {user_query} 
     """
     )
 
@@ -90,9 +93,13 @@ def init_llm(settings: UsersLLMSettings, api_key: str):
                 convert_system_message_to_human=True,
             )
             return llm
+    except ValidationError as e:
+        if e.errors():
+            logger.error(f"Error initializing LLM: {e.errors()}")
+            raise HTTPException(status_code=400, detail="Check your API key and LLM settings")
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
-        raise HTTPException(status_code=500, detail="Error generating response")
+        raise HTTPException(status_code=400, detail="Error initializing LLM")
 
 
 async def get_llm_response(llm, user_query: str, context: str):
@@ -102,15 +109,14 @@ async def get_llm_response(llm, user_query: str, context: str):
     for chunk in llm.stream(prompt):
         if num_chunks == 0:
             time_to_first_token = time.time() - llm_start_time
-            logger.info(
-                f"Time to first token (TTFT) {str(datetime.timedelta(seconds=time_to_first_token))}"
-            )
+            logger.info(f"Time to first token (TTFT) {str(datetime.timedelta(seconds=time_to_first_token))}")
         num_chunks += 1
         yield chunk.content
     llm_elapsed_time = time.time() - llm_start_time
     speed = num_chunks / llm_elapsed_time
     logger.debug(
-        f"Generated {num_chunks} chunks in {str(datetime.timedelta(seconds=llm_elapsed_time))} at a spped of {round(speed,2)} chunk/s."
+        f"Generated {num_chunks} chunks in {str(datetime.timedelta(seconds=llm_elapsed_time))}"
+        f"at a speed of {round(speed,2)} chunk/s."
     )
 
     # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt

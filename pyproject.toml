@@ -38,8 +38,15 @@ pytest-twisted = "^1.14.1"
 twisted = "^24.3.0"
 
 [tool.poetry.scripts]
-delete_namespace = "symbiont/scripts/delete_pinecone_vecs.py"
+delete_namespace = "scripts.delete_pinecone_vecs:main"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+extend-select = ["E501"]
+
