@@ -129,6 +129,19 @@ class PineconeService:
         self.db_vec_refs[hash] = VectorInDB(**doc.metadata).dict()
         return PineconeRecord(id=hash, values=vec, metadata=doc.metadata)
 
+    async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
+        try:
+            metadata = {}  # NOTE metadata is stored in the db. It should not be stored in Pinecone
+            formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
+            if pc_index is None:
+                logger.error("Pinecone index is not initialized")
+                raise ValueError("Pinecone index is not initialized")
+            logger.debug(f"Upserting vectors to Pinecone {formatted_vecs}")
+            pc_index.upsert(vectors=formatted_vecs, namespace=self.resource_identifier)
+        except Exception as e:
+            logger.error(f"Error upserting vectors to Pinecone: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error upserting vectors to Pinecone")
+
     def delete_vectors_from_pinecone(self, namespace):
         try:
             if pc_index:
@@ -308,14 +321,6 @@ class PineconeService:
         logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
         await self.upload_vecs_to_pinecone(vecs)
         await self.create_vec_ref_in_db()
-
-    async def upload_vecs_to_pinecone(self, vecs: List[PineconeRecord]):
-        metadata = {}  # NOTE metadata is stored in the db. It should not be stored in Pinecone
-        formatted_vecs = [(vec.id, vec.values, metadata) for vec in vecs]
-        if pc_index is None:
-            logger.error("Pinecone index is not initialized")
-            raise ValueError("Pinecone index is not initialized")
-        pc_index.upsert(vectors=formatted_vecs, namespace=self.resource_identifier)
 
     def truncate_string_by_bytes(self, string, num_bytes):
         encoded_string = string.encode("utf-8")
