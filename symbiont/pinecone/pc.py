@@ -355,17 +355,18 @@ class PineconeService:
             raise HTTPException(status_code=500, detail="Error embedding query")
 
     def search_pinecone_index(self, file_identifier: str, top_k=25):
-        query_embedding = self.get_query_embedding()
-        if pc_index is None:
-            raise ValueError("Pinecone index is not initialized")
-        query_matches = pc_index.query(
-            vector=query_embedding,
-            top_k=top_k,
-            namespace=file_identifier,
-            include_metadata=True,
-        )
+        try:
+            query_embedding = self.get_query_embedding()
+            if pc_index is None:
+                raise ValueError("Pinecone index is not initialized")
+            query_matches = pc_index.query(
+                vector=query_embedding,
+                top_k=top_k,
+                namespace=file_identifier,
+                include_metadata=True,
+            )
 
-        return query_matches
-
-    def add_resource_to_pinecone(self):
-        pass
+            return query_matches
+        except Exception as e:
+            logger.error(f"Error querying Pinecone index: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error querying Pinecone index")
