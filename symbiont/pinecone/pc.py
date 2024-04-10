@@ -29,9 +29,6 @@ load_dotenv()
 # TODO import all these from __init__.py
 cohere_api_key = os.getenv("CO_API_KEY")
 api_key = os.getenv("OPENAI_API_KEY_FOR_EMBEDDINGS")
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
-pinecone_index = os.getenv("PINECONE_INDEX")
-pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
 voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
 co = cohere.Client(api_key=cohere_api_key or "")
