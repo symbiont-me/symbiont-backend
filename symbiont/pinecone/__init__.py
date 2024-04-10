@@ -15,6 +15,8 @@ pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pinecone_index = os.getenv("PINECONE_INDEX")
 pinecone_endpoint = os.getenv("PINECONE_API_ENDPOINT")
 pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
+
+
 if pinecone_index_name is None:
     raise ValueError("PINECONE_INDEX_NAME environment variable is not set")
 pc = Pinecone(api_key=pinecone_api_key, endpoint=pinecone_endpoint)
