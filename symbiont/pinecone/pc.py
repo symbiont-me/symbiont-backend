@@ -136,7 +136,6 @@ class PineconeService:
             if pc_index is None:
                 logger.error("Pinecone index is not initialized")
                 raise ValueError("Pinecone index is not initialized")
-            logger.debug(f"Upserting vectors to Pinecone {formatted_vecs}")
             pc_index.upsert(vectors=formatted_vecs, namespace=self.resource_identifier)
         except Exception as e:
             logger.error(f"Error upserting vectors to Pinecone: {str(e)}")
