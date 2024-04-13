@@ -188,6 +188,9 @@ async def add_yt_resource(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
+    if not video_resource.urls:
+        raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
+
     user_uid = request.state.verified_user["user_id"]
     logger.debug(f"Parsing {len(video_resource.urls)} YT Videos")
     yt_resources = []
