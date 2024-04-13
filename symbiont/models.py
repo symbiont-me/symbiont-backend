@@ -155,7 +155,7 @@ class PineconeRecord(BaseModel):
 
 class AddYoutubeVideoRequest(BaseModel):
     studyId: str
-    url: HttpUrl
+    urls: List[HttpUrl]
 
 
 class AddWebpageResourceRequest(BaseModel):
