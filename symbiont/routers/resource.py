@@ -255,6 +255,10 @@ async def add_webpage_resource(
     user_uid = request.state.verified_user["user_id"]
     study_service = StudyService(user_uid, webpage_resource.studyId)
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+
+    if not webpage_resource.urls:
+        raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
+
     try:
         loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
         html_docs = loader.load()
