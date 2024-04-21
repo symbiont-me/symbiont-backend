@@ -182,65 +182,70 @@ async def get_resources(studyId: str, request: Request):
     )
 
 
-@router.post("/process-youtube-video")
-async def process_youtube_video(
+@router.post("/add_yt_resource")
+async def add_yt_resource(
     video_resource: AddYoutubeVideoRequest,
     request: Request,
     background_tasks: BackgroundTasks,
 ):
+    if not video_resource.urls:
+        raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
+
+    user_uid = request.state.verified_user["user_id"]
+    logger.debug(f"Parsing {len(video_resource.urls)} YT Videos")
+    yt_resources = []
     try:
-        user_uid = request.state.verified_user["user_id"]
-
-        # TODO allow multiple urls
-        # TODO auth verification if necessary
-        loader = YoutubeLoader.from_youtube_url(
-            str(video_resource.url),
-            add_video_info=True,
-            language=["en", "id"],
-            translation="en",
-        )
-        logger.info(f"Processing youtube video {video_resource.url}")
-        # @dev there should only be a single document for this
-        doc = loader.load()[0]
-        # @dev if the transcript is empty, the video is not processed
-        # TODO if the transcript is empty, extract audio and convert to text using whisper
-        if doc.page_content == "":
-            raise HTTPException(
-                status_code=404,
-                detail="There is no content in the video. Please try again",
+        for url in video_resource.urls:
+            loader = YoutubeLoader.from_youtube_url(
+                str(url),
+                add_video_info=True,
+                language=["en", "id"],
+                translation="en",
             )
-        study_resource = StudyResource(
-            studyId=video_resource.studyId,
-            identifier=make_file_identifier(doc.metadata["title"]),
-            name=doc.metadata["title"],
-            url=str(video_resource.url),
-            category="video",
-        )
-        pc_service = PineconeService(
-            study_id=video_resource.studyId,
-            resource_identifier=study_resource.identifier,
-            user_uid=user_uid,
-            user_query=None,
-        )
+            logger.info(f"Processing youtube video {url}")
+            # @dev there should only be a single document for this
+            doc = loader.load()[0]
 
-        study_service = StudyService(user_uid, video_resource.studyId)
+            # @dev if the transcript is empty, the video is not processed
+            # TODO if the transcript is empty, extract audio and convert to text using whisper
+            if doc.page_content == "":
+                raise HTTPException(
+                    status_code=404,
+                    detail="There is no content in the video. Please try again",
+                )
+            unique_file_identifier = make_file_identifier(doc.metadata["title"])
 
-        await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
-        # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
-        study_service.add_resource_to_db(study_resource)
+            pc_service = PineconeService(
+                study_id=video_resource.studyId,
+                resource_identifier=unique_file_identifier,
+                user_uid=user_uid,
+                user_query=None,
+            )
 
-        logger.info(f"Youtube video added to Pinecone {study_resource}")
-        background_tasks.add_task(
-            save_summary,
-            study_resource.studyId,
-            study_resource,
-            doc.page_content,
-        )
+            study_resource = StudyResource(
+                studyId=video_resource.studyId,
+                identifier=unique_file_identifier,
+                name=doc.metadata["title"],
+                url=str(url),
+                category="video",
+            )
+            await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
+            # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
+            study_service = StudyService(user_uid, video_resource.studyId)
+            study_service.add_resource_to_db(study_resource)
+            yt_resources.append(study_resource)
 
-        return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
+            logger.info(f"Youtube video added to Pinecone {study_resource}")
+            background_tasks.add_task(
+                save_summary,
+                study_resource.studyId,
+                study_resource,
+                doc.page_content,
+            )
+
+        return ResourceResponse(status_code=200, message="Resource added.", resources=[yt_resources])
     except Exception as e:
         logger.error(f"Error processing youtube video: {e}")
-        # TODO delete from db if it fails
         raise HTTPException(status_code=500, detail="Error processing youtube video")
 
 
@@ -253,6 +258,10 @@ async def add_webpage_resource(
     user_uid = request.state.verified_user["user_id"]
     study_service = StudyService(user_uid, webpage_resource.studyId)
     # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
+
+    if not webpage_resource.urls:
+        raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
+
     try:
         loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
         html_docs = loader.load()
@@ -279,6 +288,12 @@ async def add_webpage_resource(
             bs_transformer = BeautifulSoupTransformer()
             docs_transformed = bs_transformer.transform_documents([doc], tags_to_extract=["p", "li", "span", "div"])
             transformed_docs_contents.append((study_resource, docs_transformed[0].page_content))
+            # TODO this exception is not returning the correct status code
+            if docs_transformed[0].page_content is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="There is no content in the webpage. Please try again",
+                )
             await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
             study_service.add_resource_to_db(study_resource)
             logger.info(f"Web Resource added {study_resource}")
