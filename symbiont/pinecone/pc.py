@@ -149,22 +149,17 @@ class PineconeService:
         except Exception as e:
             print(f"Error deleting namespace {namespace}: {str(e)}")
 
-
     async def add_file_resource_to_pinecone(self, pages):
         s = time.time()
         if self.download_url is None:
             logger.error("Download URL must be provided to prepare file resource")
             raise ValueError("Download URL must be provided to prepare file resource")
-
         docs = []
         for page in pages:
             prepared_pages = await self.prepare_pdf_for_pinecone(page)
             docs.extend(prepared_pages)
-
         vecs = [await self.embed_document(doc) for doc in docs]
-
         # handle pdf only for now
-        logger.info("Handling PDF file resource")
         logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
         await self.upload_vecs_to_pinecone(vecs)
         await self.create_vec_ref_in_db()
@@ -314,12 +309,12 @@ class PineconeService:
         truncated_string = encoded_string[:num_bytes]
         return truncated_string.decode("utf-8", "ignore")
 
-    async def prepare_pdf_for_pinecone(self, pdf_page: DocumentPage) -> List[DocumentPage]:
+    async def prepare_pdf_for_pinecone(self, pdf_page: DocumentPage) -> List[PineconeRecord]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
         split_texts = self.text_splitter.create_documents([page_content])
         docs = [
-            DocumentPage(
+            PineconeRecord(
                 page_content=split_text.page_content,
                 metadata={
                     "text": split_text.page_content,
