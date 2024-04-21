@@ -22,7 +22,8 @@ from pydantic import BaseModel
 from .. import logger
 from ..utils.llm_utils import summarise_plain_text_resource
 import time
-
+import tempfile
+from ..utils.document_loaders import load_pdf
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -53,42 +54,31 @@ def generate_signed_url(identifier: str) -> str:
     return url
 
 
-def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResponse:
-    """
-    Uploads a file to Firebase Storage.
-
-    Args:
-        file (UploadFile): The file to be uploaded.
-        user_id (str): The ID of the user.
-
-    Returns:
-        FileUploadResponse: The response containing the uploaded file details.
-
-    Raises:
-        HTTPException: If the filename is missing or if there is an error during the upload process.
-    """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is missing.")
+def upload_to_firebase_storage(
+    file_bytes: bytes, file_identifier: str, file_name: str, user_id: str, file_type: str
+) -> FileUploadResponse:
     try:
         bucket = storage.bucket()
-        unique_file_identifier = make_file_identifier(file.filename)
-        storage_path = f"userFiles/{user_id}/{unique_file_identifier}"
+        storage_path = f"userFiles/{user_id}/{file_identifier}"
 
         blob = bucket.blob(storage_path)
 
-        file_content = file.file.read()
-        # TODO handle content types properly
-        # NOTE this prevents the file from being downloaded in the browser if the content type is not set properly
+        # Set content type based on file_type
         content_type = ""
-        if file.filename.endswith(".pdf"):
+        if file_type == ".pdf":
             content_type = "application/pdf"
-        blob.upload_from_string(file_content, content_type=content_type)
+        elif file_type == ".jpg":
+            content_type = "image/jpeg"
+        # Add more file types as needed
+
+        blob.upload_from_string(file_bytes, content_type=content_type)
         url = blob.media_link
         download_url = generate_signed_url(storage_path)
+
         if url:
             return FileUploadResponse(
-                identifier=unique_file_identifier,
-                file_name=file.filename,
+                identifier=file_identifier,
+                file_name=file_name,
                 url=url,
                 download_url=download_url,
             )
@@ -137,7 +127,11 @@ async def add_resource(
         raise HTTPException(status_code=400, detail="No file provided!")
     user_uid = request.state.verified_user["user_id"]
     try:
-        upload_result = upload_to_firebase_storage(file, user_uid)
+        unique_file_identifier = make_file_identifier(file.filename)
+        file_bytes = await file.read()
+        upload_result = upload_to_firebase_storage(
+            file_bytes, unique_file_identifier, file.filename, user_uid, file_type=file.content_type
+        )
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
         logger.info("File resource uploaded to Firebase")
 
@@ -157,7 +151,11 @@ async def add_resource(
             user_query=None,
             resource_download_url=upload_result.download_url,
         )
-        await pc_service.add_file_resource_to_pinecone()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
+            temp.write(file_bytes)
+            metadata = load_pdf(temp.name, unique_file_identifier)
+        logger.debug(f"Metadata: {metadata}")
+        await pc_service.add_file_resource_to_pinecone(metadata)
         study_service.add_resource_to_db(study_resource)
         return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
     except Exception as e:
