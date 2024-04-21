@@ -164,22 +164,24 @@ class PineconeService:
             return vecs
         return []
 
-    async def add_file_resource_to_pinecone(self):
+    async def add_file_resource_to_pinecone(self, pages):
         s = time.time()
         if self.download_url is None:
             logger.error("Download URL must be provided to prepare file resource")
             raise ValueError("Download URL must be provided to prepare file resource")
 
-        file_path = await download_from_firebase_storage(self.resource_identifier, self.download_url)
+        docs = []
+        for page in pages:
+            prepared_pages = await self.prepare_pdf_for_pinecone(page)
+            docs.extend(prepared_pages)
+
+        vecs = [await self.embed_document(doc) for doc in docs]
 
         # handle pdf only for now
-        if file_path is not None and file_path.endswith(".pdf"):
-            logger.info("Handling PDF file resource")
-            vecs = await self.handle_pdf_resource(file_path)
-            logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
-            await self.upload_vecs_to_pinecone(vecs)
-            await self.create_vec_ref_in_db()
-            await delete_local_file(file_path)
+        logger.info("Handling PDF file resource")
+        logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
+        await self.upload_vecs_to_pinecone(vecs)
+        await self.create_vec_ref_in_db()
         elapsed = time.time() - s
         logger.info("Took (%s) s to upload the file", elapsed)
 
