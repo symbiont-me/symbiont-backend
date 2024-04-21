@@ -149,20 +149,6 @@ class PineconeService:
         except Exception as e:
             print(f"Error deleting namespace {namespace}: {str(e)}")
 
-    async def handle_pdf_resource(self, file_path: str):
-        if file_path is not None and file_path.endswith(".pdf"):
-            loader = PyPDFLoader(file_path)
-            pages = [DocumentPage(**page.dict()) for page in loader.load_and_split()]
-
-            docs = []
-            for page in pages:
-                prepared_pages = await self.prepare_pdf_for_pinecone(page)
-                docs.extend(prepared_pages)
-
-            vecs = [await self.embed_document(doc) for doc in docs]
-            logger.info(f"Created {len(vecs)} vectors for {self.resource_identifier}")
-            return vecs
-        return []
 
     async def add_file_resource_to_pinecone(self, pages):
         s = time.time()
