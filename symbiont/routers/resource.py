@@ -58,18 +58,24 @@ def upload_to_firebase_storage(
     file_bytes: bytes, file_identifier: str, file_name: str, user_id: str, file_type: str
 ) -> FileUploadResponse:
     try:
+        accepted_file_types = ["pdf", "jpg"]
+        if file_type not in accepted_file_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type",
+            )
         bucket = storage.bucket()
         storage_path = f"userFiles/{user_id}/{file_identifier}"
 
         blob = bucket.blob(storage_path)
-
+        logger.debug(f"Type of the file {file_type}")
         # Set content type based on file_type
         content_type = ""
-        if file_type == ".pdf":
+        if file_type == "pdf":
             content_type = "application/pdf"
-        elif file_type == ".jpg":
+        elif file_type == "jpg":
             content_type = "image/jpeg"
-        # Add more file types as needed
+        # TODO Add more file types 
 
         blob.upload_from_string(file_bytes, content_type=content_type)
         url = blob.media_link
@@ -129,10 +135,11 @@ async def add_resource(
     try:
         unique_file_identifier = make_file_identifier(file.filename)
         file_bytes = await file.read()
-        upload_result = upload_to_firebase_storage(
-            file_bytes, unique_file_identifier, file.filename, user_uid, file_type=file.content_type
-        )
+
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
+        upload_result = upload_to_firebase_storage(
+            file_bytes, unique_file_identifier, file.filename, user_uid, file_type=file_extension
+        )
         logger.info("File resource uploaded to Firebase")
 
         study_resource = StudyResource(
@@ -154,7 +161,7 @@ async def add_resource(
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
             temp.write(file_bytes)
             metadata = load_pdf(temp.name, unique_file_identifier)
-        logger.debug(f"Metadata: {metadata}")
+        logger.debug(f"Pdf loader extractracted number of pages: {len(metadata)}")
         await pc_service.add_file_resource_to_pinecone(metadata)
         study_service.add_resource_to_db(study_resource)
         return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
