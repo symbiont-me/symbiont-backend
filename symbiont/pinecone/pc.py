@@ -309,12 +309,12 @@ class PineconeService:
         truncated_string = encoded_string[:num_bytes]
         return truncated_string.decode("utf-8", "ignore")
 
-    async def prepare_pdf_for_pinecone(self, pdf_page: DocumentPage) -> List[PineconeRecord]:
+    async def prepare_pdf_for_pinecone(self, pdf_page: DocumentPage) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.truncate_string_by_bytes(page_content, 10000)
         split_texts = self.text_splitter.create_documents([page_content])
         docs = [
-            PineconeRecord(
+            DocumentPage(
                 page_content=split_text.page_content,
                 metadata={
                     "text": split_text.page_content,
