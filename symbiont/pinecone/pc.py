@@ -36,7 +36,7 @@ co = cohere.Client(api_key=cohere_api_key or "")
 
 embeddings_model = None
 
-if os.getenv("FASTAPI_ENV") == "test":
+if os.getenv("FASTAPI_ENV") == "development":
     embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
     logger.info("Using Free Embeddings Model: VoyageAI")
 else:

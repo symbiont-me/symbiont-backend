@@ -75,7 +75,7 @@ def upload_to_firebase_storage(
             content_type = "application/pdf"
         elif file_type == "jpg":
             content_type = "image/jpeg"
-        # TODO Add more file types 
+        # TODO Add more file types
 
         blob.upload_from_string(file_bytes, content_type=content_type)
         url = blob.media_link
