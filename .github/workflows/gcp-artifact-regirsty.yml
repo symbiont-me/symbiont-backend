@@ -33,7 +33,6 @@ jobs:
       
       - name: Build image
         run: docker build . --target prodcution --tag ${{ env.GAR_URL }}
-        working-directory: WORKING_DIRECTORY
 
       - name: Push image
         run: docker push ${{ env.GAR_URL }}
