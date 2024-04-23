@@ -19,8 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set docker image env var
-        run: |
-          echo "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA" >> "$GAR_URL"
+        run: "echo GAR_URL=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA"
       
       - name: Checkout repository
         uses: actions/checkout@v4
