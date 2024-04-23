@@ -17,10 +17,7 @@ env:
 jobs:
   build-push-artifact:
     runs-on: ubuntu-latest
-    steps:
-      - name: Set docker image env var
-        run: "echo GAR_URL=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA"
-      
+    steps:   
       - name: Checkout repository
         uses: actions/checkout@v4
       
@@ -32,7 +29,7 @@ jobs:
           token_format: 'access_token'
       
       - name: Build image
-        run: docker build . --target prodcution --tag ${{ env.GAR_URL }}
+        run: docker build . --target prodcution --tag $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA"
 
       - name: Push image
         run: docker push ${{ env.GAR_URL }}
