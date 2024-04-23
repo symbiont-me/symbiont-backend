@@ -12,7 +12,7 @@ env:
   REPOSITORY: production-registry
   IMAGE: fastapi-prod
 
-job:
+jobs:
   build-push-artifact:
     runs-on: ubuntu-latest
     steps:
