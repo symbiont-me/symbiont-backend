@@ -1,0 +1,38 @@
+name: Build and Push to Artifact Registry
+
+# Configures this workflow to run every time a change is pushed to the branch called `release`.
+on:
+  push:
+    branches: ["main"]
+
+# Defines two custom environment variables for the workflow. These are used for the Container registry domain, and a name for the Docker image that this workflow builds.
+env:
+  PROJECT_ID: symbiont-backend
+  REGION: us-central1
+  REPOSITORY: production-registry
+  IMAGE: fastapi-prod
+
+jobs:
+  build-push-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set docker image env var
+        run: |
+          echo "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA" >> $GAR_URL
+      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - id: "auth"
+        name: 'Authenticate to Google Cloud'
+        uses: "google-github-actions/auth@v2"
+        with:
+          credentials_json: "${{ secrets.ARTIFACT_REGISTRY_KEY }}"
+          token_format: 'access_token'
+      
+      - name: Build image
+        run: docker build . --target prodcution --tag ${{ env.GAR_URL }}
+        working-directory: WORKING_DIRECTORY
+
+      - name: Push image
+        run: docker push ${{ env.GAR_URL }}
