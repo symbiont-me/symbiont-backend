@@ -2,6 +2,8 @@ name: Build and Push to Artifact Registry
 
 # Configures this workflow to run every time a change is pushed to the branch called `release`.
 on:
+  workflow_dispatch:
+  
   push:
     branches: ["main"]
 
