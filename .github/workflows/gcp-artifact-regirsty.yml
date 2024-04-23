@@ -3,7 +3,7 @@ name: Build and Push to Artifact Registry
 # Configures this workflow to run every time a change is pushed to the branch called `release`.
 on:
   workflow_dispatch:
-  
+
   push:
     branches: ["main"]
 
@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Set docker image env var
         run: |
-          echo "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA" >> $GAR_URL
+          echo "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA" >> "$GAR_URL"
       
       - name: Checkout repository
         uses: actions/checkout@v4
