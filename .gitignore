@@ -1,5 +1,7 @@
 *serviceAccountKey.json
+
 .env*
 __pycache__/
 .DS_Store
+/database
 symbiont/src/scripts/delete_pinecone_vecs.py
