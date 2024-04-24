@@ -45,7 +45,12 @@ app.add_middleware(
     ],
 )
 
+@app.get("/status")
+async def status_check():
+    return {"status": "up"}
 
 @app.get("/")
 async def read_root():
     return {"Hello": "World"}
+
+
