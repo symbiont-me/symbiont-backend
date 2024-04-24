@@ -49,4 +49,5 @@ WORKDIR $PYSETUP_PATH
 RUN poetry install --no-interaction 
 WORKDIR /app
 COPY . .
+EXPOSE 8080
 CMD ["uvicorn", "symbiont.main:app", "--host", "0.0.0.0", "--port", "8080"]
