@@ -80,6 +80,45 @@ class Study(BaseModel):
     userId: str
 
 
+class Vector(BaseModel):
+    page: int
+    source: str
+    text: str
+
+
+class StudyCollection(BaseModel):
+    _id: str
+    chat: Chat
+    createdAt: str
+    description: str
+    image: str
+    resources: List[Resource]
+    userId: str
+    vectors: Vector
+
+
+class UserSettings(BaseModel):
+    llm_model: LLMModel | None = LLMModel.GPT_3_5_TURBO_16K
+    embedding_model: EmbeddingModels | None = EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_LARGE
+    temperature: float = 0.0
+    max_tokens: int = 1500
+
+
+class UserCollection(BaseModel):
+    studies: List[str] = []
+    settings: UserSettings
+
+
+class ResourceCollection(BaseModel):
+    _id: str
+    studyId: str
+    name: str
+    url: str
+    identifier: str
+    category: str
+    summary: str = ""
+
+
 class CreateStudyRequest(BaseModel):
     name: str = ""
     description: str = ""
