@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from fastapi import Request, Response
 from typing import Annotated
 from .. import logger
-from ..mongodb import user_collection
+from ..mongodb import users_collection
 
 
 router = APIRouter()
@@ -25,10 +25,9 @@ async def set_llm_settings(
     response.set_cookie(key="api_key", value=settings.api_key, samesite="None", secure=True)
     # delete the api_key from the settings object for security
     del settings.api_key
-    update_data = {"$set": {"settings": settings.dict()}}
-    # MONGO: we are using upsert here temporarily.
-    # Because the settings must exist with default settings on user creation
-    user_collection.update_one({"_id": user_uid}, update_data, upsert=True)
+    update_data = {"$set": {"settings": settings.model_dump()}}
+    # Note User settings already exits with default values
+    users_collection.update_one({"_id": user_uid}, update_data)
 
     # if every thing is fine we return the settings in the cookies
     response.set_cookie(key="llm_name", value=settings.llm_name, samesite="None", secure=True)
@@ -40,7 +39,7 @@ async def set_llm_settings(
 async def get_llm_settings(request: Request, api_key: Annotated[str | None, Cookie()] = None):
     user_uid = request.state.verified_user["user_id"]
 
-    user_settings = user_collection.find_one({"_id": user_uid}).get("settings")
+    user_settings = users_collection.find_one({"_id": user_uid}).get("settings")
     logger.info(f"LLM settings retrieved: {user_settings}")
     if user_settings is None:
         raise HTTPException(
