@@ -8,7 +8,8 @@ from .. import logger
 import time
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
-
+from ..mongodb import studies_collection, users_collection
+import uuid
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -88,34 +89,21 @@ async def create_study(study: CreateStudyRequest, request: Request):
         resources=[],
         chat=Chat(),
     )
+
     try:
         s = time.time()
-        db = firestore.client()
-        batch = db.batch()
 
-        # Create a new document for the study
-        study_doc_ref = db.collection("studies").document()
-        batch.set(study_doc_ref, new_study.model_dump())
+        result = studies_collection.insert_one({"_id": str(uuid.uuid4()), **new_study.model_dump()})
+        study_data = studies_collection.find_one(result.inserted_id)
 
-        # Get the user document and update the studies array
-        user_doc_ref = db.collection("users").document(user_uid)
-        user_doc = user_doc_ref.get()
-        if user_doc.exists:
-            user_studies = user_doc.to_dict().get("studies", [])
-            user_studies.append(study_doc_ref.id)
-            batch.update(user_doc_ref, {"studies": user_studies})
-        else:
-            # If the user does not exist, create a new document with the study
-            batch.set(user_doc_ref, {"studies": [study_doc_ref.id]})
+        # Add to users
+        user = users_collection.find_one({"_id": user_uid})
+        logger.info(f"User: {user}")
+        result = users_collection.update_one({"_id": user_uid}, {"$push": {"studies": study_data["_id"]}} )
 
-        batch.commit()
         elapsed = time.time() - s
         logger.info(f"Creating study took {elapsed} seconds")
-        return StudyResponse(
-            message="Study created successfully",
-            status_code=200,
-            studies=[{"id": study_doc_ref.id, **new_study.model_dump()}],
-        )
+        return StudyResponse(message="Study created successfully", status_code=200, studies=[study_data])
     except Exception as e:
         logger.error(f"Error Creating New Study {e}")
         return JSONResponse(
