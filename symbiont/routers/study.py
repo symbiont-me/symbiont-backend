@@ -116,35 +116,21 @@ class DeleteStudyResponse(BaseModel):
     studyId: str
 
 
-# NOTE a bit slow
 @router.delete("/delete-study")
 async def delete_study(studyId: str, request: Request):
     s = time.time()
     user_uid = request.state.verified_user["user_id"]
     try:
-        db = firestore.client()
-        # Get references to the study and user documents
-        study_doc_ref = db.collection("studies").document(studyId)
-        user_doc_ref = db.collection("users").document(user_uid)
+        studies = studies_collection.find_one({"_id": studyId})
+        if studies["userId"] != user_uid:
+            logger.error("User is Not authorized to delete study")
+            raise HTTPException(
+                detail="User Not Authorized to Delete Study",
+                status_code=404,
+            )
 
-        # Check if the study exists
-        study_doc = study_doc_ref.get()
-        if not study_doc.exists:
-            raise HTTPException(status_code=404, detail="Study does not exist.")
-
-        # Check if the user exists and has the study listed
-        user_doc = user_doc_ref.get()
-        if not user_doc.exists:
-            raise HTTPException(status_code=404, detail="User does not exist.")
-        user_studies = user_doc.to_dict().get("studies", [])
-        if studyId not in user_studies:
-            raise HTTPException(status_code=403, detail="Study not found in user's studies.")
-
-        # Remove the study from the user's list of studies
-        user_studies.remove(studyId)
-        user_doc_ref.update({"studies": user_studies})
-        # Delete the study document as well
-        study_doc_ref.delete()
+        studies_collection.delete_one({"_id": studyId})
+        users_collection.update_one({"_id": user_uid}, {"$pull": {"studies": studyId}})
 
         elapsed = time.time() - s
         logger.info(f"Deleting study took {elapsed} seconds")
