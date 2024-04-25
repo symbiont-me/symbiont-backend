@@ -22,7 +22,6 @@ from pydantic import BaseModel
 from .. import logger
 from ..utils.llm_utils import summarise_plain_text_resource
 import time
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -324,7 +323,6 @@ async def add_plain_text_resource(
 ):
     user_uid = request.state.verified_user["user_id"]
 
-    # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
     study_resource = StudyResource(
         studyId=plain_text_resource.studyId,
         identifier=make_file_identifier(plain_text_resource.name),
@@ -344,6 +342,7 @@ async def add_plain_text_resource(
     await pc_service.upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
 
     study_service.add_resource_to_db(study_resource)
+
     background_tasks.add_task(
         save_summary,
         plain_text_resource.studyId,
