@@ -54,12 +54,13 @@ async def get_user_studies(request: Request):
 
     try:
         s = time.time()
-        db = firestore.client()
-        studies_ref = db.collection("studies")
-        query = studies_ref.where("userId", "==", user_uid)
-        studies = query.stream()
+        # TODO do it like this
+        user_study_ids = users_collection.find_one({"_id": user_uid})
+        logger.info(f"User studies: {user_study_ids}")
+        studies_data = list(studies_collection.find({"userId": user_uid}))
+        for study in studies_data:
+            study["_id"] = str(study["_id"])
         # Create a list of dictionaries, each containing the studyId and the study's data
-        studies_data = [{"id": study.id, **(study.to_dict() or {})} for study in studies]
         elapsed = time.time() - s
         logger.info(f"Getting user studies took {elapsed} seconds")
         return StudyResponse(
