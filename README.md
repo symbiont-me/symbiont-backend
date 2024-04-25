@@ -73,6 +73,8 @@ This will run the API server at port `0.0.0.0:80`
 
 ```bash
 docker pull mongo
-# this will start local mongo instance with a mounted volume for data persistence
-docker run -d -p 27017:27017 -v $(pwd)/database:/data/db --name symbiont-dev mongo:latest
+# if running for the first time this will start local mongo instance with a mounted volume for data persistence
+docker run -d -p 27017:27017 -v $(pwd)/database:/data/db --name symbiont mongo:latest
+# to run an existing container created by the above command
+docker start symbiont
 ```
