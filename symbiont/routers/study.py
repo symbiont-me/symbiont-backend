@@ -26,24 +26,20 @@ class StudyResponse(BaseModel):
 
 @router.get("/get-current-study")
 async def get_current_study(studyId: str, request: Request):
+    logger.info(studyId)
     s = time.time()
     logger.info("Getting current study")
     user_uid = request.state.verified_user["user_id"]
-    db = firestore.client()
-    study_ref = db.collection("studies").document(studyId)
-    study = study_ref.get().to_dict()
-    if study is None:
-        logger.error("Study does not exist.")
-        raise HTTPException(status_code=404, detail="Study does not exist.")
+    study = studies_collection.find_one({"_id": studyId})
+    logger.info(study)
 
-    user_doc = db.collection("users").document(user_uid).get().to_dict()
-    if user_doc is None:
-        logger.error("User does not exist.")
-        raise HTTPException(status_code=404, detail="User does not exist.")
-    user_studies = user_doc.get("studies", [])
-    if studyId not in user_studies:
-        logger.error("User does not have access to this study.")
-        raise HTTPException(status_code=403, detail="User does not have access to this study.")
+    if study["userId"] != user_uid:
+        logger.error("User is Not authorized to access study")
+        raise HTTPException(
+            detail="User Not Authorized to Access Study",
+            status_code=404,
+        )
+
     elapsed = time.time() - s
     logger.info(f"Getting current study took {elapsed} seconds")
     return StudyResponse(message="", status_code=200, studies=[study])
@@ -56,12 +52,11 @@ async def get_user_studies(request: Request):
     try:
         s = time.time()
         # TODO do it like this
-        user_study_ids = users_collection.find_one({"_id": user_uid})
-        logger.info(f"User studies: {user_study_ids}")
+        # 1. get study ids from the user document
+        # 2. get the study data from the study collection using the ids
+        # user_study_ids = users_collection.find_one({"_id": user_uid})
+        # logger.info(f"User studies: {user_study_ids}")
         studies_data = list(studies_collection.find({"userId": user_uid}))
-        for study in studies_data:
-            study["_id"] = str(study["_id"])
-        # Create a list of dictionaries, each containing the studyId and the study's data
         elapsed = time.time() - s
         logger.info(f"Getting user studies took {elapsed} seconds")
         return StudyResponse(
@@ -99,7 +94,7 @@ async def create_study(study: CreateStudyRequest, request: Request):
         # Add to users
         user = users_collection.find_one({"_id": user_uid})
         logger.info(f"User: {user}")
-        result = users_collection.update_one({"_id": user_uid}, {"$push": {"studies": study_data["_id"]}} )
+        result = users_collection.update_one({"_id": user_uid}, {"$push": {"studies": study_data["_id"]}})
 
         elapsed = time.time() - s
         logger.info(f"Creating study took {elapsed} seconds")
