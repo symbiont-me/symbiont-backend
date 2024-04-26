@@ -81,7 +81,7 @@ async def create_study(study: CreateStudyRequest, request: Request):
         image=study.image,
         createdAt=datetime.now().isoformat(),  # Use ISO format for consistency
         resources=[],
-        chat=Chat(),
+        chat=[],
     )
 
     try:
