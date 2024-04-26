@@ -22,6 +22,8 @@ from pydantic import BaseModel
 from .. import logger
 from ..utils.llm_utils import summarise_plain_text_resource
 import time
+from ..mongodb import studies_collection
+from ..repositories.study_resource_repo import StudyResourceRepo
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -168,12 +170,13 @@ async def add_resource(
 @router.post("/get-resources")
 async def get_resources(studyId: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
-    study_service = StudyService(user_uid, studyId)
-    study_dict = study_service.get_document_dict()
-    if study_dict is None:
-        raise HTTPException(status_code=404, detail="Study not found")
-    resources = study_dict.get("resources", [])
-    logger.debug(f"Resources: {resources}")
+    studies = studies_collection.find({"_id": studyId})
+    if studies["userId"] != user_uid:
+        raise HTTPException(
+            status_code=404,
+            detail="User Not Authorized to Access Study",
+        )
+    resources = studies["resources"]
     return ResourceResponse(
         resources=[StudyResource(**resource) for resource in resources],
         status_code=200,
@@ -228,11 +231,14 @@ async def add_yt_resource(
                 url=str(url),
                 category="video",
             )
+
             await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
-            # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
-            study_service = StudyService(user_uid, video_resource.studyId)
-            study_service.add_resource_to_db(study_resource)
             yt_resources.append(study_resource)
+
+            # mongodb
+            # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
+            study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=video_resource.studyId)
+            study_resources_repo.add_study_resource_to_db()
 
             logger.info(f"Youtube video added to Pinecone {study_resource}")
             background_tasks.add_task(
@@ -256,7 +262,6 @@ async def add_webpage_resource(
 ):
     user_uid = request.state.verified_user["user_id"]
     study_service = StudyService(user_uid, webpage_resource.studyId)
-    # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
 
     if not webpage_resource.urls:
         raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
@@ -294,7 +299,12 @@ async def add_webpage_resource(
                     detail="There is no content in the webpage. Please try again",
                 )
             await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
-            study_service.add_resource_to_db(study_resource)
+            # mongodb
+            study_resources_repo = StudyResourceRepo(
+                study_resource, user_id=user_uid, study_id=webpage_resource.studyId
+            )
+            study_resources_repo.add_study_resource_to_db()
+
             logger.info(f"Web Resource added {study_resource}")
             background_tasks.add_task(
                 save_summary,
@@ -336,12 +346,12 @@ async def add_plain_text_resource(
         user_uid=user_uid,
         resource_identifier=study_resource.identifier,
     )
-    study_service = StudyService(user_uid, plain_text_resource.studyId)
 
     # TODO rename the method as used for both plain text and webpage
     await pc_service.upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
 
-    study_service.add_resource_to_db(study_resource)
+    study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=plain_text_resource.studyId)
+    study_resources_repo.add_study_resource_to_db()
 
     background_tasks.add_task(
         save_summary,
