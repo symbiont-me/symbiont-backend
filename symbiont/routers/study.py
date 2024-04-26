@@ -31,7 +31,6 @@ async def get_current_study(studyId: str, request: Request):
     logger.info("Getting current study")
     user_uid = request.state.verified_user["user_id"]
     study = studies_collection.find_one({"_id": studyId})
-    logger.info(study)
 
     if study["userId"] != user_uid:
         logger.error("User is Not authorized to access study")
