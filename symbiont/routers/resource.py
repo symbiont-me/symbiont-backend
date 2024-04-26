@@ -378,7 +378,7 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
     try:
         s = time.time()
 
-        study_id , resource_identifier = delete_request.study_id, delete_request.identifier
+        study_id, resource_identifier = delete_request.study_id, delete_request.identifier
         user_uid = request.state.verified_user["user_id"]
         pc_service = PineconeService(
             study_id=str(delete_request.study_id),
@@ -389,16 +389,18 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
         pc_service.delete_vectors_from_pinecone(resource_identifier)
 
         # get the resource to delete
-        resources = studies_collection.find_one({"_id": delete_request.study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier }}})
+        resources = studies_collection.find_one(
+            {"_id": delete_request.study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+        )
         resource_to_delete = resources["resources"][0]
         logger.debug(f"REsource to delete: {resource_to_delete}")
         if resource_to_delete["category"] in ["pdf", "audio", "image"]:
-            delete_resource_from_storage(user_uid, resource_identifier )
+            delete_resource_from_storage(user_uid, resource_identifier)
             logger.info(f"Resource {resource_identifier } deleted from storage")
         # remove from db
-        studies_collection.update_one({"_id": study_id}, {"$pull": {"resources": {"identifier": resource_identifier }}})
+        studies_collection.update_one({"_id": study_id}, {"$pull": {"resources": {"identifier": resource_identifier}}})
         # # remove vecotor refs from db
-        studies_collection.update_one({"_id": study_id}, {"$unset": {"vectors."+resource_identifier: ""}})
+        studies_collection.update_one({"_id": study_id}, {"$unset": {"vectors." + resource_identifier: ""}})
         elapsed = time.time() - s
         logger.info(f"Resource deleted in {elapsed} seconds")
         #

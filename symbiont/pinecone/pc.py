@@ -98,7 +98,7 @@ class PineconeService:
         if self.db_vec_refs is None:
             raise ValueError("No vectors to save in the database")
         try:
-            logger.info(f"Updating vectors in Mongo")
+            logger.info("Updating vectors in Mongo")
             studies_collection.update_one(
                 {"_id": self.study_id}, {"$set": {f"vectors.{self.resource_identifier}": self.db_vec_refs}}
             )

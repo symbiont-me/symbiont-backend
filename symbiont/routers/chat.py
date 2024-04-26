@@ -1,11 +1,9 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Cookie
 from ..models import ChatRequest, ChatMessage, Citation
-from firebase_admin import firestore
 
 from fastapi.responses import StreamingResponse
 import datetime
 from typing import AsyncGenerator
-from google.cloud.firestore import ArrayUnion
 from ..utils.db_utils import StudyService
 
 
