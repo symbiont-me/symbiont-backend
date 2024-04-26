@@ -102,7 +102,6 @@ class PineconeService:
             studies_collection.update_one(
                 {"_id": self.study_id}, {"$set": {f"vectors.{self.resource_identifier}": self.db_vec_refs}}
             )
-            self.get_vectors_from_db()
         except Exception as e:
             logger.error(f"Error updating vectors in Firestore: {str(e)}")
             raise HTTPException(status_code=500, detail="Error updating vectors in Firestore")
@@ -211,11 +210,12 @@ class PineconeService:
             return filtered_matches
         logger.debug(f"matches:\t{[match['score'] for match in filtered_matches]}")
 
-        logger.debug("Fetching vector metadata from db")
         vec_metadata_start_time = time.time()
         vec_metadata = []
         logger.debug("Getting vectors from db")
         vec_data = self.get_vectors_from_db()
+
+        logger.debug(f"vec_data: {vec_data}")
         if vec_data is None:
             logger.error("No vectors found in the database")
             return vec_data
@@ -258,19 +258,16 @@ class PineconeService:
 
     async def get_combined_chat_context(self) -> Union[Tuple[str, List[Citation]], None]:
         s = time.time()
-        db = firestore.client()
-        all_resource_identifiers = []
-        study_dict = db.collection("studies").document(self.study_id).get().to_dict()
-
-        if study_dict is None:
-            raise HTTPException(status_code=404, detail="No such document!")
-        resources = study_dict.get("resources", [])
+        resources = studies_collection.find_one({"_id": self.study_id})["resources"]
 
         if resources is None:
             raise HTTPException(status_code=404, detail="No Resources Found")
         # get the identifier for each resource
+
         all_resource_identifiers = [resource.get("identifier") for resource in resources]
-        logger.info(f"Resource Identifiers: {all_resource_identifiers}")
+
+        logger.debug(f"List of Resources: {all_resource_identifiers}")
+
         # get the context for each resource
         combined_vecs = []
         for identifier in all_resource_identifiers:
