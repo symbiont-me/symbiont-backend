@@ -160,7 +160,7 @@ async def chat(
 
 
 @router.get("/get-chat-messages")
-async def get_chat_messages(studyId: str, request: Request):
+async def get_chat_messages(studyId: str):
     logger.debug("LOADING CHATS")
     chats = studies_collection.find_one({"_id": studyId})["chat"]
     logger.debug(chats)
@@ -168,14 +168,9 @@ async def get_chat_messages(studyId: str, request: Request):
 
 
 @router.delete("/delete-chat-messages")
-async def delete_chat_messages(studyId: str, request: Request):
-    study_service = StudyService(request.state.verified_user["user_id"], studyId)
-    print("DELETING CHAT MESSAGES")
-    doc_ref = study_service.get_document_ref()
-    if doc_ref is None:
-        raise HTTPException(status_code=404, detail="No such document!")
-
-    doc_ref.update({"chatMessages": []})
+async def delete_chat_messages(studyId: str):
+    studies_collection.update_one({"_id": studyId}, {"$set": {"chat": []}})
+    logger.info("Chat messages deleted!")
     return {"message": "Chat messages deleted!", "status_code": 200}
 
 
