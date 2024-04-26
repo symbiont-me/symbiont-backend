@@ -1,6 +1,6 @@
 from hashlib import md5
 from typing import List, Union, Tuple
-from ..models import PineconeRecord, DocumentPage, Citation
+from ..models import PineconeRecord, DocumentPage, Citation, Vectors
 from ..fb.storage import download_from_firebase_storage, delete_local_file
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
@@ -20,6 +20,7 @@ import time
 from fastapi import HTTPException
 import datetime
 from langchain_voyageai import VoyageAIEmbeddings
+from ..mongodb import studies_collection
 
 nltk.download("punkt")
 
@@ -36,7 +37,7 @@ co = cohere.Client(api_key=cohere_api_key or "")
 
 embeddings_model = None
 
-if os.getenv("FASTAPI_ENV") == "test":
+if os.getenv("FASTAPI_ENV") == "development":
     embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
     logger.info("Using Free Embeddings Model: VoyageAI")
 else:
@@ -88,36 +89,20 @@ class PineconeService:
         self.text_splitter = self.nltk_text_splitter
         self.db_vec_refs = {}
 
-    def get_vectors_from_db(self):
-        logger.info("Getting vectors from Firestore")
-        vec_ref = self.db.collection("studies").document(self.study_id)
-        vec_data = vec_ref.get().to_dict()
-        # TODO fix type error
-        if "vectors" not in vec_data:
-            logger.error("No vectors")
-            return None
-        return vec_data["vectors"]
+    def get_vectors_from_db(self) -> Vectors:
+        logger.info("Getting vectors from Mongo")
+        study = studies_collection.find_one({"_id": self.study_id})
+        return study["vectors"]
 
     async def create_vec_ref_in_db(self):
         if self.db_vec_refs is None:
             raise ValueError("No vectors to save in the database")
         try:
-            db = firestore.client()
-            vec_ref = db.collection("studies").document(self.study_id)
-            # Retrieve the current data to avoid overwriting
-            current_data = vec_ref.get().to_dict()
-            # Initialize 'vectors' as a mapping if it doesn't exist
-            if "vectors" not in current_data:
-                current_data["vectors"] = {}
-            # # Update the document with the new mapping of vectors under the specific resource identifier
-            identifier = self.resource_identifier
-            if identifier not in current_data["vectors"]:
-                current_data["vectors"][identifier] = {}
-            current_data["vectors"][identifier].update(self.db_vec_refs)
-            # Save the updated data back to Firestore
-            vec_ref.set(current_data)
-            logger.info(f"Updated vectors in Firestore for {self.resource_identifier}")
-            return vec_ref
+            logger.info(f"Updating vectors in Mongo")
+            studies_collection.update_one(
+                {"_id": self.study_id}, {"$set": {f"vectors.{self.resource_identifier}": self.db_vec_refs}}
+            )
+            self.get_vectors_from_db()
         except Exception as e:
             logger.error(f"Error updating vectors in Firestore: {str(e)}")
             raise HTTPException(status_code=500, detail="Error updating vectors in Firestore")
