@@ -102,7 +102,6 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
 # TODO handle file types
 
 
-# NOTE I don't like this
 # TODO move this someplace else
 async def save_summary(study_id: str, study_resource: StudyResource, content: str):
     s = time.time()
@@ -111,20 +110,15 @@ async def save_summary(study_id: str, study_resource: StudyResource, content: st
     logger.info("Now adding summary to DB")
     if summary == "":
         summary = "No summary available."
-    db = firestore.client()
-    study_ref = db.collection("studies").document(study_id)
-    study_dict = study_ref.get().to_dict()
-    if study_dict is None:
-        raise HTTPException(status_code=404, detail="Study not found")
-    resources = study_dict.get("resources", [])
-    for resource in resources:
-        if resource.get("identifier") == study_resource.identifier:
-            resource["summary"] = summary
-            study_ref.update({"resources": resources})
-            logger.info(f"Summary added to resource {study_resource.identifier}")
-            elapsed = time.time() - s
-            logger.info(f"Summary added in {elapsed} seconds")
-            return {"message": "Summary added."}
+    studies_collection.update(
+        {"_id": study_id},
+        {"resources.identifier": study_resource.identifier},
+        {"$set": {"resources.$.summary": summary}},
+    )
+    logger.info(f"Summary added to resource {study_resource.identifier}")
+    elapsed = time.time() - s
+    logger.info(f"Summary added in {elapsed} seconds")
+    return {"message": "Summary added."}
 
 
 @router.post("/upload-resource")
