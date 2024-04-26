@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel, HttpUrl
 
 
@@ -70,22 +70,32 @@ class Chat(BaseModel):
     user: List[str] = []
 
 
+class VectorItem(BaseModel):
+    page: int
+    source: str
+    text: str
+
+
+class VectorHash(BaseModel):
+    hash: Dict[str, VectorItem]
+
+
+class Vectors(BaseModel):
+    identifier: Dict[str, VectorHash]
+
+
 class Study(BaseModel):
-    chat: Chat
+    chat: List
     createdAt: str
     description: str
     name: str
     image: str
     resources: List[Resource]
     userId: str
+    vectors: dict = {}
 
 
-class Vector(BaseModel):
-    page: int
-    source: str
-    text: str
-
-
+# Redundant
 class StudyCollection(BaseModel):
     _id: str
     chat: Chat
@@ -94,7 +104,7 @@ class StudyCollection(BaseModel):
     image: str
     resources: List[Resource]
     userId: str
-    vectors: Vector
+    vectors: Vectors = Vectors(identifier={})
 
 
 class UserSettings(BaseModel):
