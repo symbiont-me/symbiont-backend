@@ -377,44 +377,31 @@ class DeleteResourceResponse(BaseModel):
 async def delete_resource_from_study(delete_request: DeleteResourceRequest, request: Request):
     try:
         s = time.time()
-        db = firestore.client()
-        batch = db.batch()
-        logger.debug(f"Deleting resource {delete_request.identifier}")
-        logger.debug(f"Deleting resource {delete_request.study_id}")
-        identifier = delete_request.identifier
+
+        study_id , resource_identifier = delete_request.study_id, delete_request.identifier
         user_uid = request.state.verified_user["user_id"]
         pc_service = PineconeService(
             study_id=str(delete_request.study_id),
-            resource_identifier=identifier,
+            resource_identifier=resource_identifier,
             user_uid=user_uid,
         )
-        db = firestore.client()
-        study = db.collection("studies").document(delete_request.study_id)
-        if study is None:
-            raise HTTPException(status_code=404, detail="Study not found")
+        # delete from pinecone
+        pc_service.delete_vectors_from_pinecone(resource_identifier)
 
-        resources_list = study.get().to_dict().get("resources")
-        vectors = study.get().to_dict().get("vectors")
-        if resources_list and vectors is None:
-            raise HTTPException(status_code=404, detail="Resources or Vector not found")
-        resource_to_delete = None
-        for resource in resources_list:
-            if resource["identifier"] == identifier:
-                resources_list.remove(resource)
-                resource_to_delete = resource
-        logger.debug(f"Resource {identifier} deleted from study {delete_request.study_id}")
-        logger.debug("delete vectors from db")
-        vectors.pop(identifier)
-        batch.update(db.collection("studies").document(delete_request.study_id), {"resources": resources_list})
-        batch.update(db.collection("studies").document(delete_request.study_id), {"vectors": vectors})
-        pc_service.delete_vectors_from_pinecone(identifier)
-        if resource["category"] in ["pdf", "audio", "image"]:
-            delete_resource_from_storage(user_uid, identifier)
-            logger.info(f"Resource {identifier} deleted from storage")
+        # get the resource to delete
+        resources = studies_collection.find_one({"_id": delete_request.study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier }}})
+        resource_to_delete = resources["resources"][0]
+        logger.debug(f"REsource to delete: {resource_to_delete}")
+        if resource_to_delete["category"] in ["pdf", "audio", "image"]:
+            delete_resource_from_storage(user_uid, resource_identifier )
+            logger.info(f"Resource {resource_identifier } deleted from storage")
+        # remove from db
+        studies_collection.update_one({"_id": study_id}, {"$pull": {"resources": {"identifier": resource_identifier }}})
+        # # remove vecotor refs from db
+        studies_collection.update_one({"_id": study_id}, {"$unset": {"vectors."+resource_identifier: ""}})
         elapsed = time.time() - s
         logger.info(f"Resource deleted in {elapsed} seconds")
-
-        batch.commit()
+        #
         return DeleteResourceResponse(
             message="Resource deleted.",
             status_code=200,
