@@ -3,6 +3,8 @@ from .. import logger
 import os
 from pydantic import BaseModel
 
+from gridfs import GridFS
+
 
 def init_db_collections(db):
     studies_collection = db["studies"]
@@ -18,6 +20,8 @@ if os.getenv("FASTAPI_ENV") == "development":
     # TODO add to env file
     db = client["symbiont-dev"]
     studies_collection, users_collection = init_db_collections(db)
+    grid_fs = GridFS(db)
+
 
 if os.getenv("FASTAPI_ENV") == "production":
     client = MongoClient(os.getenv("MONGO_URI"), 27017)
@@ -25,3 +29,4 @@ if os.getenv("FASTAPI_ENV") == "production":
     # TODO add to env file
     db = client[os.getenv("MONGO_DB_NAME")]
     studies_collection, users_collection = init_db_collections(db)
+    grid_fs = GridFS(db)
