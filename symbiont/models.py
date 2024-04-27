@@ -168,7 +168,8 @@ class ChatMessage(BaseModel):
 class StudyResource(BaseModel):
     studyId: str
     name: str
-    url: str
+    url: str = ""
+    storage_ref: str = ""
     identifier: str
     category: str
     summary: str = ""
