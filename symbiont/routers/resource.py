@@ -1,14 +1,10 @@
 from datetime import datetime, timedelta
-from firebase_admin import firestore, storage
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    HTTPException,
-    UploadFile,
-    Request,
-)
+from io import BytesIO
+from firebase_admin import storage
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, Request
+from fastapi.responses import StreamingResponse
+
 from ..models import (
-    FileUploadResponse,
     StudyResource,
     AddYoutubeVideoRequest,
     AddWebpageResourceRequest,
@@ -20,10 +16,12 @@ from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
-from ..utils.llm_utils import summarise_plain_text_resource
 import time
-from ..mongodb import studies_collection
+from ..mongodb import studies_collection, grid_fs
 from ..repositories.study_resource_repo import StudyResourceRepo
+import tempfile
+
+from bson.objectid import ObjectId
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,49 +52,65 @@ def generate_signed_url(identifier: str) -> str:
     return url
 
 
-def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResponse:
-    """
-    Uploads a file to Firebase Storage.
-
-    Args:
-        file (UploadFile): The file to be uploaded.
-        user_id (str): The ID of the user.
-
-    Returns:
-        FileUploadResponse: The response containing the uploaded file details.
-
-    Raises:
-        HTTPException: If the filename is missing or if there is an error during the upload process.
-    """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is missing.")
+async def upload_to_storage(file, file_identifier: str):
     try:
-        bucket = storage.bucket()
-        unique_file_identifier = make_file_identifier(file.filename)
-        storage_path = f"userFiles/{user_id}/{unique_file_identifier}"
+        # Create a temporary file to store the uploaded contents
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+            # Write the uploaded contents to the temporary file
+            temp_file.write(await file.read())
+            temp_file.flush()
 
-        blob = bucket.blob(storage_path)
+            # Store the file in GridFS
+            file_id = grid_fs.put(open(temp_file.name, "rb"), filename=file_identifier, content_type=file.content_type)
 
-        file_content = file.file.read()
-        # TODO handle content types properly
-        # NOTE this prevents the file from being downloaded in the browser if the content type is not set properly
-        content_type = ""
-        if file.filename.endswith(".pdf"):
-            content_type = "application/pdf"
-        blob.upload_from_string(file_content, content_type=content_type)
-        url = blob.media_link
-        download_url = generate_signed_url(storage_path)
-        if url:
-            return FileUploadResponse(
-                identifier=unique_file_identifier,
-                file_name=file.filename,
-                url=url,
-                download_url=download_url,
-            )
-        else:
-            raise HTTPException(status_code=500, detail="Failed to get the file URL.")
+        return {"file_id": str(file_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResponse:
+#     """
+#     Uploads a file to Firebase Storage.
+#
+#     Args:
+#         file (UploadFile): The file to be uploaded.
+#         user_id (str): The ID of the user.
+#
+#     Returns:
+#         FileUploadResponse: The response containing the uploaded file details.
+#
+#     Raises:
+#         HTTPException: If the filename is missing or if there is an error during the upload process.
+#     """
+#     if not file.filename:
+#         raise HTTPException(status_code=400, detail="Filename is missing.")
+#     try:
+#         bucket = storage.bucket()
+#         unique_file_identifier = make_file_identifier(file.filename)
+#         storage_path = f"userFiles/{user_id}/{unique_file_identifier}"
+#
+#         blob = bucket.blob(storage_path)
+#
+#         file_content = file.file.read()
+#         # TODO handle content types properly
+#         # NOTE this prevents the file from being downloaded in the browser if the content type is not set properly
+#         content_type = ""
+#         if file.filename.endswith(".pdf"):
+#             content_type = "application/pdf"
+#         blob.upload_from_string(file_content, content_type=content_type)
+#         url = blob.media_link
+#         download_url = generate_signed_url(storage_path)
+#         if url:
+#             return FileUploadResponse(
+#                 identifier=unique_file_identifier,
+#                 file_name=file.filename,
+#                 url=url,
+#                 download_url=download_url,
+#             )
+#         else:
+#             raise HTTPException(status_code=500, detail="Failed to get the file URL.")
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 # TODO handle file types
@@ -104,20 +118,20 @@ def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResp
 
 # TODO move this someplace else
 async def save_summary(study_id: str, study_resource: StudyResource, content: str):
-    s = time.time()
-    summary = summarise_plain_text_resource(content)
-    logger.info("Content summarised")
-    logger.info("Now adding summary to DB")
-    if summary == "":
-        summary = "No summary available."
-    studies_collection.update(
-        {"_id": study_id},
-        {"resources.identifier": study_resource.identifier},
-        {"$set": {"resources.$.summary": summary}},
-    )
-    logger.info(f"Summary added to resource {study_resource.identifier}")
-    elapsed = time.time() - s
-    logger.info(f"Summary added in {elapsed} seconds")
+    # s = time.time()
+    # summary = summarise_plain_text_resource(content)
+    # logger.info("Content summarised")
+    # logger.info("Now adding summary to DB")
+    # if summary == "":
+    #     summary = "No summary available."
+    # studies_collection.update(
+    #     {"_id": study_id},
+    #     {"resources.identifier": study_resource.identifier},
+    #     {"$set": {"resources.$.summary": summary}},
+    # )
+    # logger.info(f"Summary added to resource {study_resource.identifier}")
+    # elapsed = time.time() - s
+    # logger.info(f"Summary added in {elapsed} seconds")
     return {"message": "Summary added."}
 
 
@@ -132,19 +146,28 @@ async def add_resource(
         raise HTTPException(status_code=400, detail="No file provided!")
     user_uid = request.state.verified_user["user_id"]
     try:
-        upload_result = upload_to_firebase_storage(file, user_uid)
+        unique_file_identifier = make_file_identifier(file.filename)
+        upload_result = await upload_to_storage(file, unique_file_identifier)
+        # upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
-        logger.info("File resource uploaded to Firebase")
-
+        # study_resource = StudyResource(
+        #     studyId=studyId,
+        #     identifier=upload_result.identifier,
+        #     name=upload_result.file_name,
+        #     url=upload_result.url,  # TODO should be view_url for clarity here and in the frontend
+        #     category=file_extension,
+        # )
+        logger.debug(f"File uploaded to storage: {upload_result}")
         study_resource = StudyResource(
             studyId=studyId,
-            identifier=upload_result.identifier,
-            name=upload_result.file_name,
-            url=upload_result.url,  # TODO should be view_url for clarity here and in the frontend
+            identifier=unique_file_identifier,
+            name=file.filename,
+            url="",  # NOTE for other file types this may still be needed
+            storage_ref=upload_result["file_id"],  # NOTE: this is the _id from GridFS, used for retrieval
             category=file_extension,
         )
-
-        study_service = StudyService(user_uid, studyId)
+        #
+        # study_service = StudyService(user_uid, studyId)
         pc_service = PineconeService(
             study_id=study_resource.studyId,
             resource_identifier=study_resource.identifier,
@@ -153,12 +176,31 @@ async def add_resource(
             resource_download_url=upload_result.download_url,
         )
         await pc_service.add_file_resource_to_pinecone()
-        study_service.add_resource_to_db(study_resource)
+
+        study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=studyId)
+        study_resources_repo.add_study_resource_to_db()
+
         return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
     except Exception as e:
         # TODO delete from storage if it fails
         logger.error(f"Error occur while adding resource: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to add resource. Try Again.")
+
+
+@router.get("/get-file-from-storage")
+async def get_file_from_storage(storage_ref: str):
+    logger.debug(f"Retrieving file from storage: {storage_ref}")
+    file = grid_fs.get(ObjectId(storage_ref))
+    file_content = file.read()
+    # logger.debug(file_content)
+    return StreamingResponse(BytesIO(file_content), media_type="application/octet-stream")
+    # try:
+    #     file = grid_fs.get(storage_ref)
+    #     file_content = file.read()
+    #     logger.debug(file_content)
+    #     return file_content
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/get-resources")
