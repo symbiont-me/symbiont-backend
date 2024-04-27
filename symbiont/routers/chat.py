@@ -4,7 +4,6 @@ from ..models import ChatRequest, ChatMessage, Citation
 from fastapi.responses import StreamingResponse
 import datetime
 from typing import AsyncGenerator
-from ..utils.db_utils import StudyService
 
 
 from ..llms import (
