@@ -64,14 +64,12 @@ class PineconeService:
         resource_identifier: str,
         user_uid=None,
         user_query="",
-        resource_download_url=None,
         threshold=0.1,
     ):
         self.user_uid = user_uid
         self.user_query = user_query
         self.study_id = study_id
         self.resource_identifier = resource_identifier
-        self.download_url = resource_download_url
         self.threshold = threshold
         self.db = firestore.client()
         self.embed = embeddings_model
@@ -135,9 +133,6 @@ class PineconeService:
 
     async def add_file_resource_to_pinecone(self, pages):
         s = time.time()
-        if self.download_url is None:
-            logger.error("Download URL must be provided to prepare file resource")
-            raise ValueError("Download URL must be provided to prepare file resource")
         docs = []
         for page in pages:
             prepared_pages = await self.prepare_pdf_for_pinecone(page)
