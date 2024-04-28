@@ -17,11 +17,13 @@ from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
 import time
-from ..mongodb import studies_collection, grid_fs
+from ..mongodb import studies_collection, grid_fs, grid_fs_bucket
 from ..repositories.study_resource_repo import StudyResourceRepo
 import tempfile
 
 from bson.objectid import ObjectId
+from ..utils.document_loaders import load_pdf
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -52,9 +54,6 @@ def generate_signed_url(identifier: str) -> str:
     return url
 
 
-
-
-
 # TODO handle file types
 
 
@@ -77,7 +76,6 @@ async def save_summary(study_id: str, study_resource: StudyResource, content: st
     return {"message": "Summary added."}
 
 
-
 async def upload_to_storage(file_bytes, file_identifier: str, content_type: str | None = None):
     try:
         # Create a temporary file to store the uploaded contents
@@ -89,11 +87,11 @@ async def upload_to_storage(file_bytes, file_identifier: str, content_type: str 
             # Store the file in GridFS
             with open(temp_file.name, "rb") as f:
                 file_id = grid_fs.put(f, filename=file_identifier, content_type=content_type)
-        
 
         return {"file_id": str(file_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/upload-resource")
 async def add_resource(
@@ -107,16 +105,12 @@ async def add_resource(
     user_uid = request.state.verified_user["user_id"]
     try:
         unique_file_identifier = make_file_identifier(file.filename)
-        upload_result = await upload_to_storage(file, unique_file_identifier)
+
+        file_bytes = await file.read()
+
+        upload_result = await upload_to_storage(file_bytes, unique_file_identifier, file.content_type)
         # upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
-        # study_resource = StudyResource(
-        #     studyId=studyId,
-        #     identifier=upload_result.identifier,
-        #     name=upload_result.file_name,
-        #     url=upload_result.url,  # TODO should be view_url for clarity here and in the frontend
-        #     category=file_extension,
-        # )
         logger.debug(f"File uploaded to storage: {upload_result}")
         study_resource = StudyResource(
             studyId=studyId,
@@ -127,15 +121,17 @@ async def add_resource(
             category=file_extension,
         )
         #
-        # study_service = StudyService(user_uid, studyId)
         pc_service = PineconeService(
             study_id=study_resource.studyId,
             resource_identifier=study_resource.identifier,
             user_uid=user_uid,
             user_query=None,
-            resource_download_url=upload_result.download_url,
         )
-        await pc_service.add_file_resource_to_pinecone()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
+            temp.write(file_bytes)
+            metadata = load_pdf(temp.name, unique_file_identifier)
+        logger.debug(f"Pdf loader extractracted number of pages: {len(metadata)}")
+        await pc_service.add_file_resource_to_pinecone(metadata)
 
         study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=studyId)
         study_resources_repo.add_study_resource_to_db()
@@ -375,6 +371,10 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
         s = time.time()
 
         study_id, resource_identifier = delete_request.study_id, delete_request.identifier
+        storage_ref = studies_collection.find_one(  # get the storage ref
+            {"_id": study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+        )["resources"][0]["storage_ref"]
+
         user_uid = request.state.verified_user["user_id"]
         pc_service = PineconeService(
             study_id=str(delete_request.study_id),
@@ -391,7 +391,8 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
         resource_to_delete = resources["resources"][0]
         logger.debug(f"REsource to delete: {resource_to_delete}")
         if resource_to_delete["category"] in ["pdf", "audio", "image"]:
-            delete_resource_from_storage(user_uid, resource_identifier)
+            # delete_resource_from_storage(user_uid, resource_identifier)
+            grid_fs_bucket.delete(file_id=ObjectId(storage_ref))
             logger.info(f"Resource {resource_identifier } deleted from storage")
         # remove from db
         studies_collection.update_one({"_id": study_id}, {"$pull": {"resources": {"identifier": resource_identifier}}})
