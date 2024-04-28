@@ -3,7 +3,7 @@ from .. import logger
 import os
 from pydantic import BaseModel
 
-from gridfs import GridFS
+from gridfs import GridFS, GridFSBucket
 
 
 def init_db_collections(db):
@@ -21,6 +21,7 @@ if os.getenv("FASTAPI_ENV") == "development":
     db = client["symbiont-dev"]
     studies_collection, users_collection = init_db_collections(db)
     grid_fs = GridFS(db)
+    grid_fs_bucket = GridFSBucket(db)
 
 
 if os.getenv("FASTAPI_ENV") == "production":
@@ -30,3 +31,4 @@ if os.getenv("FASTAPI_ENV") == "production":
     db = client[os.getenv("MONGO_DB_NAME")]
     studies_collection, users_collection = init_db_collections(db)
     grid_fs = GridFS(db)
+    grid_fs_bucket = GridFSBucket(db)
