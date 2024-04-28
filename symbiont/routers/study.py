@@ -49,12 +49,9 @@ async def get_user_studies(request: Request):
 
     try:
         s = time.time()
-        # TODO do it like this
-        # 1. get study ids from the user document
-        # 2. get the study data from the study collection using the ids
-        # user_study_ids = users_collection.find_one({"_id": user_uid})
-        # logger.info(f"User studies: {user_study_ids}")
-        studies_data = list(studies_collection.find({"userId": user_uid}))
+        study_ids = users_collection.find_one({"_id": user_uid})["studies"]
+        studies_data = list(studies_collection.find({"_id": {"$in": study_ids}}))
+
         elapsed = time.time() - s
         logger.info(f"Getting user studies took {elapsed} seconds")
         return StudyResponse(
