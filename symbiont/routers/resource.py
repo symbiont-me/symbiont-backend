@@ -52,65 +52,7 @@ def generate_signed_url(identifier: str) -> str:
     return url
 
 
-async def upload_to_storage(file, file_identifier: str):
-    try:
-        # Create a temporary file to store the uploaded contents
-        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
-            # Write the uploaded contents to the temporary file
-            temp_file.write(await file.read())
-            temp_file.flush()
 
-            # Store the file in GridFS
-            file_id = grid_fs.put(open(temp_file.name, "rb"), filename=file_identifier, content_type=file.content_type)
-
-        return {"file_id": str(file_id)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# def upload_to_firebase_storage(file: UploadFile, user_id: str) -> FileUploadResponse:
-#     """
-#     Uploads a file to Firebase Storage.
-#
-#     Args:
-#         file (UploadFile): The file to be uploaded.
-#         user_id (str): The ID of the user.
-#
-#     Returns:
-#         FileUploadResponse: The response containing the uploaded file details.
-#
-#     Raises:
-#         HTTPException: If the filename is missing or if there is an error during the upload process.
-#     """
-#     if not file.filename:
-#         raise HTTPException(status_code=400, detail="Filename is missing.")
-#     try:
-#         bucket = storage.bucket()
-#         unique_file_identifier = make_file_identifier(file.filename)
-#         storage_path = f"userFiles/{user_id}/{unique_file_identifier}"
-#
-#         blob = bucket.blob(storage_path)
-#
-#         file_content = file.file.read()
-#         # TODO handle content types properly
-#         # NOTE this prevents the file from being downloaded in the browser if the content type is not set properly
-#         content_type = ""
-#         if file.filename.endswith(".pdf"):
-#             content_type = "application/pdf"
-#         blob.upload_from_string(file_content, content_type=content_type)
-#         url = blob.media_link
-#         download_url = generate_signed_url(storage_path)
-#         if url:
-#             return FileUploadResponse(
-#                 identifier=unique_file_identifier,
-#                 file_name=file.filename,
-#                 url=url,
-#                 download_url=download_url,
-#             )
-#         else:
-#             raise HTTPException(status_code=500, detail="Failed to get the file URL.")
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
 
 
 # TODO handle file types
@@ -134,6 +76,24 @@ async def save_summary(study_id: str, study_resource: StudyResource, content: st
     # logger.info(f"Summary added in {elapsed} seconds")
     return {"message": "Summary added."}
 
+
+
+async def upload_to_storage(file_bytes, file_identifier: str, content_type: str | None = None):
+    try:
+        # Create a temporary file to store the uploaded contents
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+            # Write the uploaded contents to the temporary file
+            temp_file.write(file_bytes)
+            temp_file.flush()
+
+            # Store the file in GridFS
+            with open(temp_file.name, "rb") as f:
+                file_id = grid_fs.put(f, filename=file_identifier, content_type=content_type)
+        
+
+        return {"file_id": str(file_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/upload-resource")
 async def add_resource(
