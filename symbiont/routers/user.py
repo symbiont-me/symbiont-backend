@@ -17,8 +17,7 @@ async def login_user(request: Request):
         # if user already exists return
         user = users_collection.find_one({"_id": user_uid})
         if user:
-            logger.info(f"User already exists in db with id {user_uid}")
-            return {"message": "User already exists in db"}
+            return
 
         new_user = UserCollection(studies=[], settings={})
 
