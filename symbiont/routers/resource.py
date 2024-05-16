@@ -23,6 +23,7 @@ import tempfile
 
 from bson.objectid import ObjectId
 from ..utils.document_loaders import load_pdf
+from ..utils.llm_utils import summarise_plain_text_resource
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -55,24 +56,22 @@ def generate_signed_url(identifier: str) -> str:
 
 
 # TODO handle file types
-
-
 # TODO move this someplace else
 async def save_summary(study_id: str, study_resource: StudyResource, content: str):
-    # s = time.time()
-    # summary = summarise_plain_text_resource(content)
-    # logger.info("Content summarised")
-    # logger.info("Now adding summary to DB")
-    # if summary == "":
-    #     summary = "No summary available."
-    # studies_collection.update(
-    #     {"_id": study_id},
-    #     {"resources.identifier": study_resource.identifier},
-    #     {"$set": {"resources.$.summary": summary}},
-    # )
-    # logger.info(f"Summary added to resource {study_resource.identifier}")
-    # elapsed = time.time() - s
-    # logger.info(f"Summary added in {elapsed} seconds")
+    s = time.time()
+    summary = summarise_plain_text_resource(content)
+    if summary == "":
+        summary = "No summary available."
+        return {"message": "No summary available."}
+    logger.info("Adding summary to DB")
+    studies_collection.update(
+        {"_id": study_id},
+        {"resources.identifier": study_resource.identifier},
+        {"$set": {"resources.$.summary": summary}},
+    )
+    logger.info(f"Summary added to resource {study_resource.identifier}")
+    elapsed = time.time() - s
+    logger.info(f"Summary added in {elapsed} seconds")
     return {"message": "Summary added."}
 
 
