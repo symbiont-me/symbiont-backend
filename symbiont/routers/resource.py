@@ -64,11 +64,16 @@ async def save_summary(study_id: str, study_resource: StudyResource, content: st
         summary = "No summary available."
         return {"message": "No summary available."}
     logger.info("Adding summary to DB")
-    studies_collection.update(
-        {"_id": study_id},
-        {"resources.identifier": study_resource.identifier},
-        {"$set": {"resources.$.summary": summary}},
-    )
+
+    study_data = studies_collection.find_one({"_id": study_id})
+    resources = study_data["resources"]
+
+    for res in resources:
+        if res["identifier"] == study_resource.identifier:
+            res["summary"] = summary
+            break
+    studies_collection.update_one({"_id": study_id}, {"$set": {"resources": resources}})
+
     logger.info(f"Summary added to resource {study_resource.identifier}")
     elapsed = time.time() - s
     logger.info(f"Summary added in {elapsed} seconds")
