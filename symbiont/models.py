@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel, HttpUrl
 
 
@@ -70,14 +70,63 @@ class Chat(BaseModel):
     user: List[str] = []
 
 
+class VectorItem(BaseModel):
+    page: int
+    source: str
+    text: str
+
+
+class VectorHash(BaseModel):
+    hash: Dict[str, VectorItem]
+
+
+class Vectors(BaseModel):
+    identifier: Dict[str, VectorHash]
+
+
 class Study(BaseModel):
-    chat: Chat
+    chat: List
     createdAt: str
     description: str
     name: str
     image: str
     resources: List[Resource]
     userId: str
+    vectors: dict = {}
+
+
+# Redundant
+class StudyCollection(BaseModel):
+    _id: str
+    chat: Chat
+    createdAt: str
+    description: str
+    image: str
+    resources: List[Resource]
+    userId: str
+    vectors: Vectors = Vectors(identifier={})
+
+
+class UserSettings(BaseModel):
+    llm_model: LLMModel | None = LLMModel.GPT_3_5_TURBO_16K
+    embedding_model: EmbeddingModels | None = EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_LARGE
+    temperature: float = 0.0
+    max_tokens: int = 1500
+
+
+class UserCollection(BaseModel):
+    studies: List[str] = []
+    settings: UserSettings
+
+
+class ResourceCollection(BaseModel):
+    _id: str
+    studyId: str
+    name: str
+    url: str
+    identifier: str
+    category: str
+    summary: str = ""
 
 
 class CreateStudyRequest(BaseModel):
@@ -119,7 +168,8 @@ class ChatMessage(BaseModel):
 class StudyResource(BaseModel):
     studyId: str
     name: str
-    url: str
+    url: str = ""
+    storage_ref: str = ""
     identifier: str
     category: str
     summary: str = ""

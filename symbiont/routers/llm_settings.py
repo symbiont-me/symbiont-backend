@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, status, Cookie
 from pydantic import BaseModel
-from firebase_admin import firestore
 from fastapi import Request, Response
-from ..llms import get_user_llm_settings
 from typing import Annotated
 from .. import logger
+from ..mongodb import users_collection
+
 
 router = APIRouter()
 
@@ -20,33 +20,27 @@ async def set_llm_settings(
     request: Request,
     response: Response,
 ):
-    db = firestore.client()
     user_uid = request.state.verified_user["user_id"]
-    user_doc = db.collection("users").document(user_uid)
-    user_data = user_doc.get().to_dict()
-    if user_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    user_settings = user_data.get("settings")
-    if user_settings is None:
-        user_settings = {}
-
-    # @note don't save the api_key in the database
-    user_settings["llm_name"] = settings.llm_name
-    user_doc.update({"settings": user_settings})
+    # we attach the api_key to the response as we are not storing it in the database
     response.set_cookie(key="api_key", value=settings.api_key, samesite="None", secure=True)
+    # delete the api_key from the settings object for security
+    del settings.api_key
+    update_data = {"$set": {"settings": settings.model_dump()}}
+    # Note User settings already exits with default values
+    users_collection.update_one({"_id": user_uid}, update_data)
+
+    # if every thing is fine we return the settings in the cookies
     response.set_cookie(key="llm_name", value=settings.llm_name, samesite="None", secure=True)
     logger.info("LLM settings updated")
-
     return {"message": "LLM settings saved"}
 
 
 @router.get("/get-llm-settings")
 async def get_llm_settings(request: Request, api_key: Annotated[str | None, Cookie()] = None):
     user_uid = request.state.verified_user["user_id"]
-    user_settings = get_user_llm_settings(user_uid)
+
+    user_settings = users_collection.find_one({"_id": user_uid}).get("settings")
+    logger.info(f"LLM settings retrieved: {user_settings}")
     if user_settings is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

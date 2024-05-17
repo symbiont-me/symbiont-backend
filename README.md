@@ -1,7 +1,9 @@
 # Symbiont Backend
 
 ## Setup
+
 ### Development Environment
+
 <details>
   <summary>Prepare .env.dev and build image</summary>
      
@@ -23,16 +25,21 @@ TOGETHER_API_KEY=value
 ```
 
 #### 2. Build and Run
+
 Build and run the docker image for dev environment:
+
 ```bash
 docker-compose --profile dev up
 ```
+
 This will run the API server at port `0.0.0.0:8000`
+
 </details>
 
-___
+---
 
 ### Production Environment
+
 <details>
   <summary>Prepare .env.prod and build image</summary>
   
@@ -58,3 +65,16 @@ docker-compose --profile prod up
 ```
 This will run the API server at port `0.0.0.0:80`
 </details>
+
+#### 3. Running with Local MongoDB instance
+
+- Make sure docker is running
+- Run the following commands:
+
+```bash
+docker pull mongo
+# if running for the first time this will start local mongo instance with a mounted volume for data persistence
+docker run -d -p 27017:27017 -v $(pwd)/database:/data/db --name symbiont mongo:latest
+# to run an existing container created by the above command
+docker start symbiont
+```

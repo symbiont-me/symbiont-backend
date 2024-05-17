@@ -36,7 +36,7 @@ pytest-tornasync = "^0.6.0.post2"
 pytest-trio = "^0.8.0"
 pytest-twisted = "^1.14.1"
 twisted = "^24.3.0"
-pymupdf = "^1.24.2"
+pymongo = "^4.6.3"
 
 [tool.poetry.scripts]
 delete_namespace = "scripts.delete_pinecone_vecs:main"

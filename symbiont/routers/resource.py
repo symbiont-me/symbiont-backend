@@ -1,14 +1,10 @@
 from datetime import datetime, timedelta
-from firebase_admin import firestore, storage
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    HTTPException,
-    UploadFile,
-    Request,
-)
+from io import BytesIO
+from firebase_admin import storage
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, Request
+from fastapi.responses import StreamingResponse
+
 from ..models import (
-    FileUploadResponse,
     StudyResource,
     AddYoutubeVideoRequest,
     AddWebpageResourceRequest,
@@ -20,10 +16,15 @@ from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from pydantic import BaseModel
 from .. import logger
-from ..utils.llm_utils import summarise_plain_text_resource
 import time
+from ..mongodb import studies_collection, grid_fs, grid_fs_bucket
+from ..repositories.study_resource_repo import StudyResourceRepo
 import tempfile
+
+from bson.objectid import ObjectId
 from ..utils.document_loaders import load_pdf
+from ..utils.llm_utils import summarise_plain_text_resource
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,72 +55,46 @@ def generate_signed_url(identifier: str) -> str:
     return url
 
 
-def upload_to_firebase_storage(
-    file_bytes: bytes, file_identifier: str, file_name: str, user_id: str, file_type: str
-) -> FileUploadResponse:
-    try:
-        accepted_file_types = ["pdf", "jpg"]
-        if file_type not in accepted_file_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file type",
-            )
-        bucket = storage.bucket()
-        storage_path = f"userFiles/{user_id}/{file_identifier}"
-
-        blob = bucket.blob(storage_path)
-        logger.debug(f"Type of the file {file_type}")
-        # Set content type based on file_type
-        content_type = ""
-        if file_type == "pdf":
-            content_type = "application/pdf"
-        elif file_type == "jpg":
-            content_type = "image/jpeg"
-        # TODO Add more file types
-
-        blob.upload_from_string(file_bytes, content_type=content_type)
-        url = blob.media_link
-        download_url = generate_signed_url(storage_path)
-
-        if url:
-            return FileUploadResponse(
-                identifier=file_identifier,
-                file_name=file_name,
-                url=url,
-                download_url=download_url,
-            )
-        else:
-            raise HTTPException(status_code=500, detail="Failed to get the file URL.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # TODO handle file types
-
-
-# NOTE I don't like this
 # TODO move this someplace else
 async def save_summary(study_id: str, study_resource: StudyResource, content: str):
     s = time.time()
     summary = summarise_plain_text_resource(content)
-    logger.info("Content summarised")
-    logger.info("Now adding summary to DB")
     if summary == "":
         summary = "No summary available."
-    db = firestore.client()
-    study_ref = db.collection("studies").document(study_id)
-    study_dict = study_ref.get().to_dict()
-    if study_dict is None:
-        raise HTTPException(status_code=404, detail="Study not found")
-    resources = study_dict.get("resources", [])
-    for resource in resources:
-        if resource.get("identifier") == study_resource.identifier:
-            resource["summary"] = summary
-            study_ref.update({"resources": resources})
-            logger.info(f"Summary added to resource {study_resource.identifier}")
-            elapsed = time.time() - s
-            logger.info(f"Summary added in {elapsed} seconds")
-            return {"message": "Summary added."}
+        return {"message": "No summary available."}
+    logger.info("Adding summary to DB")
+
+    study_data = studies_collection.find_one({"_id": study_id})
+    resources = study_data["resources"]
+
+    for res in resources:
+        if res["identifier"] == study_resource.identifier:
+            res["summary"] = summary
+            break
+    studies_collection.update_one({"_id": study_id}, {"$set": {"resources": resources}})
+
+    logger.info(f"Summary added to resource {study_resource.identifier}")
+    elapsed = time.time() - s
+    logger.info(f"Summary added in {elapsed} seconds")
+    return {"message": "Summary added."}
+
+
+async def upload_to_storage(file_bytes, file_identifier: str, content_type: str | None = None):
+    try:
+        # Create a temporary file to store the uploaded contents
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+            # Write the uploaded contents to the temporary file
+            temp_file.write(file_bytes)
+            temp_file.flush()
+
+            # Store the file in GridFS
+            with open(temp_file.name, "rb") as f:
+                file_id = grid_fs.put(f, filename=file_identifier, content_type=content_type)
+
+        return {"file_id": str(file_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/upload-resource")
@@ -134,36 +109,37 @@ async def add_resource(
     user_uid = request.state.verified_user["user_id"]
     try:
         unique_file_identifier = make_file_identifier(file.filename)
+
         file_bytes = await file.read()
 
+        upload_result = await upload_to_storage(file_bytes, unique_file_identifier, file.content_type)
+        # upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
-        upload_result = upload_to_firebase_storage(
-            file_bytes, unique_file_identifier, file.filename, user_uid, file_type=file_extension
-        )
-        logger.info("File resource uploaded to Firebase")
-
+        logger.debug(f"File uploaded to storage: {upload_result}")
         study_resource = StudyResource(
             studyId=studyId,
-            identifier=upload_result.identifier,
-            name=upload_result.file_name,
-            url=upload_result.url,  # TODO should be view_url for clarity here and in the frontend
+            identifier=unique_file_identifier,
+            name=file.filename,
+            url="",  # NOTE for other file types this may still be needed
+            storage_ref=upload_result["file_id"],  # NOTE: this is the _id from GridFS, used for retrieval
             category=file_extension,
         )
-
-        study_service = StudyService(user_uid, studyId)
+        #
         pc_service = PineconeService(
             study_id=study_resource.studyId,
             resource_identifier=study_resource.identifier,
             user_uid=user_uid,
             user_query=None,
-            resource_download_url=upload_result.download_url,
         )
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
             temp.write(file_bytes)
             metadata = load_pdf(temp.name, unique_file_identifier)
         logger.debug(f"Pdf loader extractracted number of pages: {len(metadata)}")
         await pc_service.add_file_resource_to_pinecone(metadata)
-        study_service.add_resource_to_db(study_resource)
+
+        study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=studyId)
+        study_resources_repo.add_study_resource_to_db()
+
         return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
     except Exception as e:
         # TODO delete from storage if it fails
@@ -171,15 +147,32 @@ async def add_resource(
         raise HTTPException(status_code=500, detail="Failed to add resource. Try Again.")
 
 
+@router.get("/get-file-from-storage")
+async def get_file_from_storage(storage_ref: str):
+    logger.debug(f"Retrieving file from storage: {storage_ref}")
+    file = grid_fs.get(ObjectId(storage_ref))
+    file_content = file.read()
+    # logger.debug(file_content)
+    return StreamingResponse(BytesIO(file_content), media_type="application/octet-stream")
+    # try:
+    #     file = grid_fs.get(storage_ref)
+    #     file_content = file.read()
+    #     logger.debug(file_content)
+    #     return file_content
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/get-resources")
 async def get_resources(studyId: str, request: Request):
     user_uid = request.state.verified_user["user_id"]
-    study_service = StudyService(user_uid, studyId)
-    study_dict = study_service.get_document_dict()
-    if study_dict is None:
-        raise HTTPException(status_code=404, detail="Study not found")
-    resources = study_dict.get("resources", [])
-    logger.debug(f"Resources: {resources}")
+    studies = studies_collection.find({"_id": studyId})
+    if studies["userId"] != user_uid:
+        raise HTTPException(
+            status_code=404,
+            detail="User Not Authorized to Access Study",
+        )
+    resources = studies["resources"]
     return ResourceResponse(
         resources=[StudyResource(**resource) for resource in resources],
         status_code=200,
@@ -234,11 +227,14 @@ async def add_yt_resource(
                 url=str(url),
                 category="video",
             )
+
             await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
-            # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
-            study_service = StudyService(user_uid, video_resource.studyId)
-            study_service.add_resource_to_db(study_resource)
             yt_resources.append(study_resource)
+
+            # mongodb
+            # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
+            study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=video_resource.studyId)
+            study_resources_repo.add_study_resource_to_db()
 
             logger.info(f"Youtube video added to Pinecone {study_resource}")
             background_tasks.add_task(
@@ -262,7 +258,6 @@ async def add_webpage_resource(
 ):
     user_uid = request.state.verified_user["user_id"]
     study_service = StudyService(user_uid, webpage_resource.studyId)
-    # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
 
     if not webpage_resource.urls:
         raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
@@ -300,7 +295,12 @@ async def add_webpage_resource(
                     detail="There is no content in the webpage. Please try again",
                 )
             await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
-            study_service.add_resource_to_db(study_resource)
+            # mongodb
+            study_resources_repo = StudyResourceRepo(
+                study_resource, user_id=user_uid, study_id=webpage_resource.studyId
+            )
+            study_resources_repo.add_study_resource_to_db()
+
             logger.info(f"Web Resource added {study_resource}")
             background_tasks.add_task(
                 save_summary,
@@ -329,7 +329,6 @@ async def add_plain_text_resource(
 ):
     user_uid = request.state.verified_user["user_id"]
 
-    # user_uid = "U38yTj1YayfqZgUNlnNcKZKNCVv2"
     study_resource = StudyResource(
         studyId=plain_text_resource.studyId,
         identifier=make_file_identifier(plain_text_resource.name),
@@ -343,12 +342,13 @@ async def add_plain_text_resource(
         user_uid=user_uid,
         resource_identifier=study_resource.identifier,
     )
-    study_service = StudyService(user_uid, plain_text_resource.studyId)
 
     # TODO rename the method as used for both plain text and webpage
     await pc_service.upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
 
-    study_service.add_resource_to_db(study_resource)
+    study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=plain_text_resource.studyId)
+    study_resources_repo.add_study_resource_to_db()
+
     background_tasks.add_task(
         save_summary,
         plain_text_resource.studyId,
@@ -373,44 +373,38 @@ class DeleteResourceResponse(BaseModel):
 async def delete_resource_from_study(delete_request: DeleteResourceRequest, request: Request):
     try:
         s = time.time()
-        db = firestore.client()
-        batch = db.batch()
-        logger.debug(f"Deleting resource {delete_request.identifier}")
-        logger.debug(f"Deleting resource {delete_request.study_id}")
-        identifier = delete_request.identifier
+
+        study_id, resource_identifier = delete_request.study_id, delete_request.identifier
+        storage_ref = studies_collection.find_one(  # get the storage ref
+            {"_id": study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+        )["resources"][0]["storage_ref"]
+
         user_uid = request.state.verified_user["user_id"]
         pc_service = PineconeService(
             study_id=str(delete_request.study_id),
-            resource_identifier=identifier,
+            resource_identifier=resource_identifier,
             user_uid=user_uid,
         )
-        db = firestore.client()
-        study = db.collection("studies").document(delete_request.study_id)
-        if study is None:
-            raise HTTPException(status_code=404, detail="Study not found")
+        # delete from pinecone
+        pc_service.delete_vectors_from_pinecone(resource_identifier)
 
-        resources_list = study.get().to_dict().get("resources")
-        vectors = study.get().to_dict().get("vectors")
-        if resources_list and vectors is None:
-            raise HTTPException(status_code=404, detail="Resources or Vector not found")
-        resource_to_delete = None
-        for resource in resources_list:
-            if resource["identifier"] == identifier:
-                resources_list.remove(resource)
-                resource_to_delete = resource
-        logger.debug(f"Resource {identifier} deleted from study {delete_request.study_id}")
-        logger.debug("delete vectors from db")
-        vectors.pop(identifier)
-        batch.update(db.collection("studies").document(delete_request.study_id), {"resources": resources_list})
-        batch.update(db.collection("studies").document(delete_request.study_id), {"vectors": vectors})
-        pc_service.delete_vectors_from_pinecone(identifier)
-        if resource["category"] in ["pdf", "audio", "image"]:
-            delete_resource_from_storage(user_uid, identifier)
-            logger.info(f"Resource {identifier} deleted from storage")
+        # get the resource to delete
+        resources = studies_collection.find_one(
+            {"_id": delete_request.study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+        )
+        resource_to_delete = resources["resources"][0]
+        logger.debug(f"REsource to delete: {resource_to_delete}")
+        if resource_to_delete["category"] in ["pdf", "audio", "image"]:
+            # delete_resource_from_storage(user_uid, resource_identifier)
+            grid_fs_bucket.delete(file_id=ObjectId(storage_ref))
+            logger.info(f"Resource {resource_identifier } deleted from storage")
+        # remove from db
+        studies_collection.update_one({"_id": study_id}, {"$pull": {"resources": {"identifier": resource_identifier}}})
+        # # remove vecotor refs from db
+        studies_collection.update_one({"_id": study_id}, {"$unset": {"vectors." + resource_identifier: ""}})
         elapsed = time.time() - s
         logger.info(f"Resource deleted in {elapsed} seconds")
-
-        batch.commit()
+        #
         return DeleteResourceResponse(
             message="Resource deleted.",
             status_code=200,
