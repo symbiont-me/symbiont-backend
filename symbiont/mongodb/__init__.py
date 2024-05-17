@@ -1,14 +1,16 @@
+from logging import raiseExceptions
 from .. import logger
 import os
 from gridfs import GridFS, GridFSBucket
 import pymongo
 from pymongo.server_api import ServerApi
+from pymongo import MongoClient
 
 
 def init_db_collections(db):
     studies_collection = db["studies"]
     users_collection = db["users"]
-    resources_collection = db["resources"]
+    resources_collection = db["resources"]  # NOTE we'll use these after restructuring the database
     vectors_collection = db["vectors"]
     return studies_collection, users_collection
 
@@ -23,8 +25,9 @@ mongo_db_name = os.getenv("MONGO_DB_NAME", "symbiont-dev")
 if not mongo_uri or not mongo_db_name or not mongo_port:
     raise ValueError("MONGO_URI, MONGO_DB_NAME, and MONGO_PORT must be set in the environment")
 
-
-client = None
+    if not mongo_uri or not mongo_port or not mongo_db_name:
+        logger.error("MONGO Settings are not set in the environment variable")
+        raise ValueError("MONGO Settings are not set in the environment variable")
 
 try:
     # TODO add code for handling localhost connection
@@ -45,9 +48,12 @@ except pymongo.errors.ServerSelectionTimeoutError as err:
     logger.error("Connection to MongoDB failed")
     logger.error(err)
 
-
-if client:
     db = client[mongo_db_name]
     studies_collection, users_collection = init_db_collections(db)
     grid_fs = GridFS(db)
     grid_fs_bucket = GridFSBucket(db)
+
+    return client, db, studies_collection, users_collection, grid_fs, grid_fs_bucket
+
+
+client, db, studies_collection, users_collection, grid_fs, grid_fs_bucket = init_mongo_db()

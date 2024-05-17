@@ -11,6 +11,8 @@ import time
 import datetime
 from .. import logger
 import os
+from ..mongodb import users_collection
+
 
 google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 
@@ -130,11 +132,6 @@ async def get_llm_response(llm, user_query: str, context: str):
 
 # TODO move to routers/llm_settings.py
 def get_user_llm_settings(user_uid: str):
-    db = firestore.client()
-    doc_ref = db.collection("users").document(user_uid)
-    if not doc_ref:
-        raise ValueError("User not found")
-    else:
-        settings = doc_ref.get().get("settings")
-        logger.info(f"User settings: {settings}")
-        return settings
+    user_llm_settings = users_collection.find_one({"_id": user_uid}).get("settings")
+    logger.debug(f"User LLM Settings: {user_llm_settings}")
+    return user_llm_settings
