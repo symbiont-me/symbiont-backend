@@ -17,6 +17,13 @@ mongo_uri = os.getenv("MONGO_URI", "")
 mongo_port = 27017  # hardcoding this for now
 mongo_db_name = os.getenv("MONGO_DB_NAME", "symbiont-dev")
 
+
+# TODO make sure none of these are None before proceeding
+
+if not mongo_uri or not mongo_db_name or not mongo_port:
+    raise ValueError("MONGO_URI, MONGO_DB_NAME, and MONGO_PORT must be set in the environment")
+
+
 client = None
 
 try:
