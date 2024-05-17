@@ -15,7 +15,7 @@ class LLMModel(str, Enum):
     GPT_4 = "gpt-4"
     GPT_4_32k = "gpt-4-32k"
     CLAUDE_3_OPUS_20240229 = "claude-3-opus-20240229"
-    CLAUDE_3_SONNET_2024022 = "claude-3-sonnet-2024022"
+    CLAUDE_3_SONNET_2024022 = "claude-3-sonnet-20240229"
     CLAUDE_3_HAIKU_20240307 = "claude-3-haiku-20240307"
     CLAUDE_2_1 = "claude-2.1"
     CLAUDE_2_0 = "claude-2.0"
