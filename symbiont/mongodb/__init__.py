@@ -27,13 +27,14 @@ if not mongo_uri or not mongo_db_name or not mongo_port:
 client = None
 
 try:
-    if os.getenv("FASTAPI_ENV") == "development":
-        client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
-        # client = pymongo.MongoClient(
-        #     mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000
-        # )  # add timeout for connection
-    elif os.getenv("FASTAPI_ENV") == "production":
-        client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
+    # TODO add code for handling localhost connection
+    # if os.getenv("FASTAPI_ENV") == "development":
+    # client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
+    # client = pymongo.MongoClient(
+    #     mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000
+    # )  # add timeout for connection
+    # elif os.getenv("FASTAPI_ENV") == "production":
+    client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
     # client.server_info()  # force connection on a request as the
 
     if client is None:
@@ -42,6 +43,7 @@ try:
     logger.info("Pinged! Connection to MongoDB was successful")
 except pymongo.errors.ServerSelectionTimeoutError as err:
     logger.error("Connection to MongoDB failed")
+    logger.error(err)
 
 
 if client:
