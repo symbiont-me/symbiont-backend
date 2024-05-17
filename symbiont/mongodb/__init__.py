@@ -28,9 +28,10 @@ client = None
 
 try:
     if os.getenv("FASTAPI_ENV") == "development":
-        client = pymongo.MongoClient(
-            mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000
-        )  # add timeout for connection
+        client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
+        # client = pymongo.MongoClient(
+        #     mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000
+        # )  # add timeout for connection
     elif os.getenv("FASTAPI_ENV") == "production":
         client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
     # client.server_info()  # force connection on a request as the
