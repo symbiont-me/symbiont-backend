@@ -14,7 +14,7 @@ def init_db_collections(db):
 
 
 mongo_uri = os.getenv("MONGO_URI")
-mongo_port = os.getenv("MONGO_PORT")
+mongo_port = 27017  # hardcoding this for now
 mongo_db_name = os.getenv("MONGO_DB_NAME")
 
 client = None
