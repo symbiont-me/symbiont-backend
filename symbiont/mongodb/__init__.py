@@ -13,9 +13,9 @@ def init_db_collections(db):
     return studies_collection, users_collection
 
 
-mongo_uri = os.getenv("MONGO_URI")
+mongo_uri = os.getenv("MONGO_URI", "")
 mongo_port = 27017  # hardcoding this for now
-mongo_db_name = os.getenv("MONGO_DB_NAME")
+mongo_db_name = os.getenv("MONGO_DB_NAME", "symbiont-dev")
 
 client = None
 
