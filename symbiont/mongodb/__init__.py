@@ -15,39 +15,35 @@ def init_db_collections(db):
     return studies_collection, users_collection
 
 
-mongo_uri = os.getenv("MONGO_URI", "")
-mongo_port = 27017  # hardcoding this for now
-mongo_db_name = os.getenv("MONGO_DB_NAME", "symbiont-dev")
+def init_mongo_db():
+    mongo_uri = os.getenv("MONGO_URI")
+    mongo_port = os.getenv("MONGO_PORT", 27017)
+    mongo_db_name = os.getenv("MONGO_DB_NAME")
 
+    if not all([mongo_uri, mongo_port, mongo_db_name]):
+        raise Exception("MONGO_URI, MONGO_PORT, MONGO_DB_NAME environment variables are not set")
 
-# TODO make sure none of these are None before proceeding
+    client = None
+    db = None
+    try:
+        if os.getenv("FASTAPI_ENV") == "development" and mongo_uri == "localhost":
+            client = MongoClient(mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000)
+        elif os.getenv("FASTAPI_ENV") == "development":
+            client = MongoClient(mongo_uri, server_api=ServerApi("1"))
 
-if not mongo_uri or not mongo_db_name or not mongo_port:
-    raise ValueError("MONGO_URI, MONGO_DB_NAME, and MONGO_PORT must be set in the environment")
+        elif os.getenv("FASTAPI_ENV") == "production":
+            client = MongoClient(mongo_uri, server_api=ServerApi("1"))
+        # client.server_info()  # force connection on a request as the
 
-    if not mongo_uri or not mongo_port or not mongo_db_name:
-        logger.error("MONGO Settings are not set in the environment variable")
-        raise ValueError("MONGO Settings are not set in the environment variable")
-
-try:
-    # TODO add code for handling localhost connection
-    # if os.getenv("FASTAPI_ENV") == "development":
-    # client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
-    # client = pymongo.MongoClient(
-    #     mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000
-    # )  # add timeout for connection
-    # elif os.getenv("FASTAPI_ENV") == "production":
-    client = pymongo.MongoClient(mongo_uri, server_api=ServerApi("1"))
-    # client.server_info()  # force connection on a request as the
+        if client is None:
+            raise pymongo.errors.ServerSelectionTimeoutError
+        client.admin.command("ping")
+        logger.info("Pinged! Connection to MongoDB was successful")
+    except pymongo.errors.ServerSelectionTimeoutError as err:
+        logger.error("Connection to MongoDB failed")
 
     if client is None:
-        raise pymongo.errors.ServerSelectionTimeoutError
-    client.admin.command("ping")
-    logger.info("Pinged! Connection to MongoDB was successful")
-except pymongo.errors.ServerSelectionTimeoutError as err:
-    logger.error("Connection to MongoDB failed")
-    logger.error(err)
-
+        raise Exception("Connection to MongoDB failed")
     db = client[mongo_db_name]
     studies_collection, users_collection = init_db_collections(db)
     grid_fs = GridFS(db)
