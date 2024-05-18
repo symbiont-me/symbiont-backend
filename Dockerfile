@@ -41,8 +41,8 @@ CMD ["uvicorn", "symbiont.main:app", "--host", "0.0.0.0", "--port", "8000", "--r
 #####################
 # Production Image  #
 #####################
-FROM builder as prodcution
-ENV FASTAPI_ENV=prodcution
+FROM builder as production
+ENV FASTAPI_ENV=production
 COPY --from=builder $POETRY_HOME $POETRY_HOME
 COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
 WORKDIR $PYSETUP_PATH
