@@ -186,7 +186,6 @@ class QdrantRepository(BaseVectorRepository):
 
     def upsert_vectors(self, namespace: str, docs):
         vectors = []
-        namespace = "chat_context"
         for doc in docs:
             vec = self.embed_single_document(doc)
             vectors.append(vec)
@@ -226,8 +225,7 @@ vector_store_repos = {
 
 
 class VectorStoreContext:
-    def __init__(self, docs: List):
-        self.docs = docs
+    def __init__(self):
         self.vector_store = vector_store_settings.vector_store
         # NOTE this instiates the vector store repo using the object
         self.vector_store_repo = vector_store_repos[vector_store_settings.vector_store]()
@@ -260,22 +258,53 @@ def get_vec_refs_from_db(file_identifier, ids):
 # 3. we have to create embeddings for each chunk
 # 4. we have to use the standard return object
 class ChatContextService(VectorStoreContext):
-    def __init__(self, user_id: str = "", file_identifier: str = "", user_query: str = "", docs: List = []):
-        super().__init__(docs)
+    def __init__(
+        self,
+        resource_doc,
+        resource_identifier,
+        resource_type,
+        user_id: str = "",
+        file_identifier: str = "",
+        user_query: str = "",
+    ):
+        super().__init__()
         self.user_id = user_id
-        self.file_identifier = file_identifier
+        self.resource_identifier = resource_identifier
         self.user_query = user_query
+        self.resource_doc = resource_doc
+        self.resource_type = resource_type
+
+    def add_pdf_resource(self):
+        pass
+
+    def add_web_resource(self):
+        pass
+
+    def add_yt_resource(self):
+        pass
+
+    # TODO use this general approach
+
+    # resource_adders = {
+    #     "pdf": add_pdf_resource,
+    #     "web": add_web_resource,
+    #     "yt": add_yt_resource,
+    #         }
 
     # TODO this should single Document
-    def add_resource(self, file_identifier, docs):
-        content = docs[0].page_content
+    def add_resource(self):
+        # if self.resource_type not in self.resource_adders:
+        #     raise ValueError("Resource type not supported")
+        # self.resource_adders[self.resource_type](self)
+
+        content = self.resource_doc.page_content
         split_texts = text_splitter.create_documents([content])
         docs = [
             DocumentPage(
                 page_content=split_text.page_content,
                 metadata={
                     "text": split_text.page_content,
-                    "source": file_identifier,
+                    "source": self.resource_identifier,
                     "page": 0,
                 },
             )
@@ -283,7 +312,7 @@ class ChatContextService(VectorStoreContext):
         ]
 
         print(len(docs))
-        ids = self.vector_store_repo.upsert_vectors(file_identifier, docs)
+        ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
         print(ids)
         # create_vec_refs_in_db(ids, file_identifier, docs, self.user_id)
 
