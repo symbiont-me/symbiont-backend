@@ -393,6 +393,9 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
         # delete from pinecone
         pc_service.delete_vectors_from_pinecone(resource_identifier)
 
+        chat_context_service = ChatContextService(resource_identifier=resource_identifier)
+        chat_context_service.delete_context()
+
         # get the resource to delete
         resources = studies_collection.find_one(
             {"_id": delete_request.study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}

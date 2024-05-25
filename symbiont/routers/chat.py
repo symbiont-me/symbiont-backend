@@ -17,6 +17,10 @@ import time
 from typing import Annotated, List
 import asyncio
 from ..mongodb import studies_collection
+
+from ..vector_dbs.vector_service import ChatContextService
+
+
 ####################################################
 #                   CHAT                           #
 ####################################################
@@ -78,6 +82,8 @@ async def chat(
         user_query=user_query,
     )
 
+    chat_context_service = ChatContextService(resource_identifier=resource_identifier)
+
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
         chat_context_results = await pc_service.get_combined_chat_context()
@@ -100,6 +106,8 @@ async def chat(
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
         context_start_time = time.time()
+        qdrant_result = chat_context_service.get_chat_context(user_query)
+
         result = await pc_service.get_single_chat_context()
         if result is None:
             logger.debug("No context found, retuning no context response")
