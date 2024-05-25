@@ -20,7 +20,7 @@ from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSpli
 from langchain_voyageai import VoyageAIEmbeddings
 
 from ..models import EmbeddingModels, CohereTextModels, DocumentPage
-
+from .. import logger
 
 # 1. Set up a Milvus client
 # from env read name of the vector store
@@ -85,6 +85,11 @@ class BaseVectorRepository(ABC):
     def search_vectors(self, namespace: str, query: str, limit: int) -> List[VectorSearchResult]:
         pass
 
+    # removes the vectors associated with the resource
+    @abstractmethod
+    def delete_vectors(self, namespace: str):
+        pass
+
     # TODO remove this and the one below
     def create_embeddings(self):
         pass
@@ -122,31 +127,31 @@ embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=Embed
 voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
 
-class EmbeddingsService:
-    def init_embeddings_model(self, model_name: str):
-        if model_name == "bge-base-en":
-            model_name = "BAAI/bge-base-en"
-            model_kwargs = {"device": "cpu"}
-            encode_kwargs = {"normalize_embeddings": True}
-            return HuggingFaceBgeEmbeddings(
-                model_name=model_name,
-                model_kwargs=model_kwargs,
-                encode_kwargs=encode_kwargs,
-            )
-
-    def __init__(self, model_name: str):
-        self.model = self.init_embeddings_model(model_name)
-
-    def create_docs_embeddings(self, docs):
-        docs_for_embedding = [doc.page_content for doc in docs]
-        if self.model is not None:
-            embeddings = [self.model.embed_query(text) for text in docs_for_embedding]
-            return embeddings
-        else:
-            raise ValueError("Embeddings model not initialized")
-
-
-embeddings_service = EmbeddingsService("bge-base-en")
+# class EmbeddingsService:
+#     def init_embeddings_model(self, model_name: str):
+#         if model_name == "bge-base-en":
+#             model_name = "BAAI/bge-base-en"
+#             model_kwargs = {"device": "cpu"}
+#             encode_kwargs = {"normalize_embeddings": True}
+#             return HuggingFaceBgeEmbeddings(
+#                 model_name=model_name,
+#                 model_kwargs=model_kwargs,
+#                 encode_kwargs=encode_kwargs,
+#             )
+#
+#     def __init__(self, model_name: str):
+#         self.model = self.init_embeddings_model(model_name)
+#
+#     def create_docs_embeddings(self, docs):
+#         docs_for_embedding = [doc.page_content for doc in docs]
+#         if self.model is not None:
+#             embeddings = [self.model.embed_query(text) for text in docs_for_embedding]
+#             return embeddings
+#         else:
+#             raise ValueError("Embeddings model not initialized")
+#
+#
+# embeddings_service = EmbeddingsService("bge-base-en")
 vector_store_settings = VectorStoreSettings()
 
 
@@ -172,7 +177,7 @@ class QdrantRepository(BaseVectorRepository):
                 vectors_config=VectorParams(size=vector_size, distance=Distance.DOT),
             )
 
-    def create_points_for_upsert(self, docs: List, embeddings: List):
+    def __create_points_for_upsert(self, docs: List, embeddings: List):
         payload_list = [{"page_content": ""} for _ in docs]
         points = Batch(
             ids=[str(uuid.uuid4()) for _ in range(len(docs))],
@@ -199,24 +204,27 @@ class QdrantRepository(BaseVectorRepository):
                 distance=Distance.DOT,
             )
         #
-        points = self.create_points_for_upsert(docs, vectors)
-        print(points)
+        points = self.__create_points_for_upsert(docs, vectors)
         self.client.upsert(collection_name=namespace, points=points)
         # return points.ids
         return []
 
     # TODO create a ScoredPoint type
-    def transform_search_results(self, search_results) -> List[VectorSearchResult]:
+    def __transform_search_results(self, search_results) -> List[VectorSearchResult]:
         return [VectorSearchResult(id=result.id, score=result.score) for result in search_results]
 
     def search_vectors(self, namespace: str, query, limit: int) -> List:
-        if embeddings_service.model is None:
+        if embeddings_model.model is None:
             raise ValueError("Embeddings model not initialized")
-        vectorised_query = embeddings_service.model.embed_query(query)
+        vectorised_query = embeddings_model.embed_query(query)
         results = self.client.search(collection_name=namespace, query_vector=vectorised_query, limit=limit)
-        transformed_results = self.transform_search_results(results)
-
+        transformed_results = self.__transform_search_results(results)
+        logger.info(f"Found {len(transformed_results)} results")
         return transformed_results
+
+    def delete_vectors(self, namespace: str):
+        self.client.delete_collection(collection_name=namespace)
+        logger.info(f"Deleted: Vectors for {namespace}")
 
 
 vector_store_repos = {
@@ -227,6 +235,10 @@ vector_store_repos = {
 class VectorStoreContext:
     def __init__(self):
         self.vector_store = vector_store_settings.vector_store
+        if self.vector_store not in vector_store_repos:
+            raise ValueError("Vector store not supported")
+        if vector_store_settings.vector_store is None:
+            raise ValueError("Set the Vector Store name")
         # NOTE this instiates the vector store repo using the object
         self.vector_store_repo = vector_store_repos[vector_store_settings.vector_store]()
 
@@ -260,11 +272,10 @@ def get_vec_refs_from_db(file_identifier, ids):
 class ChatContextService(VectorStoreContext):
     def __init__(
         self,
-        resource_doc,
-        resource_identifier,
-        resource_type,
+        resource_doc=None,
+        resource_identifier="",  # TODO make this a required param for initialisation
+        resource_type=None,
         user_id: str = "",
-        file_identifier: str = "",
         user_query: str = "",
     ):
         super().__init__()
@@ -278,26 +289,9 @@ class ChatContextService(VectorStoreContext):
         pass
 
     def add_web_resource(self):
-        pass
-
-    def add_yt_resource(self):
-        pass
-
-    # TODO use this general approach
-
-    # resource_adders = {
-    #     "pdf": add_pdf_resource,
-    #     "web": add_web_resource,
-    #     "yt": add_yt_resource,
-    #         }
-
-    # TODO this should single Document
-    def add_resource(self):
-        # if self.resource_type not in self.resource_adders:
-        #     raise ValueError("Resource type not supported")
-        # self.resource_adders[self.resource_type](self)
-
-        content = self.resource_doc.page_content
+        content = getattr(self.resource_doc, "page_content", None)
+        if content is None:
+            raise ValueError("There is no resource content to be added")
         split_texts = text_splitter.create_documents([content])
         docs = [
             DocumentPage(
@@ -310,17 +304,53 @@ class ChatContextService(VectorStoreContext):
             )
             for split_text in split_texts
         ]
+        self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
 
-        print(len(docs))
-        ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
-        print(ids)
+    def add_yt_resource(self):
+        content = getattr(self.resource_doc, "page_content", None)
+        if content is None:
+            raise ValueError("There is no resource content to be added")
+        split_texts = text_splitter.create_documents([content])
+        docs = [
+            DocumentPage(
+                page_content=split_text.page_content,
+                metadata={
+                    "text": split_text.page_content,
+                    "source": self.resource_identifier,
+                    "page": 0,
+                },
+            )
+            for split_text in split_texts
+        ]
+        self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
+
+    # TODO move this some place appropriate
+    resource_adders = {
+        "pdf": add_pdf_resource,
+        "webpage": add_web_resource,
+        "yt": add_yt_resource,
+    }
+
+    # TODO this should single Document
+    def add_resource(self):
+        if self.resource_type is None:
+            raise ValueError("Resource document not provided")
+        if self.resource_type not in self.resource_adders:
+            raise ValueError("Resource type not supported")
+        self.resource_adders[self.resource_type](self)
+
+    def delete_context(self):
+        self.vector_store_repo.delete_vectors(self.resource_identifier)
+
         # create_vec_refs_in_db(ids, file_identifier, docs, self.user_id)
 
     def get_chat_context(self, query: str):
-        results = self.vector_store_repo.search_vectors(namespace="chat_context", query=query, limit=25)
+        results = self.vector_store_repo.search_vectors(namespace=self.resource_identifier, query=query, limit=10)
         ids = [result.id for result in results]
-        print(ids)
-        get_vec_refs_from_db("chat_context", ids)
+        logger.debug(f"Found {len(ids)} results")
+        logger.debug(ids)
+        # TODO use ids to retrieve the data from the db
+        # get_vec_refs_from_db("chat_context", ids)
         # chat_context = self.rerank_results(results)
         return results
 
