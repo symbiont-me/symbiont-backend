@@ -1,4 +1,9 @@
+"""
+NOTE: Needs to be updated to make methods async where appropriate
+"""
+
 from qdrant_client import QdrantClient
+
 from qdrant_client.models import Distance, VectorParams
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -21,6 +26,8 @@ from langchain_voyageai import VoyageAIEmbeddings
 
 from ..models import EmbeddingModels, CohereTextModels, DocumentPage
 from .. import logger
+from ..mongodb import studies_collection
+
 
 # 1. Set up a Milvus client
 # from env read name of the vector store
@@ -155,6 +162,10 @@ voyage_api_key = os.getenv("VOYAGE_API_KEY")
 vector_store_settings = VectorStoreSettings()
 
 
+# TODO
+# studies_repo = ...
+
+
 class QdrantRepository(BaseVectorRepository):
     def __init__(self):
         self.dimension = vector_store_settings.vector_store_dimension
@@ -206,8 +217,8 @@ class QdrantRepository(BaseVectorRepository):
         #
         points = self.__create_points_for_upsert(docs, vectors)
         self.client.upsert(collection_name=namespace, points=points)
-        # return points.ids
-        return []
+        # TODO check if there were no errors
+        return points.ids
 
     # TODO create a ScoredPoint type
     def __transform_search_results(self, search_results) -> List[VectorSearchResult]:
@@ -246,14 +257,15 @@ class VectorStoreContext:
 mock_db = {}
 
 
-def create_vec_refs_in_db(ids, file_identifier, docs, user_id):
+def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
     if len(ids) != len(docs):
         raise ValueError("The lengths of 'ids' and 'docs' must be the same")
 
-    vec_data = {file_identifier: {}}
+    vec_data = {}
     for id, doc in zip(ids, docs):
-        vec_data[file_identifier][id] = VectorRef(source=file_identifier, page="", text=doc.page_content)
+        vec_data[id] = {"source": file_identifier, "page": doc.metadata.get("page"), "text": doc.page_content}
 
+    studies_collection.update_one({"_id": study_id}, {"$set": {file_identifier: vec_data}}, upsert=True)
     mock_db.update(vec_data)
     return mock_db
 
@@ -277,6 +289,7 @@ class ChatContextService(VectorStoreContext):
         resource_type=None,
         user_id: str = "",
         user_query: str = "",
+        study_id: str = "",
     ):
         super().__init__()
         self.user_id = user_id
@@ -284,6 +297,7 @@ class ChatContextService(VectorStoreContext):
         self.user_query = user_query
         self.resource_doc = resource_doc
         self.resource_type = resource_type
+        self.study_id = study_id
 
     def add_pdf_resource(self):
         pass
@@ -304,7 +318,8 @@ class ChatContextService(VectorStoreContext):
             )
             for split_text in split_texts
         ]
-        self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
+        ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
+        create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
     def add_yt_resource(self):
         content = getattr(self.resource_doc, "page_content", None)
