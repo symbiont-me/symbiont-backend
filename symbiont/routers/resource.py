@@ -297,7 +297,9 @@ async def add_webpage_resource(
 
             logger.debug(len(docs_transformed))
 
-            chat_context_service = ChatContextService(doc, unique_identifier, ResourceTypes.WEBPAGE)
+            chat_context_service = ChatContextService(
+                doc, unique_identifier, ResourceTypes.WEBPAGE, study_id=study_resource.studyId
+            )
             chat_context_service.add_resource()
             await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
             # mongodb
