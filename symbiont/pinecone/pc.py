@@ -168,7 +168,7 @@ class PineconeService:
         elapsed = time.time() - s
         logger.info("Vectorisation took (%s) s", elapsed)
         await self.upload_vecs_to_pinecone(vecs)
-        await self.create_vec_ref_in_db()
+        # await self.create_vec_ref_in_db()
 
     async def get_relevant_vectors(self, top_k=25):
         if self.resource_identifier is None or self.user_query is None:
