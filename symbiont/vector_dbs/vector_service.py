@@ -258,6 +258,7 @@ mock_db = {}
 
 
 def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
+    # TODO check user access
     if len(ids) != len(docs):
         raise ValueError("The lengths of 'ids' and 'docs' must be the same")
 
