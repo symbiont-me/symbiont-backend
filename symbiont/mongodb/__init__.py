@@ -1,10 +1,10 @@
-from logging import raiseExceptions
 from .. import logger
 import os
 from gridfs import GridFS, GridFSBucket
 import pymongo
 from pymongo.server_api import ServerApi
 from pymongo import MongoClient
+import time
 
 
 def init_db_collections(db):
@@ -26,21 +26,24 @@ def init_mongo_db():
     client = None
     db = None
     try:
+        logger.debug(f"Connecting to MongoDB at {mongo_uri}")
         if os.getenv("FASTAPI_ENV") == "development" and mongo_uri == "localhost":
             client = MongoClient(mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000)
         elif os.getenv("FASTAPI_ENV") == "development":
             client = MongoClient(mongo_uri, server_api=ServerApi("1"))
-
         elif os.getenv("FASTAPI_ENV") == "production":
             client = MongoClient(mongo_uri, server_api=ServerApi("1"))
         # client.server_info()  # force connection on a request as the
 
         if client is None:
             raise pymongo.errors.ServerSelectionTimeoutError
+        logger.debug("Pinging client ...")
+        start_time = time.time()
         client.admin.command("ping")
-        logger.info("Pinged! Connection to MongoDB was successful")
+        elapsed_time = time.time() - start_time
+        logger.info(f"Pinged in {elapsed_time}! Connection to MongoDB was successful")
     except pymongo.errors.ServerSelectionTimeoutError as err:
-        logger.error("Connection to MongoDB failed")
+        logger.error(f"Connection to MongoDB failed: {err}")
 
     if client is None:
         raise Exception("Connection to MongoDB failed")

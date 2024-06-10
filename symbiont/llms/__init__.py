@@ -3,7 +3,6 @@ from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain_core.pydantic_v1 import ValidationError
 from pydantic import BaseModel
-from firebase_admin import firestore
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from fastapi import HTTPException
@@ -53,7 +52,7 @@ def isAnthropicModel(llm_name: str) -> bool:
 
 
 def isGoogleModel(llm_name: str) -> bool:
-    return bool(re.match(r"gemini", llm_name))
+    return bool(re.match(r"(models/)?gemini", llm_name))
 
 
 class UsersLLMSettings(BaseModel):
@@ -95,6 +94,8 @@ def init_llm(settings: UsersLLMSettings, api_key: str):
                 convert_system_message_to_human=True,
             )
             return llm
+        else:
+            logger.critical(f"Couldn't detect the llm provider, {llm=}, {settings['llm_name']}")
     except ValidationError as e:
         if e.errors():
             logger.error(f"Error initializing LLM: {e.errors()}")

@@ -49,6 +49,7 @@ async def chat(
     user_query = chat.user_query
     #### INIT LLM ####
     llm_settings = get_user_llm_settings(user_uid)
+    logger.debug(f"Initializing {llm_settings=}")
     llm = init_llm(llm_settings, api_key)
 
     study_id = chat.study_id
