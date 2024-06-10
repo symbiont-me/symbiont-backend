@@ -7,3 +7,4 @@ __pycache__/
 symbiont/src/scripts/delete_pinecone_vecs.py
 gha-creds-*.json
 database/
+symbiont/tmp/*
