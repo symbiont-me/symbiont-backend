@@ -120,6 +120,7 @@ async def chat(
         citations = result[1]
         context_elapsed_time = time.time() - context_start_time
         logger.debug(f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}")
+        logger.debug(f"Context:\t{context}")
 
     async def generate_llm_response() -> AsyncGenerator[str, None]:
         """

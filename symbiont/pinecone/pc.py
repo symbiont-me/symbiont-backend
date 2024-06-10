@@ -77,13 +77,14 @@ class PineconeService:
         # TODO fix missing param error
         # NOTE: has a rate limit per seconds (I think) so it throws an error if you try to use it too much
         self.nltk_text_splitter = NLTKTextSplitter()
+        separators = ["\n\n", "  ", "\n", ". ", "; ", ", ", "? ", " "]
         self.recursive_text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=14000,
-            chunk_overlap=20,
-            length_function=len,
-            is_separator_regex=False,
-        )
-
+            chunk_size = 300,
+            chunk_overlap = 10,
+            length_function = lambda x: len(x.split()),
+            separators=separators
+            )
+        # NOTE: We're currently using the nltk text splitter; we might want to revisit the recursive splitter
         self.text_splitter = self.nltk_text_splitter
         self.db_vec_refs = {}
 
