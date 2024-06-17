@@ -131,8 +131,6 @@ voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
 embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
 
-voyage_api_key = os.getenv("VOYAGE_API_KEY")
-
 
 # class EmbeddingsService:
 #     def init_embeddings_model(self, model_name: str):
@@ -264,7 +262,11 @@ def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
 
     vec_data = {}
     for id, doc in zip(ids, docs):
-        vec_data[id] = {"source": file_identifier, "page": doc.metadata.get("page"), "text": doc.page_content}
+        vec_data[id] = {
+            "source": file_identifier,
+            "page": doc.metadata.get("page"),
+            "text": doc.page_content,
+        }
 
     studies_collection.update_one({"_id": study_id}, {"$set": {file_identifier: vec_data}}, upsert=True)
     mock_db.update(vec_data)
