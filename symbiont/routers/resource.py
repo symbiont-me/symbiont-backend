@@ -214,17 +214,6 @@ async def add_yt_resource(
                     detail="There is no content in the video. Please try again",
                 )
             unique_file_identifier = make_file_identifier(doc.metadata["title"])
-
-            chat_context_service = ChatContextService(doc, unique_file_identifier, ResourceTypes.YOUTUBE_VIDEO)
-            chat_context_service.add_resource()
-
-            pc_service = PineconeService(
-                study_id=video_resource.studyId,
-                resource_identifier=unique_file_identifier,
-                user_uid=user_uid,
-                user_query=None,
-            )
-
             study_resource = StudyResource(
                 studyId=video_resource.studyId,
                 identifier=unique_file_identifier,
@@ -233,13 +222,16 @@ async def add_yt_resource(
                 category="video",
             )
 
-            await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
-            yt_resources.append(study_resource)
-
+            chat_context_service = ChatContextService(
+                doc, unique_file_identifier, ResourceTypes.YOUTUBE, study_id=video_resource.studyId
+            )
+            chat_context_service.add_resource()
             # mongodb
             # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
             study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=video_resource.studyId)
             study_resources_repo.add_study_resource_to_db()
+
+            yt_resources.append(study_resource)
 
             logger.info(f"Youtube video added to Pinecone {study_resource}")
             background_tasks.add_task(
@@ -404,7 +396,7 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
 
         user_uid = request.state.verified_user["user_id"]
 
-        chat_context_service = ChatContextService(resource_identifier=resource_identifier)
+        chat_context_service = ChatContextService(resource_identifier=resource_identifier, study_id=study_id)
         # TODO this should handle the vector and resource deletion from db
         chat_context_service.delete_context()
 
