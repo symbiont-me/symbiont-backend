@@ -278,6 +278,7 @@ def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
     )
 
 
+# TODO this should be part of a db repo or service
 def get_vec_refs_from_db(study_id, file_identifier, ids) -> List:
     logger.info(f"Fetching Vectors from {study_id}")
 
@@ -375,6 +376,7 @@ class ChatContextService(VectorStoreContext):
             raise ValueError("Resource type not supported")
         self.resource_adders[self.resource_type](self)
 
+    # TODO Remove the context of db from here
     def delete_context(self):
         self.vector_store_repo.delete_vectors(self.resource_identifier)
 
