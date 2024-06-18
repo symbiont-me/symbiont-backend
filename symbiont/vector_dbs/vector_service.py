@@ -24,14 +24,20 @@ from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSpli
 
 from langchain_voyageai import VoyageAIEmbeddings
 
-from ..models import EmbeddingModels, CohereTextModels, DocumentPage
+from ..models import EmbeddingModels, CohereTextModels, DocumentPage, Citation
 from .. import logger
 from ..mongodb import studies_collection
-
+import cohere
+from typing import Union, Tuple
 
 # 1. Set up a Milvus client
 # from env read name of the vector store
 # from env read name of the embeddings model
+
+
+cohere_api_key = os.getenv("CO_API_KEY")
+
+co = cohere.Client(api_key=cohere_api_key or "")
 
 
 class Metadata(BaseModel):
@@ -252,9 +258,6 @@ class VectorStoreContext:
         self.vector_store_repo = vector_store_repos[vector_store_settings.vector_store]()
 
 
-mock_db = {}
-
-
 def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
     # TODO check user access
     if len(ids) != len(docs):
@@ -268,15 +271,30 @@ def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
             "text": doc.page_content,
         }
 
-    studies_collection.update_one({"_id": study_id}, {"$set": {file_identifier: vec_data}}, upsert=True)
-    mock_db.update(vec_data)
-    return mock_db
+    studies_collection.update_one(
+        {"_id": study_id},
+        {"$set": {f"vectors.{file_identifier}": vec_data}},
+        upsert=True,
+    )
 
 
-def get_vec_refs_from_db(file_identifier, ids):
-    print(f"found {len(ids)}")
-    results = [mock_db[file_identifier][id] for id in ids]
+def get_vec_refs_from_db(study_id, file_identifier, ids) -> List:
+    logger.info(f"Fetching Vectors from {study_id}")
 
+    logger.info("Fetching Vectors from DB")
+    results = []
+    study = studies_collection.find_one({"_id": study_id})
+    if study is None:
+        raise ValueError("Study not found")
+    study_vectors = study.get("vectors", {})
+    file_vectors = study_vectors.get(file_identifier, {})
+
+    for id in ids:
+        vec = file_vectors.get(id, {})
+        logger.debug(f"Found vector: {vec}")
+        results.append(vec)
+    logger.debug(f"Found {len(results)} vectors")
+    # TODO rename: this is the vec data from the db
     return results
 
 
@@ -292,7 +310,7 @@ class ChatContextService(VectorStoreContext):
         resource_type=None,
         user_id: str = "",
         user_query: str = "",
-        study_id: str = "",
+        study_id: str = "",  # TODO this should be required
     ):
         super().__init__()
         self.user_id = user_id
@@ -360,19 +378,38 @@ class ChatContextService(VectorStoreContext):
     def delete_context(self):
         self.vector_store_repo.delete_vectors(self.resource_identifier)
 
-        # create_vec_refs_in_db(ids, file_identifier, docs, self.user_id)
+    # TODO add the type for context
+    def rerank_context(self, context, query) -> Union[Tuple[str, List[Citation]], None]:
+        # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
+        if not context:
+            return None
+        logger.debug("Reranking")
+        reranked_context = co.rerank(
+            query=query,
+            documents=context,
+            top_n=3,
+            model=CohereTextModels.COHERE_RERANK_V2,
+        )
+        reranked_indices = [r.index for r in reranked_context.results]
+        citations = [context[i] for i in reranked_indices]
+        reranked_text = ""
+        for text in reranked_context.results:
+            reranked_text += text.document.get("text", "")
+        return (reranked_text, citations)
 
-    def get_chat_context(self, query: str):
+    # TODO document this
+    def get_single_chat_context(self, query: str) -> Union[Tuple[str, List[Citation]], None]:
         results = self.vector_store_repo.search_vectors(namespace=self.resource_identifier, query=query, limit=10)
         ids = [result.id for result in results]
         logger.debug(f"Found {len(ids)} results")
-        logger.debug(ids)
-        # TODO use ids to retrieve the data from the db
-        # get_vec_refs_from_db("chat_context", ids)
-        # chat_context = self.rerank_results(results)
-        return results
+        vectors_metadata_from_db = get_vec_refs_from_db(self.study_id, self.resource_identifier, ids)
+        logger.debug(f"Found {len(vectors_metadata_from_db)} vectors from db")
+        logger.debug("Reranking")
+        reranked_context = self.rerank_context(vectors_metadata_from_db, query)
+        return reranked_context
 
 
+# TODO remove as not being used
 def create_docs(path: str):
     loader = TextLoader(path)
     documents = loader.load()
