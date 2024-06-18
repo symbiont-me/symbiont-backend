@@ -4,7 +4,12 @@ from firebase_admin import storage
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, Request
 from fastapi.responses import StreamingResponse
 
-from ..models import StudyResource, AddYoutubeVideoRequest, AddWebpageResourceRequest, ResourceTypes
+from ..models import (
+    StudyResource,
+    AddYoutubeVideoRequest,
+    AddWebpageResourceRequest,
+    ResourceTypes,
+)
 from ..pinecone.pc import PineconeService
 from ..utils.db_utils import StudyService
 from ..utils.helpers import make_file_identifier
@@ -298,7 +303,10 @@ async def add_webpage_resource(
             logger.debug(len(docs_transformed))
 
             chat_context_service = ChatContextService(
-                doc, unique_identifier, ResourceTypes.WEBPAGE, study_id=study_resource.studyId
+                doc,
+                unique_identifier,
+                ResourceTypes.WEBPAGE,
+                study_id=study_resource.studyId,
             )
             chat_context_service.add_resource()
             await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
@@ -376,31 +384,34 @@ class DeleteResourceResponse(BaseModel):
     resource: StudyResource
 
 
+# TODO this needs to be refactored thoroughly
 @router.post("/delete-resource-from-study")
 async def delete_resource_from_study(delete_request: DeleteResourceRequest, request: Request):
     try:
         s = time.time()
 
-        study_id, resource_identifier = delete_request.study_id, delete_request.identifier
+        study_id, resource_identifier = (
+            delete_request.study_id,
+            delete_request.identifier,
+        )
+
+        # NOTE only applies if the resource is a pdf or a file
+        # TODO this would need to be moved below
         storage_ref = studies_collection.find_one(  # get the storage ref
-            {"_id": study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+            {"_id": study_id},
+            {"resources": {"$elemMatch": {"identifier": resource_identifier}}},
         )["resources"][0]["storage_ref"]
 
         user_uid = request.state.verified_user["user_id"]
-        pc_service = PineconeService(
-            study_id=str(delete_request.study_id),
-            resource_identifier=resource_identifier,
-            user_uid=user_uid,
-        )
-        # delete from pinecone
-        pc_service.delete_vectors_from_pinecone(resource_identifier)
 
         chat_context_service = ChatContextService(resource_identifier=resource_identifier)
+        # TODO this should handle the vector and resource deletion from db
         chat_context_service.delete_context()
 
         # get the resource to delete
         resources = studies_collection.find_one(
-            {"_id": delete_request.study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+            {"_id": delete_request.study_id},
+            {"resources": {"$elemMatch": {"identifier": resource_identifier}}},
         )
         resource_to_delete = resources["resources"][0]
         # logger.debug(f"REsource to delete: {resource_to_delete}")
@@ -409,7 +420,10 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
             grid_fs_bucket.delete(file_id=ObjectId(storage_ref))
             logger.info(f"Resource {resource_identifier } deleted from storage")
         # remove from db
-        studies_collection.update_one({"_id": study_id}, {"$pull": {"resources": {"identifier": resource_identifier}}})
+        studies_collection.update_one(
+            {"_id": study_id},
+            {"$pull": {"resources": {"identifier": resource_identifier}}},
+        )
         # # remove vecotor refs from db
         studies_collection.update_one({"_id": study_id}, {"$unset": {"vectors." + resource_identifier: ""}})
         elapsed = time.time() - s
