@@ -271,10 +271,10 @@ def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
             "text": doc.page_content,
         }
 
+    logger.debug(f"Creating Vectors in DB: {vec_data}")
     studies_collection.update_one(
         {"_id": study_id},
         {"$set": {f"vectors.{file_identifier}": vec_data}},
-        upsert=True,
     )
 
 
@@ -359,13 +359,15 @@ class ChatContextService(VectorStoreContext):
             )
             for split_text in split_texts
         ]
-        self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
+        ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
+        logger.debug(ids)
+        create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
     # TODO move this some place appropriate
     resource_adders = {
         "pdf": add_pdf_resource,
         "webpage": add_web_resource,
-        "yt": add_yt_resource,
+        "youtube": add_yt_resource,
     }
 
     # TODO this should single Document
@@ -376,7 +378,7 @@ class ChatContextService(VectorStoreContext):
             raise ValueError("Resource type not supported")
         self.resource_adders[self.resource_type](self)
 
-    # TODO Remove the context of db from here
+    # TODO Remove the context from db from here
     def delete_context(self):
         self.vector_store_repo.delete_vectors(self.resource_identifier)
 
