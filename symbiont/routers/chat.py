@@ -82,7 +82,7 @@ async def chat(
         user_query=user_query,
     )
 
-    chat_context_service = ChatContextService(resource_identifier=resource_identifier)
+    chat_context_service = ChatContextService(study_id=study_id, resource_identifier=resource_identifier)
 
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
@@ -99,16 +99,20 @@ async def chat(
                 role="bot",
                 user_uid=user_uid,
             )
-            return StreamingResponse(return_no_context_response(no_context_response), media_type="text/event-stream")
+            return StreamingResponse(
+                return_no_context_response(no_context_response),
+                media_type="text/event-stream",
+            )
         context = chat_context_results[0]
         citations = chat_context_results[1]
 
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
         context_start_time = time.time()
-        qdrant_result = chat_context_service.get_chat_context(user_query)
 
-        result = await pc_service.get_single_chat_context()
+        result = chat_context_service.get_single_chat_context(user_query)
+
+        # result = await pc_service.get_single_chat_context()
         if result is None:
             logger.debug("No context found, retuning no context response")
             no_context_response = (
@@ -121,7 +125,10 @@ async def chat(
                 role="bot",
                 user_uid=user_uid,
             )
-            return StreamingResponse(return_no_context_response(no_context_response), media_type="text/event-stream")
+            return StreamingResponse(
+                return_no_context_response(no_context_response),
+                media_type="text/event-stream",
+            )
 
         context = result[0]
         citations = result[1]
@@ -181,9 +188,18 @@ async def delete_chat_messages(studyId: str):
     return {"message": "Chat messages deleted!", "status_code": 200}
 
 
-def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str, citations: List[Citation] = []):
+def save_chat_message_to_db(
+    chat_message: str,
+    studyId: str,
+    role: str,
+    user_uid: str,
+    citations: List[Citation] = [],
+):
     new_chat_message = ChatMessage(
-        role=role, content=chat_message, citations=citations, createdAt=datetime.datetime.now()
+        role=role,
+        content=chat_message,
+        citations=citations,
+        createdAt=datetime.datetime.now(),
     ).model_dump()
     studies_collection.find_one_and_update({"_id": studyId}, {"$push": {"chat": new_chat_message}})
     if role == "bot":
