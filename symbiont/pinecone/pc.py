@@ -42,7 +42,9 @@ if os.getenv("FASTAPI_ENV") == "development":
     logger.info("Using Free Embeddings Model: VoyageAI")
 else:
     embeddings_model = OpenAIEmbeddings(
-        model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL, dimensions=1536, api_key=api_key
+        model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL,
+        dimensions=1536,
+        api_key=api_key,
     )
     logger.info("Using OpenAI Embeddings")
 
@@ -98,7 +100,8 @@ class PineconeService:
         try:
             logger.info("Updating vectors in Mongo")
             studies_collection.update_one(
-                {"_id": self.study_id}, {"$set": {f"vectors.{self.resource_identifier}": self.db_vec_refs}}
+                {"_id": self.study_id},
+                {"$set": {f"vectors.{self.resource_identifier}": self.db_vec_refs}},
             )
         except Exception as e:
             logger.error(f"Error updating vectors in Firestore: {str(e)}")
@@ -198,6 +201,7 @@ class PineconeService:
             logger.error("No vectors found in the database")
             return vec_data
         for match in pc_results.matches:
+            # TODO fix: is there a reason for setting the resource_vecs in the loop
             resource_vecs = vec_data[self.resource_identifier]
             vec_metadata.append(resource_vecs[match.id])
 
@@ -234,7 +238,9 @@ class PineconeService:
         reranked_context = self.rerank_context(context)
         return reranked_context
 
-    async def get_combined_chat_context(self) -> Union[Tuple[str, List[Citation]], None]:
+    async def get_combined_chat_context(
+        self,
+    ) -> Union[Tuple[str, List[Citation]], None]:
         s = time.time()
         resources = studies_collection.find_one({"_id": self.study_id})["resources"]
 
