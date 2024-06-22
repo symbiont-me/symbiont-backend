@@ -126,18 +126,19 @@ async def add_resource(
             storage_ref=upload_result["file_id"],  # NOTE: this is the _id from GridFS, used for retrieval
             category=file_extension,
         )
-        #
-        pc_service = PineconeService(
-            study_id=study_resource.studyId,
-            resource_identifier=study_resource.identifier,
-            user_uid=user_uid,
-            user_query=None,
-        )
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
             temp.write(file_bytes)
-            metadata = load_pdf(temp.name, unique_file_identifier)
-        logger.debug(f"Pdf loader extractracted number of pages: {len(metadata)}")
-        await pc_service.add_file_resource_to_pinecone(metadata)
+            pdf_docs = load_pdf(temp.name, unique_file_identifier)
+
+        chat_context_service = ChatContextService(
+            pdf_docs,
+            unique_file_identifier,
+            ResourceTypes.PDF,
+            study_id=study_resource.studyId,
+        )
+        chat_context_service.add_resource()
+        logger.info("Trying ChatContextService for PDF upload")
 
         study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=studyId)
         study_resources_repo.add_study_resource_to_db()
@@ -223,7 +224,10 @@ async def add_yt_resource(
             )
 
             chat_context_service = ChatContextService(
-                doc, unique_file_identifier, ResourceTypes.YOUTUBE, study_id=video_resource.studyId
+                doc,
+                unique_file_identifier,
+                ResourceTypes.YOUTUBE,
+                study_id=video_resource.studyId,
             )
             chat_context_service.add_resource()
             # mongodb
