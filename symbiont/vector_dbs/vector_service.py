@@ -325,8 +325,41 @@ class ChatContextService(VectorStoreContext):
         self.resource_type = resource_type
         self.study_id = study_id
 
+    def __truncate_string_by_bytes(self, string, num_bytes):
+        encoded_string = string.encode("utf-8")
+        truncated_string = encoded_string[:num_bytes]
+        return truncated_string.decode("utf-8", "ignore")
+
+    # @dev this performs operations on a single pdf document, splite the content and make it into Document Page
+    # that can be used by the vector store
+    def __parse_pdf_doc(self, pdf_page):
+        page_content = pdf_page.page_content.replace("\n", "")
+        page_content = self.__truncate_string_by_bytes(page_content, 10000)
+        split_texts = text_splitter.create_documents([page_content])
+        docs = [
+            DocumentPage(
+                page_content=split_text.page_content,
+                metadata={
+                    "text": split_text.page_content,
+                    "source": self.resource_identifier,
+                    "page": pdf_page.metadata["page"],
+                },
+                type=pdf_page.type,
+            )
+            for split_text in split_texts
+        ]
+
+        return docs
+
     def add_pdf_resource(self):
-        pass
+        if self.resource_doc is None:
+            raise ValueError("Resource document not provided")
+        docs = []
+        for pdf_page in self.resource_doc:
+            docs.extend(self.__parse_pdf_doc(pdf_page))
+
+        ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
+        create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
     def add_web_resource(self):
         content = getattr(self.resource_doc, "page_content", None)
@@ -392,6 +425,9 @@ class ChatContextService(VectorStoreContext):
         if not context:
             return None
         logger.debug("Reranking")
+        logger.debug(f"Query: {query}")
+        logger.debug(f"Context: {context}")
+
         reranked_context = co.rerank(
             query=query,
             documents=context,
