@@ -1,5 +1,9 @@
 """
-NOTE: Needs to be updated to make methods async where appropriate
+TODO: Needs to be updated to make methods async where appropriate
+TODO: The whole file needs to be refactored.
+TODO: Param and Return types need to be specified
+TODO: Clear documentation needs to be added, with regards to purpose of the classes and the file
+NOTE: The main interfaces should be maintained, because it allows for easy addition of new vector databases
 """
 
 from qdrant_client import QdrantClient
