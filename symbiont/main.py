@@ -25,12 +25,12 @@ app.include_router(summary_router.router)
 app.include_router(llm_settings_router.router)
 app.include_router(user_router.router)
 app.include_router(tests_router.router)  # This is for testing purposes only
-
+# Don't add a trailing forward slash to a url in origins! Will cause CORS issues
 origins = [
     "http://localhost",
     "http://localhost:3000",
     "https://symbiont.vercel.app",
-    "https://symbiont-frontend-dev.vercel.app",
+    "https://staging-symbiont.vercel.app",
 ]
 
 
