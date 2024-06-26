@@ -29,14 +29,14 @@ app.include_router(tests_router.router)  # This is for testing purposes only
 origins = [
     "http://localhost",
     "http://localhost:3000",
-    "https://symbiont.vercel.app/",
-    "https://symbiont-frontend-dev.vercel.app/",
+    "https://symbiont.vercel.app",
+    "https://symbiont-frontend-dev.vercel.app",
 ]
 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, #["*"],  # dangerous, only for development
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=[
