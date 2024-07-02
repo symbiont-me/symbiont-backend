@@ -1,4 +1,4 @@
-# Symbiont - Self-hosted RAG app
+# Symbiont - An Open Source Self-hosted RAG app
 
 Symbiont is a RAG-based app designed to be self-hosted and run from your own server or computer. The purpose of Symbiont is to allow anyone to be able to run a RAG-based app with a few single commands. 
 The entire app can be hosted locally, which means all the data is secure and does not go to a third-party server, except the data you send as part of the prompt to the third-party LLM providers such as OpenAI or Anthropic. 
