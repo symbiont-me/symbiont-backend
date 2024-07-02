@@ -1,7 +1,20 @@
-# Symbiont Backend
+# Symbiont - Self-hosted RAG app
 
-## Setup
-### Development Environment
+Symbiont is a RAG-based app designed to be self-hosted and run from your own server or computer. The purpose of Symbiont is to allow anyone to be able to run a RAG-based app with a few single commands. 
+The entire app can be hosted locally, which means all the data is secure and does not go to a third-party server, except the data you send as part of the prompt to the third-party LLM providers such as OpenAI or Anthropic. 
+
+NOTE: Not all self-hosted features are implemented in the v1 of the app. V1 is still using Pinecone for vector database and firebase for data storage and database. This will be remedied soon with v2 in which both VectorDB and Database will be self-hosted instance, which could be run as Docker containers. 
+
+
+This repo is for the Backend of the Symbiont app. For the frontend please see: 
+
+
+Symbiont is still a work in progress.
+
+## Symbiont Backend
+
+### Setup
+#### Development Environment
 <details>
   <summary>Prepare .env.dev and build image</summary>
      
