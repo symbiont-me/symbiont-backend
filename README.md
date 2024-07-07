@@ -6,7 +6,7 @@ The entire app can be hosted locally, which means all the data is secure and doe
 NOTE: Not all self-hosted features are implemented in the v1 of the app. V1 is still using Pinecone for vector database and firebase for data storage and database. This will be remedied soon with v2 in which both VectorDB and Database will be self-hosted instance, which could be run as Docker containers. 
 
 
-This repo is for the Backend of the Symbiont app. For the frontend please see: 
+This repo is for the Backend of the Symbiont app. For the frontend please see: https://github.com/symbiont-me/symbiont-frontend.git
 
 
 Symbiont is still a work in progress.
