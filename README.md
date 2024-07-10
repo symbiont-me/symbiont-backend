@@ -77,4 +77,7 @@ docker pull mongo
 docker run -d -p 27017:27017 -v $(pwd)/database:/data/db --name symbiont mongo:latest
 # to run an existing container created by the above command
 docker start symbiont
+```bash
+docker run -d --name qdrant_instance -p 6333:6333 -p 6334:6334 -v $(pwd)/qdrant_storage:/qdrant/storage:z qdrant/qdrant
 ```
+
