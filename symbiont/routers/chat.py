@@ -1,12 +1,9 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Cookie
 from ..models import ChatRequest, ChatMessage, Citation
-from firebase_admin import firestore
 
 from fastapi.responses import StreamingResponse
 import datetime
 from typing import AsyncGenerator
-from google.cloud.firestore import ArrayUnion
-from ..utils.db_utils import StudyService
 
 
 from ..llms import (
@@ -19,7 +16,7 @@ from .. import logger
 import time
 from typing import Annotated, List
 import asyncio
-
+from ..mongodb import studies_collection
 ####################################################
 #                   CHAT                           #
 ####################################################
@@ -45,11 +42,14 @@ async def chat(
 ):
     s = time.time()
     user_uid = request.state.verified_user["user_id"]
+
     if api_key is None:
         raise HTTPException(status_code=404, detail="No API key found!")
+
     user_query = chat.user_query
     #### INIT LLM ####
     llm_settings = get_user_llm_settings(user_uid)
+    logger.debug(f"Initializing {llm_settings=}")
     llm = init_llm(llm_settings, api_key)
 
     study_id = chat.study_id
@@ -65,7 +65,6 @@ async def chat(
 
     context = ""
     citations = []
-    # TODO review these conditions
     if not chat.combined and resource_identifier is None:
         raise HTTPException(status_code=404, detail="Please select a resource")
 
@@ -79,6 +78,7 @@ async def chat(
         user_uid=user_uid,
         user_query=user_query,
     )
+
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
         chat_context_results = await pc_service.get_combined_chat_context()
@@ -97,6 +97,7 @@ async def chat(
             return StreamingResponse(return_no_context_response(no_context_response), media_type="text/event-stream")
         context = chat_context_results[0]
         citations = chat_context_results[1]
+
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
         context_start_time = time.time()
@@ -152,38 +153,32 @@ async def chat(
     logger.info(f"It took {elasped_time} to start the chat ")
     return StreamingResponse(generate_llm_response(), media_type="text/event-stream")
 
+    #
+    #
+    #
+    #
+
 
 @router.get("/get-chat-messages")
-async def get_chat_messages(studyId: str, request: Request):
-    study_service = StudyService(request.state.verified_user["user_id"], studyId)
-    study_data = study_service.get_document_dict()
-    if study_data is None:
-        raise HTTPException(status_code=404, detail="No such document!")
-    if "chatMessages" in study_data:
-        return {"chatMessages": study_data["chatMessages"]}
+async def get_chat_messages(studyId: str):
+    logger.debug("LOADING CHATS")
+    chats = studies_collection.find_one({"_id": studyId})["chat"]
+    logger.debug(chats)
+    return {"chat": chats}
 
 
 @router.delete("/delete-chat-messages")
-async def delete_chat_messages(studyId: str, request: Request):
-    study_service = StudyService(request.state.verified_user["user_id"], studyId)
-    print("DELETING CHAT MESSAGES")
-    doc_ref = study_service.get_document_ref()
-    if doc_ref is None:
-        raise HTTPException(status_code=404, detail="No such document!")
-
-    doc_ref.update({"chatMessages": []})
+async def delete_chat_messages(studyId: str):
+    studies_collection.update_one({"_id": studyId}, {"$set": {"chat": []}})
+    logger.info("Chat messages deleted!")
     return {"message": "Chat messages deleted!", "status_code": 200}
 
 
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str, citations: List[Citation] = []):
-    db = firestore.client()
-    doc_ref = db.collection("studies").document(studyId)
-    if doc_ref.get().to_dict() is None:
-        raise HTTPException(status_code=404, detail="No such document!")
     new_chat_message = ChatMessage(
         role=role, content=chat_message, citations=citations, createdAt=datetime.datetime.now()
     ).model_dump()
-    doc_ref.update({"chatMessages": ArrayUnion([new_chat_message])})
+    studies_collection.find_one_and_update({"_id": studyId}, {"$push": {"chat": new_chat_message}})
     if role == "bot":
         logger.info("Bot message saved to db")
     else:

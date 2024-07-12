@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel, HttpUrl
 
 
@@ -14,9 +14,10 @@ class LLMModel(str, Enum):
     GPT_4_1106_Preview = "gpt-4-1106-preview"
     GPT_4 = "gpt-4"
     GPT_4_32k = "gpt-4-32k"
-    CLAUDE_3_OPUS_20240229 = "claude-3-opus-20240229"
-    CLAUDE_3_SONNET_2024022 = "claude-3-sonnet-2024022"
-    CLAUDE_3_HAIKU_20240307 = "claude-3-haiku-20240307"
+    GPT_OMNI = "gpt-4o"
+    CLAUDE_3_OPUS = "claude-3-opus-20240229"
+    CLAUDE_3_SONNET = "claude-3-5-sonnet-20240620"
+    CLAUDE_3_HAIKU = "claude-3-haiku-20240307"
     CLAUDE_2_1 = "claude-2.1"
     CLAUDE_2_0 = "claude-2.0"
     CLAUDE_INSTANT_1_2 = "claude-instant-1.2"
@@ -70,14 +71,63 @@ class Chat(BaseModel):
     user: List[str] = []
 
 
+class VectorItem(BaseModel):
+    page: int
+    source: str
+    text: str
+
+
+class VectorHash(BaseModel):
+    hash: Dict[str, VectorItem]
+
+
+class Vectors(BaseModel):
+    identifier: Dict[str, VectorHash]
+
+
 class Study(BaseModel):
-    chat: Chat
+    chat: List
     createdAt: str
     description: str
     name: str
     image: str
     resources: List[Resource]
     userId: str
+    vectors: dict = {}
+
+
+# Redundant
+class StudyCollection(BaseModel):
+    _id: str
+    chat: Chat
+    createdAt: str
+    description: str
+    image: str
+    resources: List[Resource]
+    userId: str
+    vectors: Vectors = Vectors(identifier={})
+
+
+class UserSettings(BaseModel):
+    llm_model: LLMModel | None = LLMModel.GPT_3_5_TURBO_16K
+    embedding_model: EmbeddingModels | None = EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_LARGE
+    temperature: float = 0.0
+    max_tokens: int = 1500
+
+
+class UserCollection(BaseModel):
+    studies: List[str] = []
+    settings: UserSettings
+
+
+class ResourceCollection(BaseModel):
+    _id: str
+    studyId: str
+    name: str
+    url: str
+    identifier: str
+    category: str
+    summary: str = ""
 
 
 class CreateStudyRequest(BaseModel):
@@ -119,7 +169,8 @@ class ChatMessage(BaseModel):
 class StudyResource(BaseModel):
     studyId: str
     name: str
-    url: str
+    url: str = ""
+    storage_ref: str = ""
     identifier: str
     category: str
     summary: str = ""

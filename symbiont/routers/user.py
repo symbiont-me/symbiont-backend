@@ -1,42 +1,29 @@
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
 from firebase_admin import firestore
+from ..mongodb import users_collection
+from ..models import UserCollection
+from .. import logger
 
 router = APIRouter()
 
 
-class User(BaseModel):
-    user_uid: str
-
-
-default_llm_settings = {
-    "llm_name": "gpt-3.5-turbo",
-    "api_key": "",
-    "temperature": 0.0,
-    "max_tokens": 1500,
-}
-
-
-@router.post("/create-user-in-db")
-async def create_user_in_db(user: User, request: Request):
+# Note: since we are using a single Firebase Google sign_in method for signing up and sign in
+# we will use this single route
+# Later we can add a separate route for sign up if we use other sign up methods
+@router.post("/login")
+async def login_user(request: Request):
     try:
         user_uid = request.state.verified_user["user_id"]
-        db = firestore.client()
-        doc_ref = db.collection("users").document(user_uid)
-        # TODO set_default_llm_settings()
-        if not doc_ref:
-            return {"error": "User not found", "status_code": 404}
+        # if user already exists return
+        user = users_collection.find_one({"_id": user_uid})
+        if user:
+            return
 
-        new_user = User(user_uid=doc_ref.id)
-        doc_ref.set(
-            {
-                "settings": {
-                    "llm_name": default_llm_settings["llm_name"],
-                    "api_key": default_llm_settings["api_key"],
-                }
-            }
-        )
-        doc_ref.set(new_user.model_dump())
+        new_user = UserCollection(studies=[], settings={})
+
+        results = users_collection.insert_one({"_id": user_uid, **new_user.model_dump()})
+        logger.info(f"User created in db with id {results.inserted_id}")
+
         return {"message": "User created in db"}
     except Exception as e:
         return {"error": str(e), "status_code": 500}

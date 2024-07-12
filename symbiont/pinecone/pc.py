@@ -1,6 +1,6 @@
 from hashlib import md5
 from typing import List, Union, Tuple
-from ..models import PineconeRecord, DocumentPage, Citation
+from ..models import PineconeRecord, DocumentPage, Citation, Vectors
 from ..fb.storage import download_from_firebase_storage, delete_local_file
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
@@ -20,6 +20,7 @@ import time
 from fastapi import HTTPException
 import datetime
 from langchain_voyageai import VoyageAIEmbeddings
+from ..mongodb import studies_collection
 
 nltk.download("punkt")
 
@@ -63,14 +64,12 @@ class PineconeService:
         resource_identifier: str,
         user_uid=None,
         user_query="",
-        resource_download_url=None,
         threshold=0.1,
     ):
         self.user_uid = user_uid
         self.user_query = user_query
         self.study_id = study_id
         self.resource_identifier = resource_identifier
-        self.download_url = resource_download_url
         self.threshold = threshold
         self.db = firestore.client()
         self.embed = embeddings_model
@@ -88,36 +87,19 @@ class PineconeService:
         self.text_splitter = self.nltk_text_splitter
         self.db_vec_refs = {}
 
-    def get_vectors_from_db(self):
-        logger.info("Getting vectors from Firestore")
-        vec_ref = self.db.collection("studies").document(self.study_id)
-        vec_data = vec_ref.get().to_dict()
-        # TODO fix type error
-        if "vectors" not in vec_data:
-            logger.error("No vectors")
-            return None
-        return vec_data["vectors"]
+    def get_vectors_from_db(self) -> Vectors:
+        logger.info("Getting vectors from Mongo")
+        study = studies_collection.find_one({"_id": self.study_id})
+        return study["vectors"]
 
     async def create_vec_ref_in_db(self):
         if self.db_vec_refs is None:
             raise ValueError("No vectors to save in the database")
         try:
-            db = firestore.client()
-            vec_ref = db.collection("studies").document(self.study_id)
-            # Retrieve the current data to avoid overwriting
-            current_data = vec_ref.get().to_dict()
-            # Initialize 'vectors' as a mapping if it doesn't exist
-            if "vectors" not in current_data:
-                current_data["vectors"] = {}
-            # # Update the document with the new mapping of vectors under the specific resource identifier
-            identifier = self.resource_identifier
-            if identifier not in current_data["vectors"]:
-                current_data["vectors"][identifier] = {}
-            current_data["vectors"][identifier].update(self.db_vec_refs)
-            # Save the updated data back to Firestore
-            vec_ref.set(current_data)
-            logger.info(f"Updated vectors in Firestore for {self.resource_identifier}")
-            return vec_ref
+            logger.info("Updating vectors in Mongo")
+            studies_collection.update_one(
+                {"_id": self.study_id}, {"$set": {f"vectors.{self.resource_identifier}": self.db_vec_refs}}
+            )
         except Exception as e:
             logger.error(f"Error updating vectors in Firestore: {str(e)}")
             raise HTTPException(status_code=500, detail="Error updating vectors in Firestore")
@@ -151,9 +133,6 @@ class PineconeService:
 
     async def add_file_resource_to_pinecone(self, pages):
         s = time.time()
-        if self.download_url is None:
-            logger.error("Download URL must be provided to prepare file resource")
-            raise ValueError("Download URL must be provided to prepare file resource")
         docs = []
         for page in pages:
             prepared_pages = await self.prepare_pdf_for_pinecone(page)
@@ -209,11 +188,12 @@ class PineconeService:
             return filtered_matches
         logger.debug(f"matches:\t{[match['score'] for match in filtered_matches]}")
 
-        logger.debug("Fetching vector metadata from db")
         vec_metadata_start_time = time.time()
         vec_metadata = []
         logger.debug("Getting vectors from db")
         vec_data = self.get_vectors_from_db()
+
+        logger.debug(f"vec_data: {vec_data}")
         if vec_data is None:
             logger.error("No vectors found in the database")
             return vec_data
@@ -256,19 +236,16 @@ class PineconeService:
 
     async def get_combined_chat_context(self) -> Union[Tuple[str, List[Citation]], None]:
         s = time.time()
-        db = firestore.client()
-        all_resource_identifiers = []
-        study_dict = db.collection("studies").document(self.study_id).get().to_dict()
-
-        if study_dict is None:
-            raise HTTPException(status_code=404, detail="No such document!")
-        resources = study_dict.get("resources", [])
+        resources = studies_collection.find_one({"_id": self.study_id})["resources"]
 
         if resources is None:
             raise HTTPException(status_code=404, detail="No Resources Found")
         # get the identifier for each resource
+
         all_resource_identifiers = [resource.get("identifier") for resource in resources]
-        logger.info(f"Resource Identifiers: {all_resource_identifiers}")
+
+        logger.debug(f"List of Resources: {all_resource_identifiers}")
+
         # get the context for each resource
         combined_vecs = []
         for identifier in all_resource_identifiers:

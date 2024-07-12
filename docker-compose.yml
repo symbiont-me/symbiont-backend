@@ -11,17 +11,17 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - .env.dev
     command: "uvicorn symbiont.main:app --host 0.0.0.0 --port 8000 --reload"
     profiles: ["dev"]
 
   fastapi-prod:
     build:
       context: .
-      target: production
+      target: prodcution
     ports:
       - "80:8080"
     env_file:
-      - .env
+      - .env.prod
     command: "uvicorn symbiont.main:app --host 0.0.0.0 --port 8080"
     profiles: ["prod"]

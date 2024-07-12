@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from ..models import CreateStudyRequest
-from firebase_admin import firestore
 from datetime import datetime
-from ..models import Study, Chat
+from ..models import Study
 from .. import logger
 import time
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
-
+from ..mongodb import studies_collection, users_collection
+import uuid
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -25,24 +25,19 @@ class StudyResponse(BaseModel):
 
 @router.get("/get-current-study")
 async def get_current_study(studyId: str, request: Request):
+    logger.info(studyId)
     s = time.time()
     logger.info("Getting current study")
     user_uid = request.state.verified_user["user_id"]
-    db = firestore.client()
-    study_ref = db.collection("studies").document(studyId)
-    study = study_ref.get().to_dict()
-    if study is None:
-        logger.error("Study does not exist.")
-        raise HTTPException(status_code=404, detail="Study does not exist.")
+    study = studies_collection.find_one({"_id": studyId})
 
-    user_doc = db.collection("users").document(user_uid).get().to_dict()
-    if user_doc is None:
-        logger.error("User does not exist.")
-        raise HTTPException(status_code=404, detail="User does not exist.")
-    user_studies = user_doc.get("studies", [])
-    if studyId not in user_studies:
-        logger.error("User does not have access to this study.")
-        raise HTTPException(status_code=403, detail="User does not have access to this study.")
+    if study["userId"] != user_uid:
+        logger.error("User is Not authorized to access study")
+        raise HTTPException(
+            detail="User Not Authorized to Access Study",
+            status_code=404,
+        )
+
     elapsed = time.time() - s
     logger.info(f"Getting current study took {elapsed} seconds")
     return StudyResponse(message="", status_code=200, studies=[study])
@@ -54,12 +49,9 @@ async def get_user_studies(request: Request):
 
     try:
         s = time.time()
-        db = firestore.client()
-        studies_ref = db.collection("studies")
-        query = studies_ref.where("userId", "==", user_uid)
-        studies = query.stream()
-        # Create a list of dictionaries, each containing the studyId and the study's data
-        studies_data = [{"id": study.id, **(study.to_dict() or {})} for study in studies]
+        study_ids = users_collection.find_one({"_id": user_uid})["studies"]
+        studies_data = list(studies_collection.find({"_id": {"$in": study_ids}}))
+
         elapsed = time.time() - s
         logger.info(f"Getting user studies took {elapsed} seconds")
         return StudyResponse(
@@ -85,36 +77,23 @@ async def create_study(study: CreateStudyRequest, request: Request):
         image=study.image,
         createdAt=datetime.now().isoformat(),  # Use ISO format for consistency
         resources=[],
-        chat=Chat(),
+        chat=[],
     )
+
     try:
         s = time.time()
-        db = firestore.client()
-        batch = db.batch()
 
-        # Create a new document for the study
-        study_doc_ref = db.collection("studies").document()
-        batch.set(study_doc_ref, new_study.model_dump())
+        result = studies_collection.insert_one({"_id": str(uuid.uuid4()), **new_study.model_dump()})
+        study_data = studies_collection.find_one(result.inserted_id)
 
-        # Get the user document and update the studies array
-        user_doc_ref = db.collection("users").document(user_uid)
-        user_doc = user_doc_ref.get()
-        if user_doc.exists:
-            user_studies = user_doc.to_dict().get("studies", [])
-            user_studies.append(study_doc_ref.id)
-            batch.update(user_doc_ref, {"studies": user_studies})
-        else:
-            # If the user does not exist, create a new document with the study
-            batch.set(user_doc_ref, {"studies": [study_doc_ref.id]})
+        # Add to users
+        user = users_collection.find_one({"_id": user_uid})
+        logger.info(f"User: {user}")
+        result = users_collection.update_one({"_id": user_uid}, {"$push": {"studies": study_data["_id"]}})
 
-        batch.commit()
         elapsed = time.time() - s
         logger.info(f"Creating study took {elapsed} seconds")
-        return StudyResponse(
-            message="Study created successfully",
-            status_code=200,
-            studies=[{"id": study_doc_ref.id, **new_study.model_dump()}],
-        )
+        return StudyResponse(message="Study created successfully", status_code=200, studies=[study_data])
     except Exception as e:
         logger.error(f"Error Creating New Study {e}")
         return JSONResponse(
@@ -132,35 +111,21 @@ class DeleteStudyResponse(BaseModel):
     studyId: str
 
 
-# NOTE a bit slow
 @router.delete("/delete-study")
 async def delete_study(studyId: str, request: Request):
     s = time.time()
     user_uid = request.state.verified_user["user_id"]
     try:
-        db = firestore.client()
-        # Get references to the study and user documents
-        study_doc_ref = db.collection("studies").document(studyId)
-        user_doc_ref = db.collection("users").document(user_uid)
+        studies = studies_collection.find_one({"_id": studyId})
+        if studies["userId"] != user_uid:
+            logger.error("User is Not authorized to delete study")
+            raise HTTPException(
+                detail="User Not Authorized to Delete Study",
+                status_code=404,
+            )
 
-        # Check if the study exists
-        study_doc = study_doc_ref.get()
-        if not study_doc.exists:
-            raise HTTPException(status_code=404, detail="Study does not exist.")
-
-        # Check if the user exists and has the study listed
-        user_doc = user_doc_ref.get()
-        if not user_doc.exists:
-            raise HTTPException(status_code=404, detail="User does not exist.")
-        user_studies = user_doc.to_dict().get("studies", [])
-        if studyId not in user_studies:
-            raise HTTPException(status_code=403, detail="Study not found in user's studies.")
-
-        # Remove the study from the user's list of studies
-        user_studies.remove(studyId)
-        user_doc_ref.update({"studies": user_studies})
-        # Delete the study document as well
-        study_doc_ref.delete()
+        studies_collection.delete_one({"_id": studyId})
+        users_collection.update_one({"_id": user_uid}, {"$pull": {"studies": studyId}})
 
         elapsed = time.time() - s
         logger.info(f"Deleting study took {elapsed} seconds")

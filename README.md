@@ -53,16 +53,21 @@ TOGETHER_API_KEY=value
 ```
 
 #### 2. Build and Run
+
 Build and run the docker image for dev environment:
+
 ```bash
 docker-compose --profile dev up
 ```
+
 This will run the API server at port `0.0.0.0:8000`
+
 </details>
 
-___
+---
 
 ### Production Environment
+
 <details>
   <summary>Prepare .env.prod and build image</summary>
   

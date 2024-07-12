@@ -3,7 +3,6 @@ from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain_core.pydantic_v1 import ValidationError
 from pydantic import BaseModel
-from firebase_admin import firestore
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from fastapi import HTTPException
@@ -11,6 +10,8 @@ import time
 import datetime
 from .. import logger
 import os
+from ..mongodb import users_collection
+
 
 google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 
@@ -51,7 +52,7 @@ def isAnthropicModel(llm_name: str) -> bool:
 
 
 def isGoogleModel(llm_name: str) -> bool:
-    return bool(re.match(r"gemini", llm_name))
+    return bool(re.match(r"(models/)?gemini", llm_name))
 
 
 class UsersLLMSettings(BaseModel):
@@ -93,6 +94,8 @@ def init_llm(settings: UsersLLMSettings, api_key: str):
                 convert_system_message_to_human=True,
             )
             return llm
+        else:
+            logger.critical(f"Couldn't detect the llm provider, {llm=}, {settings['llm_name']}")
     except ValidationError as e:
         if e.errors():
             logger.error(f"Error initializing LLM: {e.errors()}")
@@ -130,11 +133,6 @@ async def get_llm_response(llm, user_query: str, context: str):
 
 # TODO move to routers/llm_settings.py
 def get_user_llm_settings(user_uid: str):
-    db = firestore.client()
-    doc_ref = db.collection("users").document(user_uid)
-    if not doc_ref:
-        raise ValueError("User not found")
-    else:
-        settings = doc_ref.get().get("settings")
-        logger.info(f"User settings: {settings}")
-        return settings
+    user_llm_settings = users_collection.find_one({"_id": user_uid}).get("settings")
+    logger.debug(f"User LLM Settings: {user_llm_settings}")
+    return user_llm_settings
