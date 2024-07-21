@@ -86,7 +86,7 @@ async def chat(
 
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
-        chat_context_results = await pc_service.get_combined_chat_context()
+        chat_context_results = chat_context_service.get_combined_chat_context(user_query)
         if chat_context_results is None:
             logger.debug("No context found, retuning no context response")
             no_context_response = (

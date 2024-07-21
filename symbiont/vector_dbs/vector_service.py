@@ -283,7 +283,7 @@ def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
 
 
 # TODO this should be part of a db repo or service
-def get_vec_refs_from_db(study_id, file_identifier, ids) -> List:
+def get_vec_refs_from_db(study_id, file_identifier, ids) -> List[Dict]:
     logger.info(f"Fetching Vectors from {study_id}")
 
     logger.info("Fetching Vectors from DB")
@@ -296,7 +296,6 @@ def get_vec_refs_from_db(study_id, file_identifier, ids) -> List:
 
     for id in ids:
         vec = file_vectors.get(id, {})
-        logger.debug(f"Found vector: {vec}")
         results.append(vec)
     logger.debug(f"Found {len(results)} vectors")
     # TODO rename: this is the vec data from the db
@@ -420,7 +419,7 @@ class ChatContextService(VectorStoreContext):
         self.vector_store_repo.delete_vectors(self.resource_identifier)
 
     # TODO add the type for context
-    def rerank_context(self, context, query) -> Union[Tuple[str, List[Citation]], None]:
+    def rerank_context(self, context: List[Dict], query: str) -> Union[Tuple[str, List[Citation]], None]:
         # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
         if not context:
             return None
@@ -442,6 +441,7 @@ class ChatContextService(VectorStoreContext):
         return (reranked_text, citations)
 
     # TODO document this
+    # TODO query does not need to be passed as an arg
     def get_single_chat_context(self, query: str) -> Union[Tuple[str, List[Citation]], None]:
         results = self.vector_store_repo.search_vectors(namespace=self.resource_identifier, query=query, limit=10)
         ids = [result.id for result in results]
@@ -449,6 +449,36 @@ class ChatContextService(VectorStoreContext):
         vectors_metadata_from_db = get_vec_refs_from_db(self.study_id, self.resource_identifier, ids)
         logger.debug(f"Found {len(vectors_metadata_from_db)} vectors from db")
         logger.debug("Reranking")
+        reranked_context = self.rerank_context(vectors_metadata_from_db, query)
+        return reranked_context
+
+    def get_combined_chat_context(self, query):
+        logger.debug("==========GETTING COMBINED CONTEXT==========")
+        # get the identifier for each resource
+        study = studies_collection.find_one({"_id": self.study_id})
+        logger.debug(f"Fetching Study: {study}")
+        if study is None:
+            raise ValueError("Study not found")
+        resources = study.get("resources", [])
+        logger.debug(f"Resources: {resources}")
+        all_resource_identifiers = [resource.get("identifier") for resource in resources]
+        # run a loop to get the context for each resource
+        combined_vecs = []
+        # combine the context
+        for identifier in all_resource_identifiers:
+            self.resource_identifier = identifier
+            vecs = self.vector_store_repo.search_vectors(
+                namespace=self.resource_identifier, query=self.user_query, limit=10
+            )
+            combined_vecs.extend(vecs)
+        # for each vec get metadata from the db
+        ids = [result.id for result in combined_vecs]
+        vectors_metadata_from_db = get_vec_refs_from_db(self.study_id, self.resource_identifier, ids)
+        # remove empty objects from the list
+        # NOTE: for some reason the db query is returning empty objects as well, this is a hack
+        # the ideal fix would be using Pydantic to force the objects to have source, page, and text fields etc
+        vectors_metadata_from_db = list(filter(None, vectors_metadata_from_db))
+        # rerank the context
         reranked_context = self.rerank_context(vectors_metadata_from_db, query)
         return reranked_context
 
