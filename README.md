@@ -103,7 +103,7 @@ Works with various Large Language Models from industry leaders such as Anthropic
 Symbiont is committed to providing powerful, free software tools that empower individuals, NGOs, and non-commercial entities to utilize advanced technology ethically and effectively. Our use of the Affero GPL license ensures that all derivatives of our work are also kept open and free, fostering a community of sharing and improvement.
 
 ### Commercial Use
-While we encourage widespread use of Symbiont, commercial entities are expected to contribute back to the community either by participating in development or through a licensing fee. These contributions help maintain Symbiont's sustainability and ensure it remains free for non-commercial users. For more details on commercial licensing, please contact [contact info].
+While we encourage widespread use of Symbiont, commercial entities are expected to contribute back to the community either by participating in development or through a licensing fee. These contributions help maintain Symbiont's sustainability and ensure it remains free for non-commercial users. For more details on commercial licensing, please contact [symbiont.me@gmail.com](symbiont.me@gmail.com).
 
 
 ## Contributions 🤝
