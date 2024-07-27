@@ -11,12 +11,17 @@ from .routers import tests as tests_router
 from .routers import user as user_router
 from . import ENVIRONMENT, VERSION
 
+# NOTE: Make sure to update version when there is a major change in code!
+
+WELCOME_MESSAGE = (
+    "Welcome to Symbiont's API! Check out the docs at /docs, "
+    "the frontend at https://symbiont.vercel.app "
+    "and the source code on https://github.com/symbiont-me"
+)
+
 app = FastAPI()
 
-
-# Add the AuthTokenMiddleware
 app.add_middleware(AuthTokenMiddleware)
-
 
 app.include_router(user_studies_router.router)
 app.include_router(text_router.router)
@@ -61,4 +66,4 @@ async def status_check():
 
 @app.get("/")
 async def read_root():
-    return {"message": "Welcome to symbiont api! Check out the docs at /docs, frontend at https://symbiont.vercel.app and the source code on https://github.com/symbiont-me"}
+    return {"message": WELCOME_MESSAGE}
