@@ -21,7 +21,7 @@ class Logger:
             "CRITICAL": "bold_red",
         }
 
-        LOGFORMAT = "\n%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"  # noqa: E501
+        LOGFORMAT = "%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"  # noqa: E501
         # Create a formatter
         color_formatter = ColoredFormatter(LOGFORMAT, log_colors=log_colors)
 
@@ -38,6 +38,7 @@ class Logger:
 
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
+            self.info(f"Logging to file: {log_file}")
 
     def debug(self, msg, *args, **kwargs):
         self.logger.debug(msg, *args, **kwargs)

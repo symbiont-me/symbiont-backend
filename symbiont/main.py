@@ -9,6 +9,7 @@ from .routers import summary as summary_router
 from .routers import llm_settings as llm_settings_router
 from .routers import tests as tests_router
 from .routers import user as user_router
+from . import ENVIRONMENT, VERSION
 
 app = FastAPI()
 
@@ -50,9 +51,14 @@ app.add_middleware(
 
 @app.get("/status")
 async def status_check():
-    return {"status": "up"}
+    status_response = {
+        "status": "up", 
+        "version": VERSION,
+        "environemnt": ENVIRONMENT,
+    }
+    return status_response
 
 
 @app.get("/")
 async def read_root():
-    return {"Hello": "World"}
+    return {"message": "Welcome to symbiont api! Check out the docs at /docs, frontend at https://symbiont.vercel.app and the source code on https://github.com/symbiont-me"}
