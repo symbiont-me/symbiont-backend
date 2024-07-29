@@ -3,7 +3,7 @@
 ##############
 # Base Image #
 ##############
-FROM python:3.10.14-slim-bookworm as builder
+FROM python:3.10.14-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install --no-install-recommends -y curl build-essential
 
@@ -28,7 +28,7 @@ RUN poetry install --no-interaction --no-ansi --no-root
 #####################
 # Development Image #
 #####################
-FROM builder as development
+FROM builder AS development
 ENV FASTAPI_ENV=development
 COPY --from=builder $POETRY_HOME $POETRY_HOME
 COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH
@@ -41,7 +41,7 @@ CMD ["uvicorn", "symbiont.main:app", "--host", "0.0.0.0", "--port", "8000", "--r
 #####################
 # Production Image  #
 #####################
-FROM builder as production
+FROM builder AS production
 ENV FASTAPI_ENV=production
 COPY --from=builder $POETRY_HOME $POETRY_HOME
 COPY --from=builder $PYSETUP_PATH $PYSETUP_PATH

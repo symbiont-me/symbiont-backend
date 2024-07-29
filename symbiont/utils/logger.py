@@ -4,10 +4,8 @@ from colorlog import ColoredFormatter
 
 class Logger:
     def __init__(self, logger_name, log_file=None, environment=None):
-        # Create a logger with the specified name
         self.logger = logging.getLogger(logger_name)
 
-        # Set logger level based on the environment
         if environment and environment.lower() == "production":
             self.logger.setLevel(logging.WARNING)
         else:
@@ -21,16 +19,13 @@ class Logger:
             "CRITICAL": "bold_red",
         }
 
-        LOGFORMAT = "\n%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"  # noqa: E501
-        # Create a formatter
+        LOGFORMAT = "%(log_color)s%(asctime)-8s%(reset)s | %(log_color)s%(levelname)-8s%(reset)s | %(log_color)s%(message)s%(reset)s"  # noqa: E501
         color_formatter = ColoredFormatter(LOGFORMAT, log_colors=log_colors)
 
-        # Create a console handler and set the formatter
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(color_formatter)
         self.logger.addHandler(console_handler)
 
-        # If a log file is specified, create a file handler and set the formatter
         if log_file:
             file_handler = logging.FileHandler(log_file)
             file_format = "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s"
@@ -38,6 +33,7 @@ class Logger:
 
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
+            self.info(f"Logging to file: {log_file}")
 
     def debug(self, msg, *args, **kwargs):
         self.logger.debug(msg, *args, **kwargs)

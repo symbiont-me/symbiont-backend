@@ -7,5 +7,5 @@ __pycache__/
 symbiont/src/scripts/delete_pinecone_vecs.py
 gha-creds-*.json
 database/
-qdrant_storage/
-vector-db/
+symbiont/tmp/*
+qdrant-storage/
