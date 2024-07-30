@@ -20,7 +20,7 @@ class AuthTokenMiddleware(BaseHTTPMiddleware):
             app: The FastAPI application instance.
         """
         super().__init__(app)
-        self.ROUTES_TO_EXCLUDE = ["/status", "/docs", "/redoc"] # We've removed "/" for now
+        self.ROUTES_TO_EXCLUDE = ["/status", "/docs", "/redoc", "/openapi.json"] # We've removed "/" for now
 
     async def dispatch(self, request: Request, call_next: Callable) -> JSONResponse:
         """
