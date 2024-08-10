@@ -134,6 +134,22 @@ async def get_llm_response(llm, user_query: str, context: str):
 
 # TODO move to routers/llm_settings.py
 def get_user_llm_settings(user_uid: str):
-    user_llm_settings = users_collection.find_one({"_id": user_uid}).get("settings")
+    """
+    Retrieves the language model (LLM) settings for a specific user based on the provided user ID.
+
+    Parameters:
+        user_uid (str): The unique identifier of the user whose LLM settings are to be retrieved.
+
+    Returns:
+        dict: The LLM settings for the specified user.
+    """
+    users_document = users_collection.find_one({"_id": user_uid})
+    if users_document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user_llm_settings = users_document.get("settings")
     logger.debug(f"User LLM Settings: {user_llm_settings}")
     return user_llm_settings
