@@ -213,8 +213,20 @@ async def chat(
 
 @router.get("/get-chat-messages")
 async def get_chat_messages(studyId: str):
+    """
+    Retrieves chat messages for a specific study identified by studyId.
+
+    Parameters:
+    - studyId: str - The unique identifier for the study.
+
+    Returns:
+    - dict: A dictionary containing the chat messages for the specified study.
+    """
     logger.debug("LOADING CHATS")
-    chats = studies_collection.find_one({"_id": studyId})["chat"]
+    study = studies_collection.find_one({"_id": studyId})
+    if study is None:
+        raise HTTPException(status_code=404, detail="Study not found")
+    chats = study.get("chat", [])
     logger.debug(chats)
     return {"chat": chats}
 
