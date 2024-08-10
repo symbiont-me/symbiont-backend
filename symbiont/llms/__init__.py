@@ -43,6 +43,7 @@ def create_prompt(user_query: str, context: str):
 
 
 # TODO move to utils
+# TODO These functions should match the LLMs in the LLMs collection for better security
 def isOpenAImodel(llm_name: str) -> bool:
     return bool(re.match(r"gpt", llm_name))
 
