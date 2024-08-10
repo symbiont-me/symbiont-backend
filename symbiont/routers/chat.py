@@ -103,6 +103,8 @@ async def chat(
     llm_settings = get_user_llm_settings(user_uid)
     logger.debug(f"Initializing {llm_settings=}")
     llm = init_llm(llm_settings, api_key)
+    if llm is None:
+        raise HTTPException(status_code=404, detail="No LLM found!")
 
     study_id = chat.study_id
     resource_identifier = chat.resource_identifier
