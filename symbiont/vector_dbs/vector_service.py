@@ -139,6 +139,7 @@ text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=0
 
 voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
+# TODO fix type issue
 embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
 
 
@@ -186,7 +187,7 @@ class QdrantRepository(BaseVectorRepository):
 
         print("Connected to Qdrant")
 
-    def create_collection(self, collection_name: str, vector_size: int, distance: str):
+    def create_collection(self, collection_name: str, vector_size: int, distance: str) -> None:
         distance = Distance.DOT if distance.lower() == "dot" else Distance.COSINE
 
         is_collection = self.client.collection_exists(collection_name=collection_name)
@@ -196,7 +197,7 @@ class QdrantRepository(BaseVectorRepository):
                 vectors_config=VectorParams(size=vector_size, distance=Distance.DOT),
             )
 
-    def __create_points_for_upsert(self, docs: List, embeddings: List):
+    def __create_points_for_upsert(self, docs: List[DocumentPage], embeddings: List[List[float]]) -> Batch:
         payload_list = [{"page_content": ""} for _ in docs]
         points = Batch(
             ids=[str(uuid.uuid4()) for _ in range(len(docs))],
@@ -205,10 +206,10 @@ class QdrantRepository(BaseVectorRepository):
         )
         return points
 
-    def embed_single_document(self, doc):
+    def embed_single_document(self, doc: DocumentPage) -> List[float]:
         return embeddings_model.embed_query(doc.page_content)
 
-    def upsert_vectors(self, namespace: str, docs):
+    def upsert_vectors(self, namespace: str, docs: List[DocumentPage]) -> List[str]:
         vectors = []
         for doc in docs:
             vec = self.embed_single_document(doc)
@@ -226,13 +227,15 @@ class QdrantRepository(BaseVectorRepository):
         points = self.__create_points_for_upsert(docs, vectors)
         self.client.upsert(collection_name=namespace, points=points)
         # TODO check if there were no errors
-        return points.ids
+        # @note points.ids is a type of List[ExtendedPointId]
+        # we just want to keep this standard for other vector store implementations
+        return [str(point_id) for point_id in points.ids]
 
     # TODO create a ScoredPoint type
     def __transform_search_results(self, search_results) -> List[VectorSearchResult]:
         return [VectorSearchResult(id=result.id, score=result.score) for result in search_results]
 
-    def search_vectors(self, namespace: str, query, limit: int) -> List:
+    def search_vectors(self, namespace: str, query: str, limit: int) -> List[VectorSearchResult]:
         if embeddings_model.model is None:
             raise ValueError("Embeddings model not initialized")
         vectorised_query = embeddings_model.embed_query(query)
@@ -241,7 +244,7 @@ class QdrantRepository(BaseVectorRepository):
         logger.info(f"Found {len(transformed_results)} results")
         return transformed_results
 
-    def delete_vectors(self, namespace: str):
+    def delete_vectors(self, namespace: str) -> None:
         self.client.delete_collection(collection_name=namespace)
         logger.info(f"Deleted: Vectors for {namespace}")
 
@@ -262,7 +265,9 @@ class VectorStoreContext:
         self.vector_store_repo = vector_store_repos[vector_store_settings.vector_store]()
 
 
-def create_vec_refs_in_db(ids, file_identifier, docs, user_id, study_id):
+def create_vec_refs_in_db(
+    ids: List[str], file_identifier: str, docs: List[DocumentPage], user_id: str, study_id: str
+) -> None:
     # TODO check user access
     if len(ids) != len(docs):
         raise ValueError("The lengths of 'ids' and 'docs' must be the same")
@@ -289,7 +294,7 @@ class VectorMetadata(BaseModel):
 
 
 # TODO this should be part of a db repo or service
-def get_vec_refs_from_db(study_id, file_identifier, ids) -> List[VectorMetadata]:
+def get_vec_refs_from_db(study_id: str, file_identifier: str, ids: List[str]) -> List[VectorMetadata]:
     logger.info(f"Fetching Vectors from {study_id}")
 
     logger.info("Fetching Vectors from DB")
@@ -330,14 +335,14 @@ class ChatContextService(VectorStoreContext):
         self.resource_type = resource_type
         self.study_id = study_id
 
-    def __truncate_string_by_bytes(self, string, num_bytes):
+    def __truncate_string_by_bytes(self, string: str, num_bytes: int) -> str:
         encoded_string = string.encode("utf-8")
         truncated_string = encoded_string[:num_bytes]
         return truncated_string.decode("utf-8", "ignore")
 
     # @dev this performs operations on a single pdf document, splite the content and make it into Document Page
     # that can be used by the vector store
-    def __parse_pdf_doc(self, pdf_page):
+    def __parse_pdf_doc(self, pdf_page: DocumentPage) -> List[DocumentPage]:
         page_content = pdf_page.page_content.replace("\n", "")
         page_content = self.__truncate_string_by_bytes(page_content, 10000)
         split_texts = text_splitter.create_documents([page_content])
@@ -356,7 +361,7 @@ class ChatContextService(VectorStoreContext):
 
         return docs
 
-    def add_pdf_resource(self):
+    def add_pdf_resource(self) -> None:
         if self.resource_doc is None:
             raise ValueError("Resource document not provided")
         docs = []
@@ -366,7 +371,7 @@ class ChatContextService(VectorStoreContext):
         ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
         create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
-    def add_web_resource(self):
+    def add_web_resource(self) -> None:
         content = getattr(self.resource_doc, "page_content", None)
         if content is None:
             raise ValueError("There is no resource content to be added")
@@ -385,7 +390,7 @@ class ChatContextService(VectorStoreContext):
         ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
         create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
-    def add_yt_resource(self):
+    def add_yt_resource(self) -> None:
         content = getattr(self.resource_doc, "page_content", None)
         if content is None:
             raise ValueError("There is no resource content to be added")
@@ -413,7 +418,7 @@ class ChatContextService(VectorStoreContext):
     }
 
     # TODO this should single Document
-    def add_resource(self):
+    def add_resource(self) -> None:
         if self.resource_type is None:
             raise ValueError("Resource document not provided")
         if self.resource_type not in self.resource_adders:
@@ -421,11 +426,11 @@ class ChatContextService(VectorStoreContext):
         self.resource_adders[self.resource_type](self)
 
     # TODO Remove the context from db from here
-    def delete_context(self):
+    def delete_context(self) -> None:
         self.vector_store_repo.delete_vectors(self.resource_identifier)
 
     # TODO add the type for context
-    def rerank_context(self, context: List[Dict], query: str) -> Union[Tuple[str, List[Citation]], None]:
+    def rerank_context(self, context: List[Dict[str, str]], query: str) -> Union[Tuple[str, List[Citation]], None]:
         # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
         if not context:
             return None
@@ -441,11 +446,14 @@ class ChatContextService(VectorStoreContext):
         reranked_text = ""
         for text in reranked_context.results:
             reranked_text += text.document.get("text", "")
+        # Convert dict to Citation with page as int
+        # @note we just need to make sure the return data type complies
+        citations = [Citation(**{**context[i], "page": int(context[i]["page"])}) for i in reranked_indices]
         return (reranked_text, citations)
 
     # TODO document this
     # TODO query does not need to be passed as an arg
-    def get_single_chat_context(self, query: str) -> Union[Tuple[str, List[Citation]], None]:
+    def get_single_chat_context(self, query: str) -> Optional[Tuple[str, List[Citation]]]:
         results = self.vector_store_repo.search_vectors(namespace=self.resource_identifier, query=query, limit=10)
         ids = [result.id for result in results]
         logger.debug(f"Found {len(ids)} results")
@@ -456,7 +464,7 @@ class ChatContextService(VectorStoreContext):
         reranked_context = self.rerank_context(vectors_metadata_dicts, query)
         return reranked_context
 
-    def get_combined_chat_context(self, query):
+    def get_combined_chat_context(self, query: str) -> Optional[Tuple[str, List[Citation]]]:
         logger.debug("==========GETTING COMBINED CONTEXT==========")
         # get the identifier for each resource
         study = studies_collection.find_one({"_id": self.study_id})
@@ -468,7 +476,7 @@ class ChatContextService(VectorStoreContext):
         all_resource_identifiers = [resource.get("identifier") for resource in resources]
 
         # array of vec ids and scores
-        combined_vecs = []
+        combined_vecs: List[VectorSearchResult] = []
         # combine the context
         for identifier in all_resource_identifiers:
             self.resource_identifier = identifier
@@ -482,11 +490,12 @@ class ChatContextService(VectorStoreContext):
         # for each vec get metadata from the db
         ids = [result.id for result in combined_vecs]
 
-        vectors_metadata_from_db = []
+        vectors_metadata_from_db: List[VectorMetadata] = []
         for resource in all_resource_identifiers:
             vectors_metadata_from_db.extend(get_vec_refs_from_db(self.study_id, resource, ids))
         # rerank the context
-        reranked_context = self.rerank_context(vectors_metadata_from_db, query)
+        vectors_metadata_dicts = [vec.model_dump() for vec in vectors_metadata_from_db]
+        reranked_context = self.rerank_context(vectors_metadata_dicts, query)
         return reranked_context
 
 
