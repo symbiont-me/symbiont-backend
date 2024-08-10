@@ -233,12 +233,34 @@ async def get_chat_messages(studyId: str):
 
 @router.delete("/delete-chat-messages")
 async def delete_chat_messages(studyId: str):
+    """
+    Deletes all chat messages for a specific study identified by studyId.
+
+    Parameters:
+    - studyId (str): The unique identifier for the study.
+
+    Returns:
+    - dict: A dictionary containing a status message and code indicating the success of deleting the chat messages.
+    """
     studies_collection.update_one({"_id": studyId}, {"$set": {"chat": []}})
     logger.info("Chat messages deleted!")
     return {"message": "Chat messages deleted!", "status_code": 200}
 
 
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str, citations: List[Citation] = []):
+    """
+    Saves a chat message to the database.
+
+    Parameters:
+    - chat_message: str - The message to be saved.
+    - studyId: str - The unique identifier for the study.
+    - role: str - The role of the user sending the message.
+    - user_uid: str - The unique identifier for the user sending the message.
+    - citations: List[Citation] - List of citations related to the message. Default is an empty list.
+
+    Returns:
+    - dict: A dictionary with a status message and code indicating the success of saving the chat message.
+    """
     new_chat_message = ChatMessage(
         role=role, content=chat_message, citations=citations, createdAt=datetime.datetime.now()
     ).model_dump()
