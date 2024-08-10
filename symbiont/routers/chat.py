@@ -10,6 +10,9 @@ from ..llms import (
     get_user_llm_settings,
     init_llm,
     get_llm_response,
+    ChatOpenAI,
+    ChatAnthropic,
+    ChatGoogleGenerativeAI,
 )
 from ..pinecone.pc import PineconeService
 from .. import logger
@@ -42,7 +45,46 @@ async def return_no_context_response(response: str = "") -> AsyncGenerator[str, 
         yield chunk + " "
 
 
+async def generate_llm_response(
+    llm: ChatOpenAI | ChatAnthropic | ChatGoogleGenerativeAI,
+    user_query: str,
+    context: str,
+    citations: list,
+    study_id: str,
+    user_uid: str,
+    get_llm_response,
+    save_chat_message_to_db,
+) -> AsyncGenerator[str, None]:
+    """
+    This asynchronous generator function streams the response from the language model (LLM) in chunks.
+    For each chunk received from the LLM, it appends the chunk to the 'llm_response' string and yields
+    the chunk to the caller. After all chunks have been received and yielded, it schedules a background task
+    to save the complete response to the database as a chat message from the 'bot' role.
+    """
+    try:
+        llm_response = ""
+        async for chunk in get_llm_response(
+            llm=llm,
+            user_query=user_query,
+            context=context,
+        ):
+            llm_response += chunk
+            yield chunk
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    save_chat_message_to_db(
+        chat_message=llm_response,
+        citations=citations,
+        studyId=study_id,
+        role="bot",
+        user_uid=user_uid,
+    )
+
+
 # TODO wrap in try except
+# TODO use background tasks
 @router.post("/chat")
 async def chat(
     chat: ChatRequest,
@@ -131,42 +173,40 @@ async def chat(
         context_elapsed_time = time.time() - context_start_time
         logger.debug(f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}")
 
-    async def generate_llm_response() -> AsyncGenerator[str, None]:
-        """
-        This asynchronous generator function streams the response from the language model (LLM) in chunks.
-        For each chunk received from the LLM, it appends the chunk to the 'llm_response' string and yields
-        the chunk to the caller. After all chunks have been received and yielded, it schedules a background task
-        to save the complete response to the database as a chat message from the 'bot' role.
-        """
-        try:
-            llm_response = ""
-            async for chunk in get_llm_response(
-                llm=llm,
-                user_query=user_query,
-                context=context,  # TODO fix type issue
-            ):
-                llm_response += chunk
-                yield chunk
-        except Exception as e:
-            logger.error(e)
-            raise HTTPException(status_code=500, detail=str(e))
+    llm_response = ""
 
-        save_chat_message_to_db(
-            chat_message=llm_response,
+    # Wrapping generate_llm_response in event_stream allows real-time streaming of chunks to the client
+    # The generate_llm_response function is a coroutine that yields chunks of the LLM response
+    # without wrapping in event_stream we would not be able to stream the response to the client
+    async def event_stream():
+        nonlocal llm_response
+        async for chunk in generate_llm_response(
+            llm=llm,
+            user_query=user_query,
+            context=context,
             citations=citations,
-            studyId=study_id,
-            role="bot",
+            study_id=study_id,
             user_uid=user_uid,
-        )
+            get_llm_response=get_llm_response,
+            save_chat_message_to_db=save_chat_message_to_db,
+        ):
+            llm_response += chunk
+            yield chunk
+
+    save_chat_message_to_db(
+        chat_message=llm_response,
+        citations=citations,
+        studyId=study_id,
+        role="bot",
+        user_uid=user_uid,
+    )
 
     elasped_time = time.time() - s
     logger.info(f"It took {elasped_time} to start the chat ")
-    return StreamingResponse(generate_llm_response(), media_type="text/event-stream")
-
-    #
-    #
-    #
-    #
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+    )
 
 
 @router.get("/get-chat-messages")
