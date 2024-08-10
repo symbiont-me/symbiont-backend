@@ -2,10 +2,10 @@ import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain_core.pydantic_v1 import ValidationError
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 import time
 import datetime
 from .. import logger
