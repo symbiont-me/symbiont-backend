@@ -25,6 +25,16 @@ router = APIRouter()
 
 
 async def return_no_context_response(response: str = "") -> AsyncGenerator[str, None]:
+    """
+    Asynchronous generator function that yields chunks of the input response string.
+    This is used when no context is available for the chat response.
+
+    Args:
+    response (str): The input string to be split into chunks. Defaults to an empty string.
+
+    Yields:
+    AsyncGenerator[str, None]: Yields each chunk of the input response string.
+    """
     gen = iter(response.split())
     for chunk in gen:
         response += chunk + " "
