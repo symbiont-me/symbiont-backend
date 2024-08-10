@@ -62,40 +62,41 @@ class UsersLLMSettings(BaseModel):
     # temperature: float
 
 
+# TODO the api_key should be a SecretStr and the type error needs to be fixed
 def init_llm(settings: UsersLLMSettings, api_key: str):
-    if settings is None:
-        raise HTTPException(status_code=400, detail="Please set LLM Settings")
-    if api_key is None:
+    """
+    A function that initializes the Language Model (LLM) based on the provided settings and API key.
+    It checks the LLM provider type specified in the settings and creates an instance of the corresponding LLM class.
+    If the provider is not recognized, it raises an HTTPException.
+    Parameters:
+        - settings: UsersLLMSettings - The settings object containing the LLM name.
+        - api_key: str - The API key required for accessing the LLM provider.
+    Returns:
+        An instance of the specific LLM class based on the provider type in the settings.
+    """
+    if not api_key:
         raise HTTPException(status_code=400, detail="Please provide an API key")
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
-        llm = None
-        if isOpenAImodel(settings["llm_name"]):
-            llm = ChatOpenAI(
-                model=settings["llm_name"],
-                api_key=api_key,
-                max_tokens=1500,
-                temperature=0,
-            )
-            return llm
-        elif isAnthropicModel(settings["llm_name"]):
-            llm = ChatAnthropic(
-                model_name=settings["llm_name"],
-                anthropic_api_key=api_key,
-                temperature=0,
-            )
-            return llm
-        elif isGoogleModel(settings["llm_name"]):
-            llm = ChatGoogleGenerativeAI(
-                model=settings["llm_name"],
+        if isOpenAImodel(settings.llm_name):
+            return ChatOpenAI(model=settings.llm_name, api_key=api_key, max_tokens=1500, temperature=0)
+        elif isAnthropicModel(settings.llm_name):
+            return ChatAnthropic(model_name=settings.llm_name, anthropic_api_key=api_key, temperature=0, timeout=30)
+        elif isGoogleModel(settings.llm_name):
+            return ChatGoogleGenerativeAI(
+                model=settings.llm_name,
                 google_api_key=api_key,
-                max_tokens=1500,
                 temperature=0,
                 convert_system_message_to_human=True,
+                client_options=None,
+                transport=None,
+                client=None,
             )
-            return llm
+
         else:
-            logger.critical(f"Couldn't detect the llm provider, {llm=}, {settings['llm_name']}")
+            logger.critical(f"Couldn't find the llm provider {settings.llm_name}")
+            raise HTTPException(status_code=400, detail="Couldn't find the llm provider")
+
     except ValidationError as e:
         if e.errors():
             logger.error(f"Error initializing LLM: {e.errors()}")
