@@ -2188,6 +2188,21 @@ docs = ["alabaster (==0.7.16)", "autodocsumm (==0.2.12)", "sphinx (==7.3.7)", "s
 tests = ["pytest", "pytz", "simplejson"]
 
 [[package]]
+name = "mongomock"
+version = "4.1.2"
+description = "Fake pymongo stub for testing simple MongoDB-dependent code"
+optional = false
+python-versions = "*"
+files = [
+    {file = "mongomock-4.1.2-py2.py3-none-any.whl", hash = "sha256:08a24938a05c80c69b6b8b19a09888d38d8c6e7328547f94d46cadb7f47209f2"},
+    {file = "mongomock-4.1.2.tar.gz", hash = "sha256:f06cd62afb8ae3ef63ba31349abd220a657ef0dd4f0243a29587c5213f931b7d"},
+]
+
+[package.dependencies]
+packaging = "*"
+sentinels = "*"
+
+[[package]]
 name = "msgpack"
 version = "1.0.8"
 description = "MessagePack serializer"
@@ -3657,6 +3672,16 @@ files = [
 pyasn1 = ">=0.1.3"
 
 [[package]]
+name = "sentinels"
+version = "1.0.0"
+description = "Various objects to denote special meanings in python"
+optional = false
+python-versions = "*"
+files = [
+    {file = "sentinels-1.0.0.tar.gz", hash = "sha256:7be0704d7fe1925e397e92d18669ace2f619c92b5d4eb21a89f31e026f9ff4b1"},
+]
+
+[[package]]
 name = "setuptools"
 version = "69.5.1"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
@@ -4933,4 +4958,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9.0,<3.12"
-content-hash = "2a609935b6f4bb9ba1bce55aa6d0ddba0694d180088607c210aff93d697263a4"
+content-hash = "036aef519eaad3170888f35408ebd52748419d627451113a9dd5fc4bab4bb906"
