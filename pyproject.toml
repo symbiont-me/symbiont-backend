@@ -42,6 +42,7 @@ pymupdf = "^1.24.2"
 
 [tool.poetry.scripts]
 delete_namespace = "scripts.delete_pinecone_vecs:main"
+extract_todos = "scripts.extract_todos:main"
 
 [build-system]
 requires = ["poetry-core"]
