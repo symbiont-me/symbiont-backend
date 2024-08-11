@@ -92,23 +92,16 @@ class BaseVectorRepository(ABC):
 
     # TODO explain what the docs are supposed to be
     @abstractmethod
-    def upsert_vectors(self, namespace: str, docs) -> List:  # docs can be either a list or None
+    def upsert_vectors(self, namespace: str, docs: List[DocumentPage]) -> List:
         pass
 
     @abstractmethod
-    # TODO return type should be List[VectorSearchResult]
-    # TODO modify the method in other classes
-
     def search_vectors(self, namespace: str, query: str, limit: int) -> List[VectorSearchResult]:
         pass
 
     # removes the vectors associated with the resource
     @abstractmethod
     def delete_vectors(self, namespace: str):
-        pass
-
-    # TODO remove this and the one below
-    def create_embeddings(self):
         pass
 
     # TODO add openai and other models
@@ -185,7 +178,9 @@ class QdrantRepository(BaseVectorRepository):
             api_key=vector_store_settings.vector_store_token,
         )
 
-        print("Connected to Qdrant")
+        logger.info(
+            f"Connected to Qdrant at {vector_store_settings.vector_store_url}:{vector_store_settings.vector_store_port}"
+        )
 
     def create_collection(self, collection_name: str, vector_size: int, distance: str) -> None:
         distance = Distance.DOT if distance.lower() == "dot" else Distance.COSINE
@@ -257,10 +252,10 @@ vector_store_repos = {
 class VectorStoreContext:
     def __init__(self):
         self.vector_store = vector_store_settings.vector_store
-        if self.vector_store not in vector_store_repos:
-            raise ValueError("Vector store not supported")
         if vector_store_settings.vector_store is None:
             raise ValueError("Set the Vector Store name")
+        if self.vector_store not in vector_store_repos:
+            raise ValueError("Vector store not supported")
         # NOTE this instiates the vector store repo using the object
         self.vector_store_repo = vector_store_repos[vector_store_settings.vector_store]()
 
@@ -281,9 +276,15 @@ def create_vec_refs_in_db(
         }
 
     logger.debug(f"Creating Vectors in DB: {vec_data}")
+
+    # Create update data for individual fields within vectors.{file_identifier}
+    update_data = {f"vectors.{file_identifier}.{id}": data for id, data in vec_data.items()}
+
+    # Use upsert=True to ensure the document is created if it doesn't exist
     studies_collection.update_one(
         {"_id": study_id},
-        {"$set": {f"vectors.{file_identifier}": vec_data}},
+        {"$set": update_data},
+        upsert=True,
     )
 
 
@@ -442,61 +443,87 @@ class ChatContextService(VectorStoreContext):
             model=CohereTextModels.COHERE_RERANK_V2,
         )
         reranked_indices = [r.index for r in reranked_context.results]
-        citations = [context[i] for i in reranked_indices]
         reranked_text = ""
         for text in reranked_context.results:
             reranked_text += text.document.get("text", "")
-        # Convert dict to Citation with page as int
-        # @note we just need to make sure the return data type complies
-        citations = [Citation(**{**context[i], "page": int(context[i]["page"])}) for i in reranked_indices]
+
+        # Ensure all required fields are present in the context dictionaries
+        citations = [
+            Citation(
+                text=context[i].get("text", ""),
+                source=context[i].get("source", ""),
+                page=int(context[i].get("page", 0)),  # if not present, default to 0
+            )
+            for i in reranked_indices
+        ]
         return (reranked_text, citations)
 
     # TODO document this
     # TODO query does not need to be passed as an arg
     def get_single_chat_context(self, query: str) -> Optional[Tuple[str, List[Citation]]]:
-        results = self.vector_store_repo.search_vectors(namespace=self.resource_identifier, query=query, limit=10)
-        ids = [result.id for result in results]
-        logger.debug(f"Found {len(ids)} results")
-        vectors_metadata_from_db = get_vec_refs_from_db(self.study_id, self.resource_identifier, ids)
-        logger.debug(f"Found {len(vectors_metadata_from_db)} vectors from db")
-        logger.debug("Reranking")
-        vectors_metadata_dicts = [vec.dict() for vec in vectors_metadata_from_db]
-        reranked_context = self.rerank_context(vectors_metadata_dicts, query)
-        return reranked_context
+        try:
+            logger.debug(f"Searching vectors for query: {query}")
+            results = self.vector_store_repo.search_vectors(namespace=self.resource_identifier, query=query, limit=10)
+            ids = [result.id for result in results]
+            logger.debug(f"Found {len(ids)} results: {ids}")
+
+            vectors_metadata_from_db = get_vec_refs_from_db(self.study_id, self.resource_identifier, ids)
+            logger.debug(f"Found {len(vectors_metadata_from_db)} vectors from db: {vectors_metadata_from_db}")
+
+            logger.debug("Reranking")
+            # No need to call dict() on each item
+            vectors_metadata_dicts = vectors_metadata_from_db
+            # TODO fix this type error if possible or ignore
+            # @dev important! this is working as is so make sure it works if the type error is fixed
+            reranked_context = self.rerank_context(vectors_metadata_dicts, query)
+
+            return reranked_context
+        except Exception as e:
+            logger.error(f"Error in get_single_chat_context: {e}")
+            return None
 
     def get_combined_chat_context(self, query: str) -> Optional[Tuple[str, List[Citation]]]:
-        logger.debug("==========GETTING COMBINED CONTEXT==========")
-        # get the identifier for each resource
-        study = studies_collection.find_one({"_id": self.study_id})
-        logger.debug(f"Fetching Study: {study}")
-        if study is None:
-            raise ValueError("Study not found")
-        resources = study.get("resources", [])
+        try:
+            logger.debug("==========GETTING COMBINED CONTEXT==========")
+            # get the identifier for each resource
+            study = studies_collection.find_one({"_id": self.study_id})
+            logger.debug(f"Fetching Study: {study}")
+            if study is None:
+                raise ValueError("Study not found")
+            resources = study.get("resources", [])
 
-        all_resource_identifiers = [resource.get("identifier") for resource in resources]
+            all_resource_identifiers = [resource.get("identifier") for resource in resources]
 
-        # array of vec ids and scores
-        combined_vecs: List[VectorSearchResult] = []
-        # combine the context
-        for identifier in all_resource_identifiers:
-            self.resource_identifier = identifier
+            # array of vec ids and scores
+            combined_vecs: List[VectorSearchResult] = []
+            # combine the context
+            for identifier in all_resource_identifiers:
+                self.resource_identifier = identifier
 
-            vecs = self.vector_store_repo.search_vectors(
-                namespace=self.resource_identifier, query=self.user_query, limit=10
-            )
+                vecs = self.vector_store_repo.search_vectors(namespace=self.resource_identifier, query=query, limit=10)
 
-            combined_vecs.extend(vecs)
+                combined_vecs.extend(vecs)
 
-        # for each vec get metadata from the db
-        ids = [result.id for result in combined_vecs]
+            # for each vec get metadata from the db
+            ids = [result.id for result in combined_vecs]
 
-        vectors_metadata_from_db: List[VectorMetadata] = []
-        for resource in all_resource_identifiers:
-            vectors_metadata_from_db.extend(get_vec_refs_from_db(self.study_id, resource, ids))
-        # rerank the context
-        vectors_metadata_dicts = [vec.model_dump() for vec in vectors_metadata_from_db]
-        reranked_context = self.rerank_context(vectors_metadata_dicts, query)
-        return reranked_context
+            vectors_metadata_from_db: List[VectorMetadata] = []
+            for resource in all_resource_identifiers:
+                vectors_metadata_from_db.extend(get_vec_refs_from_db(self.study_id, resource, ids))
+
+            # Ensure each dictionary has a "text" key
+            # No need to call dict() on each item
+            vectors_metadata_dicts = [
+                {**vec, "text": vec.get("text", "")} if isinstance(vec, dict) else vec
+                for vec in vectors_metadata_from_db
+            ]
+            # TODO fix this type error if possible or ignore
+            # @dev important! this is working as is so make sure it works if the type error is fixed
+            reranked_context = self.rerank_context(vectors_metadata_dicts, query)
+            return reranked_context
+        except Exception as e:
+            logger.error(f"Error in get_combined_chat_context: {e}")
+            return None
 
 
 # TODO remove as not being used
