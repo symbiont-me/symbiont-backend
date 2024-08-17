@@ -6,20 +6,14 @@ TODO: Clear documentation needs to be added, with regards to purpose of the clas
 NOTE: The main interfaces should be maintained, because it allows for easy addition of new vector databases
 """
 
-from langchain_core import embeddings
 from qdrant_client import QdrantClient
 
 from qdrant_client.models import Distance, VectorParams
-from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams
-from langchain_community.document_loaders import TextLoader
 from typing import List
-from qdrant_client.http.models import Batch, PointStruct
+from qdrant_client.http.models import Batch
 import uuid
 from langchain_openai import OpenAIEmbeddings
-import numpy as np
 from langchain_community.embeddings.huggingface import HuggingFaceBgeEmbeddings
 import os
 from abc import ABC, abstractmethod
@@ -28,7 +22,6 @@ from pydantic import BaseModel
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
 
 from langchain_voyageai import VoyageAIEmbeddings
-from voyageai.api_resources import embedding
 
 from ..models import EmbeddingModels, CohereTextModels, DocumentPage, Citation
 from .. import logger
@@ -39,11 +32,6 @@ from typing import Union, Tuple
 # 1. Set up a Milvus client
 # from env read name of the vector store
 # from env read name of the embeddings model
-
-
-cohere_api_key = os.getenv("CO_API_KEY")
-
-co = cohere.Client(api_key=cohere_api_key or "")
 
 
 class Metadata(BaseModel):
@@ -136,7 +124,14 @@ def init_huggingface_model(model_name: str):
 
 
 def init_openai_model(model_name: str):
-    pass
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if openai_api_key is None:
+        raise ValueError("Please set the OPENAI_API_KEY environment variable")
+    return OpenAIEmbeddings(
+        model=EmbeddingModels.OPENAI_TEXT_EMBEDDING_3_SMALL,
+        dimensions=1536,
+        api_key=openai_api_key,
+    )
 
 
 def init_voyager_model(model_name: str):
@@ -149,11 +144,17 @@ def init_voyager_model(model_name: str):
 
 
 # TODO add openai and other models
-def init_embeddings_model():
-    pass
+# def init_embeddings_model():
+#     configs = VectorStoreSettings()
+#     if configs.embeddings_model == EmbeddingModels.HuggingFace:
+#         return init_huggingface_model(configs.embeddings_model)
+#     if configs.embeddings_model == EmbeddingModels.VoyageAI:
+#         return init_voyager_model(configs.embeddings_model)
+#     if configs.embeddings_model == EmbeddingModels.OpenAI:
+#         return init_openai_model(configs.embeddings_model)
 
 
-def init_settings(settings: VectorStoreSettings):
+def init_embeddings_settings(settings: VectorStoreSettings):
     nltk_text_splitter = NLTKTextSplitter()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=0)
     # TODO make this dynamic
@@ -161,7 +162,18 @@ def init_settings(settings: VectorStoreSettings):
     return embeddings_model, text_splitter, nltk_text_splitter
 
 
-embeddings_model, text_splitter, nltk_text_splitter = init_settings(vector_store_settings)
+embeddings_model, text_splitter, nltk_text_splitter = init_embeddings_settings(vector_store_settings)
+
+
+# @note Currently only supporting Cohere
+def init_reranker(reranker_name: str):
+    # if reranker_name == "cohere":
+    #     return cohere.Client(api_key=os.getenv("CO_API_KEY"))
+    cohere_api_key = os.getenv("CO_API_KEY")
+    return cohere.Client(api_key=cohere_api_key or "")
+
+
+reranker = init_reranker("cohere")
 
 
 # class EmbeddingsService:
@@ -229,6 +241,7 @@ class QdrantRepository(BaseVectorRepository):
         return points
 
     def embed_single_document(self, doc: DocumentPage) -> List[float]:
+        # TODO this should be abstracted as it won't work with non-langchain models
         return embeddings_model.embed_query(doc.page_content)
 
     def upsert_vectors(self, namespace: str, docs: List[DocumentPage]) -> List[str]:
@@ -288,7 +301,11 @@ class VectorStoreContext:
 
 
 def create_vec_refs_in_db(
-    ids: List[str], file_identifier: str, docs: List[DocumentPage], user_id: str, study_id: str
+    ids: List[str],
+    file_identifier: str,
+    docs: List[DocumentPage],
+    user_id: str,
+    study_id: str,
 ) -> None:
     # TODO check user access
     if len(ids) != len(docs):
@@ -363,10 +380,31 @@ class ChatContextService(VectorStoreContext):
         self.resource_type = resource_type
         self.study_id = study_id
 
+        # TODO move this some place appropriate
+
     def __truncate_string_by_bytes(self, string: str, num_bytes: int) -> str:
         encoded_string = string.encode("utf-8")
         truncated_string = encoded_string[:num_bytes]
         return truncated_string.decode("utf-8", "ignore")
+
+    def __process_plain_text_and_webpage_resource(self):
+        content = getattr(self.resource_doc, "page_content", None)
+        if content is None:
+            raise ValueError("There is no resource content to be added")
+        split_texts = text_splitter.create_documents([content])
+        docs = [
+            DocumentPage(
+                page_content=split_text.page_content,
+                metadata={
+                    "text": split_text.page_content,
+                    "source": self.resource_identifier,
+                    "page": 0,
+                },
+            )
+            for split_text in split_texts
+        ]
+        ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
+        create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
     # @dev this performs operations on a single pdf document, splite the content and make it into Document Page
     # that can be used by the vector store
@@ -399,24 +437,12 @@ class ChatContextService(VectorStoreContext):
         ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
         create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
+    # TODO test this
+    def add_plaintext_resource(self) -> None:
+        self.__process_plain_text_and_web_resource()
+
     def add_web_resource(self) -> None:
-        content = getattr(self.resource_doc, "page_content", None)
-        if content is None:
-            raise ValueError("There is no resource content to be added")
-        split_texts = text_splitter.create_documents([content])
-        docs = [
-            DocumentPage(
-                page_content=split_text.page_content,
-                metadata={
-                    "text": split_text.page_content,
-                    "source": self.resource_identifier,
-                    "page": 0,
-                },
-            )
-            for split_text in split_texts
-        ]
-        ids = self.vector_store_repo.upsert_vectors(self.resource_identifier, docs)
-        create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
+        self.__process_plain_text_and_webpage_resource()
 
     def add_yt_resource(self) -> None:
         content = getattr(self.resource_doc, "page_content", None)
@@ -438,11 +464,12 @@ class ChatContextService(VectorStoreContext):
         logger.debug(ids)
         create_vec_refs_in_db(ids, self.resource_identifier, docs, self.user_id, self.study_id)
 
-    # TODO move this some place appropriate
+    # TODO make this private
     resource_adders = {
         "pdf": add_pdf_resource,
         "webpage": add_web_resource,
         "youtube": add_yt_resource,
+        "add_plain_text": add_plaintext_resource,
     }
 
     # TODO this should single Document
@@ -454,20 +481,21 @@ class ChatContextService(VectorStoreContext):
         self.resource_adders[self.resource_type](self)
 
     # TODO Remove the context from db from here
+    # TODO test the removal
     def delete_context(self) -> None:
         self.vector_store_repo.delete_vectors(self.resource_identifier)
 
-    # TODO add the type for context
+    # TODO create Pydantic type for the context
     def rerank_context(self, context: List[Dict[str, str]], query: str) -> Union[Tuple[str, List[Citation]], None]:
         # fixes: cohere.error.CohereAPIError: invalid request: list of documents must not be empty
         if not context:
             return None
 
-        reranked_context = co.rerank(
+        reranked_context = reranker.rerank(
             query=query,
             documents=context,
             top_n=3,
-            model=CohereTextModels.COHERE_RERANK_V2,
+            model=CohereTextModels.COHERE_RERANK_V2,  # TODO the model name should be in a config
         )
         reranked_indices = [r.index for r in reranked_context.results]
         reranked_text = ""
@@ -487,6 +515,7 @@ class ChatContextService(VectorStoreContext):
 
     # TODO document this
     # TODO query does not need to be passed as an arg
+    # TODO test and remove query from args
     def get_single_chat_context(self, query: str) -> Optional[Tuple[str, List[Citation]]]:
         try:
             logger.debug(f"Searching vectors for query: {query}")
@@ -501,7 +530,7 @@ class ChatContextService(VectorStoreContext):
             # No need to call dict() on each item
             vectors_metadata_dicts = vectors_metadata_from_db
             # TODO fix this type error if possible or ignore
-            # @dev important! this is working as is so make sure it works if the type error is fixed
+            # @dev important! this is working as is, so make sure it works if the type error is fixed
             reranked_context = self.rerank_context(vectors_metadata_dicts, query)
 
             return reranked_context
@@ -551,12 +580,3 @@ class ChatContextService(VectorStoreContext):
         except Exception as e:
             logger.error(f"Error in get_combined_chat_context: {e}")
             return None
-
-
-# TODO remove as not being used
-def create_docs(path: str):
-    loader = TextLoader(path)
-    documents = loader.load()
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-    docs = text_splitter.split_documents(documents)
-    return docs
