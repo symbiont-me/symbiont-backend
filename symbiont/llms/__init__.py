@@ -63,10 +63,6 @@ class UsersLLMSettings(BaseModel):
 
 
 def init_llm(settings: UsersLLMSettings, api_key: str):
-    if settings is None:
-        raise HTTPException(status_code=400, detail="Please set LLM Settings")
-    if api_key is None:
-        raise HTTPException(status_code=400, detail="Please provide an API key")
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
         llm = None
@@ -96,10 +92,6 @@ def init_llm(settings: UsersLLMSettings, api_key: str):
             return llm
         else:
             logger.critical(f"Couldn't detect the llm provider, {llm=}, {settings['llm_name']}")
-    except ValidationError as e:
-        if e.errors():
-            logger.error(f"Error initializing LLM: {e.errors()}")
-            raise HTTPException(status_code=400, detail="Check your API key and LLM settings")
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
         raise HTTPException(status_code=400, detail="Error initializing LLM")
