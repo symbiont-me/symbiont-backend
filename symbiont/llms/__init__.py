@@ -58,40 +58,44 @@ def isGoogleModel(llm_name: str) -> bool:
 class UsersLLMSettings(BaseModel):
     llm_name: str
     # api_key: SecretStr
-    # max_tokens: int
-    # temperature: float
+    max_tokens: int = 1500
+    temperature: float = 0.7
+    timeout: int = 60
 
 
 def init_llm(settings: UsersLLMSettings, api_key: str):
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
         llm = None
-        if isOpenAImodel(settings["llm_name"]):
+        if isOpenAImodel(settings.llm_name):
             llm = ChatOpenAI(
-                model=settings["llm_name"],
+                model=settings.llm_name,
                 api_key=api_key,
-                max_tokens=1500,
-                temperature=0,
+                max_tokens=settings.max_tokens,
+                temperature=settings.temperature,
             )
             return llm
-        elif isAnthropicModel(settings["llm_name"]):
+        elif isAnthropicModel(settings.llm_name):
             llm = ChatAnthropic(
-                model_name=settings["llm_name"],
-                anthropic_api_key=api_key,
-                temperature=0,
+                model_name=settings.llm_name,
+                api_key=api_key,
+                temperature=settings.temperature,
+                timeout=settings.timeout,
             )
             return llm
-        elif isGoogleModel(settings["llm_name"]):
+        elif isGoogleModel(settings.llm_name):
             llm = ChatGoogleGenerativeAI(
-                model=settings["llm_name"],
+                model=settings.llm_name,
                 google_api_key=api_key,
-                max_tokens=1500,
-                temperature=0,
+                temperature=settings.temperature,
                 convert_system_message_to_human=True,
+                client_options={"max_output_tokens": settings.max_tokens},  # @note not sure if this is working
+                transport=None,
+                client=None,
             )
             return llm
         else:
-            logger.critical(f"Couldn't detect the llm provider, {llm=}, {settings['llm_name']}")
+            logger.error(f"Couldn't find the llm provider, {settings.llm_name}")
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
         raise HTTPException(status_code=400, detail="Error initializing LLM")
