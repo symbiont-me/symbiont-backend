@@ -1,6 +1,6 @@
 import pytest
 import mongomock
-from symbiont.vector_dbs.vector_service import create_vec_refs_in_db, DocumentPage, Metadata
+from symbiont.vector_dbs.chat_context_service import create_vec_refs_in_db, DocumentPage
 from unittest.mock import patch
 
 
@@ -9,7 +9,7 @@ from unittest.mock import patch
 def test_create_vec_refs_in_db():
     # Arrange
     mock_studies_collection = mongomock.MongoClient().db.collection
-    with patch("symbiont.vector_dbs.vector_service.studies_collection", mock_studies_collection):
+    with patch("symbiont.vector_dbs.context_service.studies_collection", mock_studies_collection):
         ids = ["id1", "id2"]
         file_identifier = "file1"
         docs = [

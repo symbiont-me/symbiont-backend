@@ -1,5 +1,6 @@
 import pytest
-from symbiont.vector_dbs.vector_service import VectorStoreContext, vector_store_settings, vector_store_repos
+from symbiont.vector_dbs.vector_service import VectorStoreContext, vector_store_settings
+from symbiont.vector_dbs.vector_store_context import vector_store_repos
 
 
 # Mocking the vector_store_settings and vector_store_repos for testing

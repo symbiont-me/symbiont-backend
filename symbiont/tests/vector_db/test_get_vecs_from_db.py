@@ -1,6 +1,6 @@
 import pytest
 import mongomock
-from symbiont.vector_dbs.vector_service import get_vec_refs_from_db, VectorMetadata
+from symbiont.vector_dbs.chat_context_service import get_vec_refs_from_db
 
 
 # Mock the studies_collection
@@ -22,7 +22,7 @@ def mock_studies_collection(monkeypatch):
         }
     )
 
-    monkeypatch.setattr("symbiont.vector_dbs.vector_service.studies_collection", studies_collection)
+    monkeypatch.setattr("symbiont.vector_dbs.chat_context_service.studies_collection", studies_collection)
     return studies_collection
 
 

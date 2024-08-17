@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from symbiont.vector_dbs.vector_service import ChatContextService, DocumentPage
+from symbiont.vector_dbs.chat_context_service import ChatContextService, DocumentPage
 
 
 @pytest.fixture

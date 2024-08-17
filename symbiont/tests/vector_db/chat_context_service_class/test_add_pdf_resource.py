@@ -1,11 +1,11 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from symbiont.vector_dbs.vector_service import ChatContextService, DocumentPage
+from symbiont.vector_dbs.chat_context_service import ChatContextService, DocumentPage
 
 
 @pytest.fixture
 def mock_service():
-    with patch("symbiont.vector_dbs.vector_service.create_vec_refs_in_db") as mock_create_vec_refs_in_db, patch(
+    with patch("symbiont.vector_dbs.chat_context_service.create_vec_refs_in_db") as mock_create_vec_refs_in_db, patch(
         "symbiont.vector_dbs.vector_service.VectorStoreContext.__init__", lambda x: None
     ):
         service = ChatContextService()

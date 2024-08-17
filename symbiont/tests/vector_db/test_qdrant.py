@@ -1,17 +1,17 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from symbiont.vector_dbs.vector_service import (
-    QdrantRepository,
+from symbiont.vector_dbs.chat_context_service import (
     VectorStoreContext,
     create_vec_refs_in_db,
     get_vec_refs_from_db,
-    VectorMetadata,
     DocumentPage,
-    VectorSearchResult,
-    vector_store_settings,
 )
+from symbiont.vector_dbs.vector_store_repos.qdrant_repo import QdrantRepository
+from symbiont.vector_dbs.vector_store_configs import VectorStoreSettings
 from qdrant_client import QdrantClient
 
+
+vector_store_settings = VectorStoreSettings()
 
 # TODO use in memory qdrant client for testing
 # Mock settings
@@ -26,7 +26,7 @@ vector_store_settings.vector_store_distance = "dot"
 # Mock QdrantClient using in-memory storage
 @pytest.fixture
 def mock_qdrant_client():
-    with patch("symbiont.vector_dbs.vector_service.QdrantClient") as MockClient:
+    with patch("symbiont.vector_dbs.vector_store_repos.qdrant_repo.QdrantClient") as MockClient:
         instance = MockClient.return_value
         instance.client = QdrantClient(":memory:")  # Use in-memory client
         yield MockClient
