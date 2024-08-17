@@ -1,7 +1,6 @@
 import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
-from langchain_core.pydantic_v1 import ValidationError
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -63,6 +62,7 @@ class UsersLLMSettings(BaseModel):
     timeout: int = 60
 
 
+# TODO api_key needs to be of type SecretStr
 def init_llm(settings: UsersLLMSettings, api_key: str):
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
@@ -118,16 +118,10 @@ async def get_llm_response(llm, user_query: str, context: str):
         f"at a speed of {round(speed,2)} chunk/s."
     )
 
-    # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
-    # human = user_query
-
-    # prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-    # chain = prompt | llm
-    # for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
-    #     yield chunk.content
-
 
 # TODO move to routers/llm_settings.py
+# TODO there is another get-llm-settings route this needs to be checked against that
+# @note I don't even know if this is being used
 def get_user_llm_settings(user_uid: str):
     user_llm_settings = users_collection.find_one({"_id": user_uid}).get("settings")
     logger.debug(f"User LLM Settings: {user_llm_settings}")
