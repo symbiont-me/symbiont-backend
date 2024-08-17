@@ -140,7 +140,8 @@ def init_voyager_model(model_name: str):
         raise ValueError("Please set the VOYAGE_API_KEY environment variable")
 
     # TODO model name must be in EmbeddingModels
-    return VoyageAIEmbeddings(model=model_name, voyage_api_key=api_key, batch_size=1)  # type: ignore
+
+    return VoyageAIEmbeddings(model=EmbeddingModels.VOYAGEAI_2_LARGE, voyage_api_key=api_key, batch_size=1)  # type: ignore
 
 
 # TODO add openai and other models
