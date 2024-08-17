@@ -25,7 +25,7 @@ import tempfile
 from bson.objectid import ObjectId
 from ..utils.document_loaders import load_pdf
 from ..utils.llm_utils import summarise_plain_text_resource
-from ..vector_dbs.vector_service import ChatContextService
+from ..vector_dbs.chat_context_service import ChatContextService
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD

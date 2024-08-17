@@ -18,7 +18,7 @@ from typing import Annotated, List
 import asyncio
 from ..mongodb import studies_collection
 
-from ..vector_dbs.vector_service import ChatContextService
+from symbiont.vector_dbs.chat_context_service import ChatContextService
 
 
 ####################################################
