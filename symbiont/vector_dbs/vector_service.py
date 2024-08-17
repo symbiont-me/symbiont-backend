@@ -6,6 +6,7 @@ TODO: Clear documentation needs to be added, with regards to purpose of the clas
 NOTE: The main interfaces should be maintained, because it allows for easy addition of new vector databases
 """
 
+from langchain_core import embeddings
 from qdrant_client import QdrantClient
 
 from qdrant_client.models import Distance, VectorParams
@@ -27,6 +28,7 @@ from pydantic import BaseModel
 from langchain.text_splitter import NLTKTextSplitter, RecursiveCharacterTextSplitter
 
 from langchain_voyageai import VoyageAIEmbeddings
+from voyageai.api_resources import embedding
 
 from ..models import EmbeddingModels, CohereTextModels, DocumentPage, Citation
 from .. import logger
@@ -104,17 +106,6 @@ class BaseVectorRepository(ABC):
     def delete_vectors(self, namespace: str):
         pass
 
-    # TODO add openai and other models
-    def init_embeddings_model(self):
-        model_name = "BAAI/bge-base-en"
-        model_kwargs = {"device": "cpu"}
-        encode_kwargs = {"normalize_embeddings": True}
-        return HuggingFaceBgeEmbeddings(
-            model_name=model_name,
-            model_kwargs=model_kwargs,
-            encode_kwargs=encode_kwargs,
-        )
-
 
 # TODO try except for the env variables and remove the default values
 class VectorStoreSettings:
@@ -125,15 +116,52 @@ class VectorStoreSettings:
         self.vector_store_dimension = os.getenv("VECTOR_STORE_DIMENSION")
         self.vector_store_distance = os.getenv("VECTOR_STORE_DISTANCE")
         self.vector_store_token = os.getenv("VECTOR_STORE_TOKEN")  # should be optional
+        self.embeddings_model = os.getenv("EMBEDDINGS_MODEL", "bge-base-en")
 
 
-nltk_text_splitter = NLTKTextSplitter()
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=0)
+vector_store_settings = VectorStoreSettings()
 
-voyage_api_key = os.getenv("VOYAGE_API_KEY")
 
-# TODO fix type issue
-embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=EmbeddingModels.VOYAGEAI_2_LARGE)
+def init_huggingface_model(model_name: str):
+    # TODO model name must be in EmbeddingModels
+    # TODO add openai and other models
+    model_name = model_name
+    model_kwargs = {"device": "cpu"}
+    encode_kwargs = {"normalize_embeddings": True}
+    return HuggingFaceBgeEmbeddings(
+        model_name=model_name,
+        model_kwargs=model_kwargs,
+        encode_kwargs=encode_kwargs,
+    )
+
+
+def init_openai_model(model_name: str):
+    pass
+
+
+def init_voyager_model(model_name: str):
+    api_key = os.getenv("VOYAGE_API_KEY")
+    if api_key is None:
+        raise ValueError("Please set the VOYAGE_API_KEY environment variable")
+
+    # TODO model name must be in EmbeddingModels
+    return VoyageAIEmbeddings(model=model_name, voyage_api_key=api_key, batch_size=1)  # type: ignore
+
+
+# TODO add openai and other models
+def init_embeddings_model():
+    pass
+
+
+def init_settings(settings: VectorStoreSettings):
+    nltk_text_splitter = NLTKTextSplitter()
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=0)
+    # TODO make this dynamic
+    embeddings_model = init_voyager_model(settings.embeddings_model)
+    return embeddings_model, text_splitter, nltk_text_splitter
+
+
+embeddings_model, text_splitter, nltk_text_splitter = init_settings(vector_store_settings)
 
 
 # class EmbeddingsService:
@@ -161,7 +189,6 @@ embeddings_model = VoyageAIEmbeddings(voyage_api_key=voyage_api_key, model=Embed
 #
 #
 # embeddings_service = EmbeddingsService("bge-base-en")
-vector_store_settings = VectorStoreSettings()
 
 
 # TODO
