@@ -12,16 +12,16 @@ from .. import embeddings_model
 
 class QdrantRepository(BaseVectorRepository):
     def __init__(self):
-        self.dimension = vector_store_settings.vector_store_dimension
-        self.distance = vector_store_settings.vector_store_distance
+        self.dimension = vector_store_settings.configs.vector_store_dimension
+        self.distance = vector_store_settings.configs.vector_store_distance
         self.client = QdrantClient(
-            url=f"{vector_store_settings.vector_store_url}:{vector_store_settings.vector_store_port}",
+            url=f"{vector_store_settings.configs.vector_store_url}:{vector_store_settings.configs.vector_store_port}",
             port=6333,
-            api_key=vector_store_settings.vector_store_token,
+            api_key=vector_store_settings.configs.vector_store_token,
         )
 
         logger.info(
-            f"Connected to Qdrant at {vector_store_settings.vector_store_url}:{vector_store_settings.vector_store_port}"
+            f"Connected to Qdrant at {vector_store_settings.configs.vector_store_url}:{vector_store_settings.configs.vector_store_port}"
         )
 
     def create_collection(self, collection_name: str, vector_size: int, distance: str) -> None:
