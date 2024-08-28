@@ -1,68 +1,44 @@
-from ..utils.llm_utils import (
-    summarise_plain_text_resource,
-)
-
-from .. import logger
+import pytest
+from unittest.mock import patch, MagicMock
+from symbiont.utils.llm_utils import summarise_plain_text_resource
 
 
-work_of_art = """Preface
-When Marx undertook his critique of the capitalistic mode of production, 
-this mode was in its infancy. Marx directed his efforts in such a way as 
-to give them prognostic value. He went back to the basic conditions underlying 
-capitalistic production and through his presentation showed what could be expected of capitalism in 
-the future. The result was that one could expect it not only to exploit the proletariat with increasing 
-intensity, but ultimately to create conditions which would make it possible to abolish capitalism itself.
-The transformation of the superstructure, which takes place far more slowly than that of the substructure, 
-has taken more than half a century to manifest in all areas of culture the change in the conditions of 
-production. Only today can it be indicated what form this has taken. Certain prognostic requirements 
-should be met by these statements. However, theses about the art of the proletariat after its assumption 
-of power or about the art of a classless society would have less bearing on these demands than theses 
-about the developmental tendencies of art under present conditions of production. Their dialectic is 
-no less noticeable in the superstructure than in the economy. It would therefore be wrong to underestimate 
-the value of such theses as a weapon. They brush aside a number of outmoded concepts, such as creativity 
-and genius, eternal value and mystery – concepts whose uncontrolled (and at present almost uncontrollable) 
-application would lead to a processing of data in the Fascist sense. The concepts which are introduced 
-into the theory of art in what follows differ from the more familiar terms in that they are completely 
-useless for the purposes of Fascism. They are, on the other hand, useful for the formulation of revolutionary 
-demands in the politics of art.
-I
-In principle a work of art has always been reproducible. Man-made artifacts could always be imitated by men. 
-Replicas were made by pupils in practice of their craft, by masters for diffusing their works, and, finally, 
-by third parties in the pursuit of gain. Mechanical reproduction of a work of art, however, represents 
-something new. Historically, it advanced intermittently and in leaps at long intervals, but with accelerated 
-intensity. The Greeks knew only two procedures of technically reproducing works of art: founding and stamping. 
-Bronzes, terra cottas, and coins were the only art works which they could produce in quantity. All others were 
-unique and could not be mechanically reproduced. With the woodcut graphic art became mechanically reproducible 
-for the first time, long before script became reproducible by print. The enormous changes which printing, the 
-mechanical reproduction of writing, has brought about in literature are a familiar story. However, within the 
-phenomenon which we are here examining from the perspective of world history, print is merely a special, 
-though particularly important, case. During the Middle Ages engraving and etching were added to the woodcut; 
-at the beginning of the nineteenth century lithography made its appearance. With lithography the technique of 
-reproduction reached an essentially new stage. This much more direct process was distinguished by the tracing of 
-the design on a stone rather than its incision on a block of wood or its etching on a copperplate and permitted 
-graphic art for the first time to put its products on the market, not only in large numbers as hitherto, but also 
-in daily changing forms. Lithography enabled graphic art to illustrate everyday life, and it began to keep pace 
-with printing. But only a few decades after its invention, lithography was surpassed by photography. For the first
-time in the process of pictorial reproduction, photography freed the hand of the most important artistic functions 
-which henceforth devolved only upon the eye looking into a lens. Since the eye perceives more swiftly than the hand 
-can draw, the process of pictorial reproduction was accelerated so enormously that it could keep pace with speech. 
-A film operator shooting a scene in the studio captures the images at the speed of an actor’s speech. Just as 
-lithography virtually implied the illustrated newspaper, so did photography foreshadow the sound film. 
-The technical reproduction of sound was tackled at the end of the last century. These convergent endeavors 
-made predictable a situation which Paul Valery pointed up in this sentence:
-“Just as water, gas, and electricity are brought into our houses from far off to satisfy our needs in response 
-to a minimal effort, so we shall be supplied with visual or auditory images, which will appear and disappear 
-at a simple movement of the hand, hardly more than a sign.”
-Around 1900 technical reproduction had reached a standard that not only permitted it to reproduce all 
-transmitted works of art and thus to cause the most profound change in their impact upon the public; it also had 
-captured a place of its own among the artistic processes. For the study of this standard nothing is more revealing 
-than the nature of the repercussions that these two different manifestations – the reproduction of works of art 
-and the art of the film – have had on art in its traditional form.
-"""
+@patch("symbiont.utils.llm_utils.ChatGoogleGenerativeAI")
+@patch("symbiont.utils.llm_utils.load_summarize_chain")
+@patch("symbiont.utils.llm_utils.NLTKTextSplitter")
+def test_summarise_plain_text_resource(
+    mock_nltk_text_splitter, mock_load_summarize_chain, mock_chat_google_generative_ai
+):
+    # Mock the NLTKTextSplitter
+    mock_splitter_instance = MagicMock()
+    mock_splitter_instance.create_documents.return_value = ["doc1", "doc2"]
+    mock_nltk_text_splitter.return_value = mock_splitter_instance
+
+    # Mock the summarize chain
+    mock_summary_chain_instance = MagicMock()
+    mock_summary_chain_instance.run.return_value = "This is a summary."
+    mock_load_summarize_chain.return_value = mock_summary_chain_instance
+
+    # Mock the ChatGoogleGenerativeAI
+    mock_google_llm_instance = MagicMock()
+    mock_chat_google_generative_ai.return_value = mock_google_llm_instance
+
+    # Call the function
+    document_text = "This is a test document."
+    summary = summarise_plain_text_resource(document_text)
+
+    # Assertions
+    mock_nltk_text_splitter.assert_called_once()
+    mock_splitter_instance.create_documents.assert_called_once_with([document_text])
+    mock_load_summarize_chain.assert_called_once_with(
+        llm=mock_google_llm_instance, chain_type="map_reduce", verbose=False
+    )
+    mock_summary_chain_instance.run.assert_called_once_with(["doc1", "doc2"])
+    assert summary == "This is a summary."
 
 
-def test_summarise_plain_text_resource():
-    summary = summarise_plain_text_resource(work_of_art)
-    logger.debug(f"Summary: {summary}")
-    assert isinstance(summary, str)
-    assert summary != "An error occurred: Summary could not be generated."
+def test_summarise_plain_text_resource_exception():
+    with patch("symbiont.utils.llm_utils.ChatGoogleGenerativeAI", side_effect=Exception("Test exception")):
+        document_text = "This is a test document."
+        summary = summarise_plain_text_resource(document_text)
+        assert summary == "An error occurred: Summary could not be generated."

@@ -2,10 +2,10 @@ import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain_core.pydantic_v1 import ValidationError
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 import time
 import datetime
 from .. import logger
@@ -43,6 +43,7 @@ def create_prompt(user_query: str, context: str):
 
 
 # TODO move to utils
+# TODO These functions should match the LLMs in the LLMs collection for better security
 def isOpenAImodel(llm_name: str) -> bool:
     return bool(re.match(r"gpt", llm_name))
 
@@ -62,40 +63,41 @@ class UsersLLMSettings(BaseModel):
     # temperature: float
 
 
+# TODO the api_key should be a SecretStr and the type error needs to be fixed
 def init_llm(settings: UsersLLMSettings, api_key: str):
-    if settings is None:
-        raise HTTPException(status_code=400, detail="Please set LLM Settings")
-    if api_key is None:
+    """
+    A function that initializes the Language Model (LLM) based on the provided settings and API key.
+    It checks the LLM provider type specified in the settings and creates an instance of the corresponding LLM class.
+    If the provider is not recognized, it raises an HTTPException.
+    Parameters:
+        - settings: UsersLLMSettings - The settings object containing the LLM name.
+        - api_key: str - The API key required for accessing the LLM provider.
+    Returns:
+        An instance of the specific LLM class based on the provider type in the settings.
+    """
+    if not api_key:
         raise HTTPException(status_code=400, detail="Please provide an API key")
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
-        llm = None
-        if isOpenAImodel(settings["llm_name"]):
-            llm = ChatOpenAI(
-                model=settings["llm_name"],
-                api_key=api_key,
-                max_tokens=1500,
-                temperature=0,
-            )
-            return llm
-        elif isAnthropicModel(settings["llm_name"]):
-            llm = ChatAnthropic(
-                model_name=settings["llm_name"],
-                anthropic_api_key=api_key,
-                temperature=0,
-            )
-            return llm
-        elif isGoogleModel(settings["llm_name"]):
-            llm = ChatGoogleGenerativeAI(
-                model=settings["llm_name"],
+        if isOpenAImodel(settings.llm_name):
+            return ChatOpenAI(model=settings.llm_name, api_key=api_key, max_tokens=1500, temperature=0)
+        elif isAnthropicModel(settings.llm_name):
+            return ChatAnthropic(model_name=settings.llm_name, anthropic_api_key=api_key, temperature=0, timeout=30)
+        elif isGoogleModel(settings.llm_name):
+            return ChatGoogleGenerativeAI(
+                model=settings.llm_name,
                 google_api_key=api_key,
-                max_tokens=1500,
                 temperature=0,
                 convert_system_message_to_human=True,
+                client_options=None,
+                transport=None,
+                client=None,
             )
-            return llm
+
         else:
-            logger.critical(f"Couldn't detect the llm provider, {llm=}, {settings['llm_name']}")
+            logger.critical(f"Couldn't find the llm provider {settings.llm_name}")
+            raise HTTPException(status_code=400, detail="Couldn't find the llm provider")
+
     except ValidationError as e:
         if e.errors():
             logger.error(f"Error initializing LLM: {e.errors()}")
@@ -133,6 +135,22 @@ async def get_llm_response(llm, user_query: str, context: str):
 
 # TODO move to routers/llm_settings.py
 def get_user_llm_settings(user_uid: str):
-    user_llm_settings = users_collection.find_one({"_id": user_uid}).get("settings")
+    """
+    Retrieves the language model (LLM) settings for a specific user based on the provided user ID.
+
+    Parameters:
+        user_uid (str): The unique identifier of the user whose LLM settings are to be retrieved.
+
+    Returns:
+        dict: The LLM settings for the specified user.
+    """
+    users_document = users_collection.find_one({"_id": user_uid})
+    if users_document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user_llm_settings = users_document.get("settings")
     logger.debug(f"User LLM Settings: {user_llm_settings}")
     return user_llm_settings

@@ -5,3 +5,15 @@ repos:
     hooks:
       # Run the linter.
       - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+      - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: run-tests
+        name: Run Tests
+        entry: poetry run pytest
+        language: system
+        pass_filenames: false
