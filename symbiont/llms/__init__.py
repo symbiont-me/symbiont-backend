@@ -1,11 +1,10 @@
 import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
-from langchain_core.pydantic_v1 import ValidationError
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 import time
 import datetime
 from .. import logger
@@ -19,18 +18,18 @@ google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 def create_prompt(user_query: str, context: str):
     prompt_template = PromptTemplate.from_template(
         """
-        You are a well-informed AI assistant. 
+        You are a well-informed AI assistant.
         The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness.
-        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly 
+        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly
         any question about any topic in conversation.
-        AI assistant will take into account any information that is provided and construct 
+        AI assistant will take into account any information that is provided and construct
         a reasonable and well thought response.
         START OF INFORMATION {context} END OF INFORMATION
         If it is not enought to provide a reasonable answer to the question, the AI assistant will say:
         "I'm sorry, but I don't know the answer to that question. But my educated opinion would..."
         AI assistant will not invent anything and do its best to provide accurate information.
         Output Format: Return your answer in valid {output_format} format
-        {user_query} 
+        {user_query}
     """
     )
 
@@ -43,6 +42,7 @@ def create_prompt(user_query: str, context: str):
 
 
 # TODO move to utils
+# TODO These functions should match the LLMs in the LLMs collection for better security
 def isOpenAImodel(llm_name: str) -> bool:
     return bool(re.match(r"gpt", llm_name))
 
@@ -58,8 +58,9 @@ def isGoogleModel(llm_name: str) -> bool:
 class UsersLLMSettings(BaseModel):
     llm_name: str
     # api_key: SecretStr
-    # max_tokens: int
-    # temperature: float
+    max_tokens: int = 1500
+    temperature: float = 0.7
+    timeout: int = 60
 
 
 def init_llm(settings: UsersLLMSettings, api_key: str):
@@ -70,36 +71,35 @@ def init_llm(settings: UsersLLMSettings, api_key: str):
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
         llm = None
-        if isOpenAImodel(settings["llm_name"]):
+        if isOpenAImodel(settings.llm_name):
             llm = ChatOpenAI(
-                model=settings["llm_name"],
+                model=settings.llm_name,
                 api_key=api_key,
-                max_tokens=1500,
-                temperature=0,
+                max_tokens=settings.max_tokens,
+                temperature=settings.temperature,
             )
             return llm
-        elif isAnthropicModel(settings["llm_name"]):
+        elif isAnthropicModel(settings.llm_name):
             llm = ChatAnthropic(
-                model_name=settings["llm_name"],
-                anthropic_api_key=api_key,
-                temperature=0,
+                model_name=settings.llm_name,
+                api_key=api_key,
+                temperature=settings.temperature,
+                timeout=settings.timeout,
             )
             return llm
-        elif isGoogleModel(settings["llm_name"]):
+        elif isGoogleModel(settings.llm_name):
             llm = ChatGoogleGenerativeAI(
-                model=settings["llm_name"],
+                model=settings.llm_name,
                 google_api_key=api_key,
-                max_tokens=1500,
-                temperature=0,
+                temperature=settings.temperature,
                 convert_system_message_to_human=True,
+                client_options={"max_output_tokens": settings.max_tokens},  # @note not sure if this is working
+                transport=None,
+                client=None,
             )
-            return llm
+
         else:
-            logger.critical(f"Couldn't detect the llm provider, {llm=}, {settings['llm_name']}")
-    except ValidationError as e:
-        if e.errors():
-            logger.error(f"Error initializing LLM: {e.errors()}")
-            raise HTTPException(status_code=400, detail="Check your API key and LLM settings")
+            logger.error(f"Couldn't find the llm provider, {settings.llm_name}")
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
         raise HTTPException(status_code=400, detail="Error initializing LLM")
@@ -122,17 +122,27 @@ async def get_llm_response(llm, user_query: str, context: str):
         f"at a speed of {round(speed,2)} chunk/s."
     )
 
-    # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
-    # human = user_query
-
-    # prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-    # chain = prompt | llm
-    # for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
-    #     yield chunk.content
-
 
 # TODO move to routers/llm_settings.py
+# TODO there is another get-llm-settings route this needs to be checked against that
+# @note I don't even know if this is being used
 def get_user_llm_settings(user_uid: str):
-    user_llm_settings = users_collection.find_one({"_id": user_uid}).get("settings")
+    """
+    Retrieves the language model (LLM) settings for a specific user based on the provided user ID.
+
+    Parameters:
+        user_uid (str): The unique identifier of the user whose LLM settings are to be retrieved.
+
+    Returns:
+        dict: The LLM settings for the specified user.
+    """
+    users_document = users_collection.find_one({"_id": user_uid})
+    if users_document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user_llm_settings = users_document.get("settings")
     logger.debug(f"User LLM Settings: {user_llm_settings}")
     return user_llm_settings
