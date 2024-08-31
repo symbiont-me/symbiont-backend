@@ -6,7 +6,7 @@ from symbiont.vector_dbs.chat_context_service import ChatContextService, Documen
 @pytest.fixture
 def mock_service():
     with patch("symbiont.vector_dbs.chat_context_service.create_vec_refs_in_db") as mock_create_vec_refs_in_db, patch(
-        "symbiont.vector_dbs.vector_service.VectorStoreContext.__init__", lambda x: None
+        "symbiont.vector_dbs.chat_context_service.VectorStoreContext.__init__", lambda x: None
     ):
         service = ChatContextService()
         service.resource_doc = [DocumentPage(page_content="Test content", metadata={"page": "1"})]

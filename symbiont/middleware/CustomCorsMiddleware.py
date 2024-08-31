@@ -1,11 +1,11 @@
 from fastapi import Request, Response
-from fastapi.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import re
 
 
+# TODO this needs to be updated, especially the pattern
 class CORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        response = Response("Internal server error", status_code=500)
         pattern = re.compile(r"https://symbiont*thelonehegelian.vercel.app")
         origin = request.headers.get("origin")
 
@@ -18,5 +18,7 @@ class CORSMiddleware(BaseHTTPMiddleware):
             )
             response.headers["Access-Control-Expose-Headers"] = "*"
             response.headers["Access-Control-Allow-Credentials"] = "true"
+        else:
+            response = Response("Internal server error", status_code=500)
 
         return response

@@ -22,7 +22,7 @@ async def set_llm_settings(
 ):
     user_uid = request.state.verified_user["user_id"]
     # we attach the api_key to the response as we are not storing it in the database
-    response.set_cookie(key="api_key", value=settings.api_key, samesite="None", secure=True)
+    response.set_cookie(key="api_key", value=settings.api_key, samesite="none", secure=True)
     # delete the api_key from the settings object for security
     del settings.api_key
     update_data = {"$set": {"settings": settings.model_dump()}}
@@ -30,7 +30,7 @@ async def set_llm_settings(
     users_collection.update_one({"_id": user_uid}, update_data)
 
     # if every thing is fine we return the settings in the cookies
-    response.set_cookie(key="llm_name", value=settings.llm_name, samesite="None", secure=True)
+    response.set_cookie(key="llm_name", value=settings.llm_name, samesite="none", secure=True)
     logger.info("LLM settings updated")
     return {"message": "LLM settings saved"}
 
@@ -38,15 +38,16 @@ async def set_llm_settings(
 @router.get("/get-llm-settings")
 async def get_llm_settings(request: Request, api_key: Annotated[str | None, Cookie()] = None):
     user_uid = request.state.verified_user["user_id"]
-
-    user_settings = users_collection.find_one({"_id": user_uid}).get("settings")
-    logger.info(f"LLM settings retrieved: {user_settings}")
-    if user_settings is None:
+    user = users_collection.find_one({"_id": user_uid})
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
         )
-    logger.info(f"LLM settings retrieved: {user_settings}")
+    settings = user.get("settings")
+    # @note settings can be None, e.g. if the user has just signed up
+    if settings is None:
+        return None
+    logger.info(f"LLM settings retrieved: {settings}")
     logger.info("Appending api_key to response from cookie")
-    user_settings["api_key"] = api_key
-    return user_settings
+    settings["api_key"] = api_key
+    return settings

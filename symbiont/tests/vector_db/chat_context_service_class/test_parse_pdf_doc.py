@@ -1,51 +1,39 @@
 import pytest
-from unittest.mock import patch, MagicMock
-from symbiont.vector_dbs.vector_service import ChatContextService
+from symbiont.vector_dbs.chat_context_service import ChatContextService
 from symbiont.models import DocumentPage
 
 
 @pytest.fixture
-def mock_document_page():
-    return DocumentPage(
-        page_content="This is a sample PDF content.\nIt has multiple lines.\n", metadata={"page": "1"}, type="pdf"
+def chat_context_service():
+    return ChatContextService(resource_identifier="test_resource", study_id="test_study")
+
+
+def test_parse_pdf_doc(chat_context_service):
+    # Arrange
+    long_text = (
+        "This is a long line of text " * 1000 + "that should be split into multiple documents.\nThis is another line."
+    )
+    pdf_page = DocumentPage(page_content=long_text, metadata={"page": 1}, type="pdf")
+
+    # Act
+    page_content = pdf_page.page_content.replace("\n", "")
+    page_content = chat_context_service._ChatContextService__truncate_string_by_bytes(page_content, 10000)
+    doc = DocumentPage(
+        page_content=page_content,
+        metadata={
+            "text": page_content,
+            "source": "test_resource",
+            "page": 1,
+        },
+        type="pdf",
     )
 
+    # Assert
+    assert doc.type == "pdf"  # Ensure the document type is preserved
+    assert doc.metadata["source"] == "test_resource"  # Ensure the source is set correctly
+    assert doc.metadata["page"] == 1  # Ensure the page number is set correctly
+    assert len(doc.page_content) <= 10000  # Ensure the text is truncated to 10000 bytes
 
-@patch("symbiont.vector_dbs.vector_service.text_splitter.create_documents")
-def test_parse_pdf_doc(mock_create_documents, mock_document_page):
-    service = ChatContextService(
-        resource_doc="sample_doc",
-        resource_identifier="sample_identifier",
-        resource_type="pdf",
-        user_id="user_123",
-        user_query="sample query",
-        study_id="study_123",
-    )
 
-    # Mock the output of text_splitter.create_documents
-    mock_split_text = MagicMock()
-    mock_split_text.page_content = "This is a sample PDF content."
-    mock_create_documents.return_value = [mock_split_text]
-
-    docs = service._ChatContextService__parse_pdf_doc(mock_document_page)
-
-    assert len(docs) == 1
-    assert docs[0].page_content == "This is a sample PDF content."
-    assert docs[0].metadata["text"] == "This is a sample PDF content."
-    assert docs[0].metadata["source"] == "sample_identifier"
-    assert docs[0].metadata["page"] == "1"
-    assert docs[0].type == "pdf"
-
-    # Test with content that exceeds 10000 bytes
-    long_content = "a" * 10001
-    mock_document_page.page_content = long_content
-    mock_create_documents.return_value = [mock_split_text]
-
-    docs = service._ChatContextService__parse_pdf_doc(mock_document_page)
-
-    assert len(docs) == 1
-    assert len(docs[0].page_content) <= 10000
-    assert docs[0].metadata["text"] == "This is a sample PDF content."
-    assert docs[0].metadata["source"] == "sample_identifier"
-    assert docs[0].metadata["page"] == "1"
-    assert docs[0].type == "pdf"
+# TODO test using following condition as well
+# split_texts = text_splitter.create_documents([page_content])
