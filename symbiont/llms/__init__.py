@@ -1,10 +1,10 @@
 import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 import time
 import datetime
 from .. import logger
@@ -18,18 +18,18 @@ google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 def create_prompt(user_query: str, context: str):
     prompt_template = PromptTemplate.from_template(
         """
-        You are a well-informed AI assistant. 
+        You are a well-informed AI assistant.
         The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness.
-        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly 
+        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly
         any question about any topic in conversation.
-        AI assistant will take into account any information that is provided and construct 
+        AI assistant will take into account any information that is provided and construct
         a reasonable and well thought response.
         START OF INFORMATION {context} END OF INFORMATION
         If it is not enought to provide a reasonable answer to the question, the AI assistant will say:
         "I'm sorry, but I don't know the answer to that question. But my educated opinion would..."
         AI assistant will not invent anything and do its best to provide accurate information.
         Output Format: Return your answer in valid {output_format} format
-        {user_query} 
+        {user_query}
     """
     )
 
@@ -42,6 +42,7 @@ def create_prompt(user_query: str, context: str):
 
 
 # TODO move to utils
+# TODO These functions should match the LLMs in the LLMs collection for better security
 def isOpenAImodel(llm_name: str) -> bool:
     return bool(re.match(r"gpt", llm_name))
 
@@ -62,8 +63,11 @@ class UsersLLMSettings(BaseModel):
     timeout: int = 60
 
 
-# TODO api_key needs to be of type SecretStr
 def init_llm(settings: UsersLLMSettings, api_key: str):
+    if settings is None:
+        raise HTTPException(status_code=400, detail="Please set LLM Settings")
+    if api_key is None:
+        raise HTTPException(status_code=400, detail="Please provide an API key")
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
         llm = None
@@ -93,7 +97,7 @@ def init_llm(settings: UsersLLMSettings, api_key: str):
                 transport=None,
                 client=None,
             )
-            return llm
+
         else:
             logger.error(f"Couldn't find the llm provider, {settings.llm_name}")
     except Exception as e:
@@ -123,6 +127,22 @@ async def get_llm_response(llm, user_query: str, context: str):
 # TODO there is another get-llm-settings route this needs to be checked against that
 # @note I don't even know if this is being used
 def get_user_llm_settings(user_uid: str):
-    user_llm_settings = users_collection.find_one({"_id": user_uid}).get("settings")
+    """
+    Retrieves the language model (LLM) settings for a specific user based on the provided user ID.
+
+    Parameters:
+        user_uid (str): The unique identifier of the user whose LLM settings are to be retrieved.
+
+    Returns:
+        dict: The LLM settings for the specified user.
+    """
+    users_document = users_collection.find_one({"_id": user_uid})
+    if users_document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user_llm_settings = users_document.get("settings")
     logger.debug(f"User LLM Settings: {user_llm_settings}")
     return user_llm_settings
