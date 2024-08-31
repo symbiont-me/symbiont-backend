@@ -35,7 +35,9 @@ pytest-twisted = "^1.14.1"
 twisted = "^24.3.0"
 pymongo = "^4.6.3"
 pymupdf = "^1.24.2"
+pytest-mock = "^3.14.0"
 pytest-watch = "^4.2.0"
+
 
 
 [tool.poetry.scripts]

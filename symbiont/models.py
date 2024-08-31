@@ -27,6 +27,14 @@ class LLMModel(str, Enum):
     GEMINI_1_PRO_LATEST = "gemini-1.0-pro-latest"
 
 
+class ResourceTypes(str, Enum):
+    PDF = "pdf"
+    VIDEO = "video"
+    AUDIO = "audio"
+    WEBPAGE = "webpage"
+    YOUTUBE = "youtube"
+
+
 class EmbeddingModels(str, Enum):
     OPENAI_TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
     OPENAI_TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"

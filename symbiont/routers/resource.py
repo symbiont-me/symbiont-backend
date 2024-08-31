@@ -8,6 +8,7 @@ from ..models import (
     StudyResource,
     AddYoutubeVideoRequest,
     AddWebpageResourceRequest,
+    ResourceTypes,
 )
 from ..pinecone.pc import PineconeService
 from ..utils.db_utils import StudyService
@@ -24,6 +25,7 @@ import tempfile
 from bson.objectid import ObjectId
 from ..utils.document_loaders import load_pdf
 from ..utils.llm_utils import summarise_plain_text_resource
+from ..vector_dbs.chat_context_service import ChatContextService
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #      RESOURCE UPLOAD
@@ -115,7 +117,7 @@ async def add_resource(
         upload_result = await upload_to_storage(file_bytes, unique_file_identifier, file.content_type)
         # upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
-        logger.debug(f"File uploaded to storage: {upload_result}")
+        # logger.debug(f"File uploaded to storage: {upload_result}")
         study_resource = StudyResource(
             studyId=studyId,
             identifier=unique_file_identifier,
@@ -124,18 +126,19 @@ async def add_resource(
             storage_ref=upload_result["file_id"],  # NOTE: this is the _id from GridFS, used for retrieval
             category=file_extension,
         )
-        #
-        pc_service = PineconeService(
-            study_id=study_resource.studyId,
-            resource_identifier=study_resource.identifier,
-            user_uid=user_uid,
-            user_query=None,
-        )
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
             temp.write(file_bytes)
-            metadata = load_pdf(temp.name, unique_file_identifier)
-        logger.debug(f"Pdf loader extractracted number of pages: {len(metadata)}")
-        await pc_service.add_file_resource_to_pinecone(metadata)
+            pdf_docs = load_pdf(temp.name, unique_file_identifier)
+
+        chat_context_service = ChatContextService(
+            pdf_docs,
+            unique_file_identifier,
+            ResourceTypes.PDF,
+            study_id=study_resource.studyId,
+        )
+        chat_context_service.add_resource()
+        logger.info("Trying ChatContextService for PDF upload")
 
         study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=studyId)
         study_resources_repo.add_study_resource_to_db()
@@ -212,14 +215,6 @@ async def add_yt_resource(
                     detail="There is no content in the video. Please try again",
                 )
             unique_file_identifier = make_file_identifier(doc.metadata["title"])
-
-            pc_service = PineconeService(
-                study_id=video_resource.studyId,
-                resource_identifier=unique_file_identifier,
-                user_uid=user_uid,
-                user_query=None,
-            )
-
             study_resource = StudyResource(
                 studyId=video_resource.studyId,
                 identifier=unique_file_identifier,
@@ -228,13 +223,19 @@ async def add_yt_resource(
                 category="video",
             )
 
-            await pc_service.upload_yt_resource_to_pinecone(study_resource, doc.page_content)
-            yt_resources.append(study_resource)
-
+            chat_context_service = ChatContextService(
+                doc,
+                unique_file_identifier,
+                ResourceTypes.YOUTUBE,
+                study_id=video_resource.studyId,
+            )
+            chat_context_service.add_resource()
             # mongodb
             # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
             study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=video_resource.studyId)
             study_resources_repo.add_study_resource_to_db()
+
+            yt_resources.append(study_resource)
 
             logger.info(f"Youtube video added to Pinecone {study_resource}")
             background_tasks.add_task(
@@ -270,10 +271,10 @@ async def add_webpage_resource(
         logger.info(f"Processing webpage {webpage_resource.urls}")
         logger.info(f"Parsing {len(html_docs)} documents")
         for index, doc in enumerate(html_docs):
-            identifier = make_file_identifier(doc.metadata["title"])
+            unique_identifier = make_file_identifier(doc.metadata["title"])
             study_resource = StudyResource(
                 studyId=webpage_resource.studyId,
-                identifier=identifier,
+                identifier=unique_identifier,
                 name=doc.metadata["title"],
                 url=str(webpage_resource.urls[index]),  # Assign URL based on index
                 category="webpage",
@@ -281,7 +282,7 @@ async def add_webpage_resource(
             )
             pc_service = PineconeService(
                 study_id=webpage_resource.studyId,
-                resource_identifier=identifier,
+                resource_identifier=unique_identifier,
                 user_uid=user_uid,
             )
             study_resources.append(study_resource)
@@ -294,6 +295,16 @@ async def add_webpage_resource(
                     status_code=404,
                     detail="There is no content in the webpage. Please try again",
                 )
+
+            logger.debug(len(docs_transformed))
+
+            chat_context_service = ChatContextService(
+                doc,
+                unique_identifier,
+                ResourceTypes.WEBPAGE,
+                study_id=study_resource.studyId,
+            )
+            chat_context_service.add_resource()
             await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
             # mongodb
             study_resources_repo = StudyResourceRepo(
@@ -301,7 +312,7 @@ async def add_webpage_resource(
             )
             study_resources_repo.add_study_resource_to_db()
 
-            logger.info(f"Web Resource added {study_resource}")
+            # logger.info(f"Web Resource added {study_resource}")
             background_tasks.add_task(
                 save_summary,
                 webpage_resource.studyId,
@@ -369,37 +380,46 @@ class DeleteResourceResponse(BaseModel):
     resource: StudyResource
 
 
+# TODO this needs to be refactored thoroughly
 @router.post("/delete-resource-from-study")
 async def delete_resource_from_study(delete_request: DeleteResourceRequest, request: Request):
     try:
         s = time.time()
 
-        study_id, resource_identifier = delete_request.study_id, delete_request.identifier
+        study_id, resource_identifier = (
+            delete_request.study_id,
+            delete_request.identifier,
+        )
+
+        # NOTE only applies if the resource is a pdf or a file
+        # TODO this would need to be moved below
         storage_ref = studies_collection.find_one(  # get the storage ref
-            {"_id": study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+            {"_id": study_id},
+            {"resources": {"$elemMatch": {"identifier": resource_identifier}}},
         )["resources"][0]["storage_ref"]
 
         user_uid = request.state.verified_user["user_id"]
-        pc_service = PineconeService(
-            study_id=str(delete_request.study_id),
-            resource_identifier=resource_identifier,
-            user_uid=user_uid,
-        )
-        # delete from pinecone
-        pc_service.delete_vectors_from_pinecone(resource_identifier)
+
+        chat_context_service = ChatContextService(resource_identifier=resource_identifier, study_id=study_id)
+        # TODO this should handle the vector and resource deletion from db
+        chat_context_service.delete_context()
 
         # get the resource to delete
         resources = studies_collection.find_one(
-            {"_id": delete_request.study_id}, {"resources": {"$elemMatch": {"identifier": resource_identifier}}}
+            {"_id": delete_request.study_id},
+            {"resources": {"$elemMatch": {"identifier": resource_identifier}}},
         )
         resource_to_delete = resources["resources"][0]
-        logger.debug(f"REsource to delete: {resource_to_delete}")
+        # logger.debug(f"REsource to delete: {resource_to_delete}")
         if resource_to_delete["category"] in ["pdf", "audio", "image"]:
             # delete_resource_from_storage(user_uid, resource_identifier)
             grid_fs_bucket.delete(file_id=ObjectId(storage_ref))
             logger.info(f"Resource {resource_identifier } deleted from storage")
         # remove from db
-        studies_collection.update_one({"_id": study_id}, {"$pull": {"resources": {"identifier": resource_identifier}}})
+        studies_collection.update_one(
+            {"_id": study_id},
+            {"$pull": {"resources": {"identifier": resource_identifier}}},
+        )
         # # remove vecotor refs from db
         studies_collection.update_one({"_id": study_id}, {"$unset": {"vectors." + resource_identifier: ""}})
         elapsed = time.time() - s

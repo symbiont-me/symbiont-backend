@@ -20,6 +20,10 @@ import time
 from typing import Annotated, List
 import asyncio
 from ..mongodb import studies_collection
+
+from symbiont.vector_dbs.chat_context_service import ChatContextService
+
+
 ####################################################
 #                   CHAT                           #
 ####################################################
@@ -133,9 +137,11 @@ async def chat(
         user_query=user_query,
     )
 
+    chat_context_service = ChatContextService(study_id=study_id, resource_identifier=resource_identifier)
+
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
-        chat_context_results = await pc_service.get_combined_chat_context()
+        chat_context_results = chat_context_service.get_combined_chat_context(user_query)
         if chat_context_results is None:
             logger.debug("No context found, retuning no context response")
             no_context_response = (
@@ -148,14 +154,20 @@ async def chat(
                 role="bot",
                 user_uid=user_uid,
             )
-            return StreamingResponse(return_no_context_response(no_context_response), media_type="text/event-stream")
+            return StreamingResponse(
+                return_no_context_response(no_context_response),
+                media_type="text/event-stream",
+            )
         context = chat_context_results[0]
         citations = chat_context_results[1]
 
     if not chat.combined:
         logger.info("GETTING CONTEXT FOR A SINGLE RESOURCE")
         context_start_time = time.time()
-        result = await pc_service.get_single_chat_context()
+
+        result = chat_context_service.get_single_chat_context(user_query)
+
+        # result = await pc_service.get_single_chat_context()
         if result is None:
             logger.debug("No context found, retuning no context response")
             no_context_response = (
@@ -168,7 +180,10 @@ async def chat(
                 role="bot",
                 user_uid=user_uid,
             )
-            return StreamingResponse(return_no_context_response(no_context_response), media_type="text/event-stream")
+            return StreamingResponse(
+                return_no_context_response(no_context_response),
+                media_type="text/event-stream",
+            )
 
         context = result[0]
         citations = result[1]
@@ -247,6 +262,7 @@ async def delete_chat_messages(studyId: str):
     return {"message": "Chat messages deleted!", "status_code": 200}
 
 
+
 def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str, citations: List[Citation] = []):
     """
     Saves a chat message to the database.
@@ -261,8 +277,12 @@ def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid
     Returns:
     - dict: A dictionary with a status message and code indicating the success of saving the chat message.
     """
+
     new_chat_message = ChatMessage(
-        role=role, content=chat_message, citations=citations, createdAt=datetime.datetime.now()
+        role=role,
+        content=chat_message,
+        citations=citations,
+        createdAt=datetime.datetime.now(),
     ).model_dump()
     studies_collection.find_one_and_update({"_id": studyId}, {"$push": {"chat": new_chat_message}})
     if role == "bot":
