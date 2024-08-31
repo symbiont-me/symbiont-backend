@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from symbiont.vector_dbs.vector_service import ChatContextService, VectorSearchResult, Citation
+from symbiont.vector_dbs.chat_context_service import ChatContextService, VectorSearchResult, Citation
 
 
 @pytest.fixture
@@ -9,7 +9,7 @@ def chat_context_service():
     return service
 
 
-@patch("symbiont.vector_dbs.vector_service.get_vec_refs_from_db")
+@patch("symbiont.vector_dbs.chat_context_service.get_vec_refs_from_db")
 def test_get_single_chat_context(mock_get_vec_refs_from_db, chat_context_service):
     # Mock the vector_store_repo attribute directly on the service instance
     chat_context_service.vector_store_repo = MagicMock()
@@ -53,7 +53,7 @@ def test_get_single_chat_context(mock_get_vec_refs_from_db, chat_context_service
     chat_context_service.rerank_context.assert_called_once()
 
 
-@patch("symbiont.vector_dbs.vector_service.get_vec_refs_from_db")
+@patch("symbiont.vector_dbs.chat_context_service.get_vec_refs_from_db")
 def test_get_single_chat_context_exception(mock_get_vec_refs_from_db, chat_context_service):
     # Mock the vector_store_repo attribute directly on the service instance to raise an exception
     chat_context_service.vector_store_repo = MagicMock()

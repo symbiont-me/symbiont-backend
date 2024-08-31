@@ -1,5 +1,5 @@
 import pytest
-from symbiont.vector_dbs.vector_service import ChatContextService
+from symbiont.vector_dbs.chat_context_service import ChatContextService
 
 
 def test_chat_context_service_initialization():

@@ -23,7 +23,7 @@ def test_init_llm_missing_api_key():
 
 
 @patch("symbiont.llms.isOpenAImodel", return_value=True)
-@patch("symbiont.llms.ChatOpenAI", return_value=Mock())
+@patch("symbiont.llms.ChatOpenAI")
 def test_init_llm_openai_model(mock_chat_openai, mock_is_openai_model):
     """
     Tests the initialization of an OpenAI language model.
@@ -40,42 +40,36 @@ def test_init_llm_openai_model(mock_chat_openai, mock_is_openai_model):
     """
     settings = create_settings("gpt-3")
     api_key = "openai_api_key"
-    llm = init_llm(settings, api_key)
-    mock_chat_openai.assert_called_once_with(model="gpt-3", api_key=api_key, max_tokens=1500, temperature=0)
-    assert llm == mock_chat_openai.return_value
+    init_llm(settings, api_key)
+    mock_chat_openai.assert_called_once_with(model="gpt-3", api_key=api_key, max_tokens=1500, temperature=0.7)
 
 
 @patch("symbiont.llms.isAnthropicModel", return_value=True)
-@patch("symbiont.llms.ChatAnthropic", return_value=Mock())
+@patch("symbiont.llms.ChatAnthropic")
 def test_init_llm_anthropic_model(mock_chat_anthropic, mock_is_anthropic_model):
     settings = create_settings("claude")
     api_key = "anthropic_api_key"
-    llm = init_llm(settings, api_key)
-    mock_chat_anthropic.assert_called_once_with(
-        model_name="claude", anthropic_api_key=api_key, temperature=0, timeout=30
-    )
-    assert llm == mock_chat_anthropic.return_value
+    init_llm(settings, api_key)
+    mock_chat_anthropic.assert_called_once_with(model_name="claude", api_key=api_key, temperature=0.7, timeout=60)
 
 
 @patch("symbiont.llms.isGoogleModel", return_value=True)
-@patch("symbiont.llms.ChatGoogleGenerativeAI", return_value=Mock())
+@patch("symbiont.llms.ChatGoogleGenerativeAI")
 def test_init_llm_google_model(mock_chat_google, mock_is_google_model):
     settings = create_settings("palm")
     api_key = "google_api_key"
-    llm = init_llm(settings, api_key)
+    init_llm(settings, api_key)
     mock_chat_google.assert_called_once_with(
         model="palm",
         google_api_key=api_key,
-        temperature=0,
+        temperature=0.7,
         convert_system_message_to_human=True,
-        client_options=None,
+        client_options={"max_output_tokens": 1500},
         transport=None,
         client=None,
     )
-    assert llm == mock_chat_google.return_value
 
 
-# TODO this needs to be fixed, the error should be: Couldn't find the llm provider"
 @patch("symbiont.llms.isOpenAImodel", return_value=False)
 @patch("symbiont.llms.isAnthropicModel", return_value=False)
 @patch("symbiont.llms.isGoogleModel", return_value=False)

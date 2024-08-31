@@ -5,8 +5,8 @@ from symbiont.vector_dbs.chat_context_service import ChatContextService, Documen
 
 @pytest.fixture
 def mock_service():
-    with patch("symbiont.vector_dbs.vector_service.create_vec_refs_in_db") as mock_create_vec_refs_in_db, patch(
-        "symbiont.vector_dbs.vector_service.VectorStoreContext.__init__", lambda x: None
+    with patch("symbiont.vector_dbs.chat_context_service.create_vec_refs_in_db") as mock_create_vec_refs_in_db, patch(
+        "symbiont.vector_dbs.chat_context_service.VectorStoreContext.__init__", lambda x: None
     ):
         service = ChatContextService()
         service.resource_doc = MagicMock(page_content="Test content")
@@ -23,7 +23,7 @@ def test_add_web_resource(mock_service):
 
     # Mock the text_splitter
     with patch(
-        "symbiont.vector_dbs.vector_service.text_splitter.create_documents",
+        "symbiont.vector_dbs.chat_context_service.text_splitter.create_documents",
         return_value=[DocumentPage(page_content="Parsed content", metadata={})],
     ):
         # Call the method
