@@ -36,7 +36,10 @@ twisted = "^24.3.0"
 pymongo = "^4.6.3"
 pymupdf = "^1.24.2"
 pytest-mock = "^3.14.0"
+langchain-weaviate = "^0.0.2"
+torch = "^2.4.0"
 pytest-watch = "^4.2.0"
+
 
 
 

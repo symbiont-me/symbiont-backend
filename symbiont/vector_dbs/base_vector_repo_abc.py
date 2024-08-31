@@ -4,9 +4,6 @@ from ..models import DocumentPage
 from .models import VectorSearchResult
 
 
-# TODO move to models
-
-
 class BaseVectorRepository(ABC):
     # @abstractmethod
     # def create_collection(self, collection_name: str, vector_size: int, distance: str):
