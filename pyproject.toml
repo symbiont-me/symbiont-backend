@@ -38,9 +38,8 @@ pymupdf = "^1.24.2"
 pytest-mock = "^3.14.0"
 langchain-weaviate = "^0.0.2"
 torch = "^2.4.0"
+pymilvus = "^2.4.5"
 pytest-watch = "^4.2.0"
-
-
 
 
 [tool.poetry.scripts]
