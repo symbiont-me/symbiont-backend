@@ -1,7 +1,6 @@
 import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
-from langchain_core.pydantic_v1 import ValidationError
 from pydantic import BaseModel, SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -19,18 +18,18 @@ google_api_key = os.getenv("GOOGLE_GEMINI_API_KEY")
 def create_prompt(user_query: str, context: str):
     prompt_template = PromptTemplate.from_template(
         """
-        You are a well-informed AI assistant. 
+        You are a well-informed AI assistant.
         The traits of AI include expert knowledge, helpfulness, cleverness, and articulateness.
-        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly 
+        AI has the sum of all knowledge in their brain, and is able to accurately answer nearly
         any question about any topic in conversation.
-        AI assistant will take into account any information that is provided and construct 
+        AI assistant will take into account any information that is provided and construct
         a reasonable and well thought response.
         START OF INFORMATION {context} END OF INFORMATION
         If it is not enought to provide a reasonable answer to the question, the AI assistant will say:
         "I'm sorry, but I don't know the answer to that question. But my educated opinion would..."
         AI assistant will not invent anything and do its best to provide accurate information.
         Output Format: Return your answer in valid {output_format} format
-        {user_query} 
+        {user_query}
     """
     )
 
@@ -59,49 +58,48 @@ def isGoogleModel(llm_name: str) -> bool:
 class UsersLLMSettings(BaseModel):
     llm_name: str
     # api_key: SecretStr
-    # max_tokens: int
-    # temperature: float
+    max_tokens: int = 1500
+    temperature: float = 0.7
+    timeout: int = 60
 
 
-# TODO the api_key should be a SecretStr and the type error needs to be fixed
 def init_llm(settings: UsersLLMSettings, api_key: str):
-    """
-    A function that initializes the Language Model (LLM) based on the provided settings and API key.
-    It checks the LLM provider type specified in the settings and creates an instance of the corresponding LLM class.
-    If the provider is not recognized, it raises an HTTPException.
-    Parameters:
-        - settings: UsersLLMSettings - The settings object containing the LLM name.
-        - api_key: str - The API key required for accessing the LLM provider.
-    Returns:
-        An instance of the specific LLM class based on the provider type in the settings.
-    """
-    if not api_key:
+    if settings is None:
+        raise HTTPException(status_code=400, detail="Please set LLM Settings")
+    if api_key is None:
         raise HTTPException(status_code=400, detail="Please provide an API key")
     logger.debug(f"Initializing LLM with settings: {settings}")
     try:
+        llm = None
         if isOpenAImodel(settings.llm_name):
-            return ChatOpenAI(model=settings.llm_name, api_key=api_key, max_tokens=1500, temperature=0)
+            llm = ChatOpenAI(
+                model=settings.llm_name,
+                api_key=api_key,
+                max_tokens=settings.max_tokens,
+                temperature=settings.temperature,
+            )
+            return llm
         elif isAnthropicModel(settings.llm_name):
-            return ChatAnthropic(model_name=settings.llm_name, anthropic_api_key=api_key, temperature=0, timeout=30)
+            llm = ChatAnthropic(
+                model_name=settings.llm_name,
+                api_key=api_key,
+                temperature=settings.temperature,
+                timeout=settings.timeout,
+            )
+            return llm
         elif isGoogleModel(settings.llm_name):
-            return ChatGoogleGenerativeAI(
+            llm = ChatGoogleGenerativeAI(
                 model=settings.llm_name,
                 google_api_key=api_key,
-                temperature=0,
+                temperature=settings.temperature,
                 convert_system_message_to_human=True,
-                client_options=None,
+                client_options={"max_output_tokens": settings.max_tokens},  # @note not sure if this is working
                 transport=None,
                 client=None,
             )
 
         else:
-            logger.critical(f"Couldn't find the llm provider {settings.llm_name}")
-            raise HTTPException(status_code=400, detail="Couldn't find the llm provider")
-
-    except ValidationError as e:
-        if e.errors():
-            logger.error(f"Error initializing LLM: {e.errors()}")
-            raise HTTPException(status_code=400, detail="Check your API key and LLM settings")
+            logger.error(f"Couldn't find the llm provider, {settings.llm_name}")
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
         raise HTTPException(status_code=400, detail="Error initializing LLM")
@@ -124,16 +122,10 @@ async def get_llm_response(llm, user_query: str, context: str):
         f"at a speed of {round(speed,2)} chunk/s."
     )
 
-    # system = system_prompt.split("Question:")[0]  # Extract system part from the prompt
-    # human = user_query
-
-    # prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-    # chain = prompt | llm
-    # for chunk in chain.stream({"system": SystemMessage, "human": HumanMessage}):
-    #     yield chunk.content
-
 
 # TODO move to routers/llm_settings.py
+# TODO there is another get-llm-settings route this needs to be checked against that
+# @note I don't even know if this is being used
 def get_user_llm_settings(user_uid: str):
     """
     Retrieves the language model (LLM) settings for a specific user based on the provided user ID.
