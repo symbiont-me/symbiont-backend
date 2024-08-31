@@ -1,8 +1,9 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from typing import Callable
+from typing import Callable, Optional
 from firebase_admin import auth
 from starlette.middleware.base import BaseHTTPMiddleware
+
 
 class AuthTokenMiddleware(BaseHTTPMiddleware):
     """
@@ -20,7 +21,7 @@ class AuthTokenMiddleware(BaseHTTPMiddleware):
             app: The FastAPI application instance.
         """
         super().__init__(app)
-        self.ROUTES_TO_EXCLUDE = ["/status", "/docs", "/redoc", "/openapi.json"] # We've removed "/" for now
+        self.ROUTES_TO_EXCLUDE = ["/status", "/docs", "/redoc", "/openapi.json"]  # We've removed "/" for now
 
     async def dispatch(self, request: Request, call_next: Callable) -> JSONResponse:
         """
@@ -35,12 +36,12 @@ class AuthTokenMiddleware(BaseHTTPMiddleware):
         Returns:
             A JSON response with the result of the authentication.
         """
-        
+
         # Skip auth middleware if path is one of the excluded routes
         if request.url.path in self.ROUTES_TO_EXCLUDE:
             return await call_next(request)
 
-        authorization: str = request.headers.get("Authorization")
+        authorization: Optional[str] = request.headers.get("Authorization")
 
         if not authorization:
             return JSONResponse(status_code=401, content={"details": "Authorization header missing"})
