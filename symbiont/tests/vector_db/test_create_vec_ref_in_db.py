@@ -4,12 +4,14 @@ from symbiont.vector_dbs.chat_context_service import create_vec_refs_in_db, Docu
 from unittest.mock import patch
 
 
-# Mock the studies_collection
-@mongomock.patch(servers=(("localhost", 27017),))
-def test_create_vec_refs_in_db():
+@pytest.fixture
+def mock_studies_collection():
+    return mongomock.MongoClient().db.collection
+
+
+def test_create_vec_refs_in_db(mock_studies_collection):
     # Arrange
-    mock_studies_collection = mongomock.MongoClient().db.collection
-    with patch("symbiont.vector_dbs.context_service.studies_collection", mock_studies_collection):
+    with patch("symbiont.vector_dbs.chat_context_service.studies_collection", mock_studies_collection):
         ids = ["id1", "id2"]
         file_identifier = "file1"
         docs = [

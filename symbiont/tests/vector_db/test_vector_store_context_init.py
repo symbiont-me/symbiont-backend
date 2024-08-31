@@ -1,6 +1,6 @@
 import pytest
-from symbiont.vector_dbs.vector_service import VectorStoreContext, vector_store_settings
-from symbiont.vector_dbs.vector_store_context import vector_store_repos
+from symbiont.vector_dbs import vector_store_settings
+from symbiont.vector_dbs.vector_store_context import vector_store_repos, VectorStoreContext
 
 
 # Mocking the vector_store_settings and vector_store_repos for testing
@@ -11,12 +11,12 @@ class MockVectorStoreRepo:
 
 @pytest.fixture(autouse=True)
 def mock_vector_store_settings(monkeypatch):
-    monkeypatch.setattr(vector_store_settings, "vector_store", "mock_store")
-    monkeypatch.setattr(vector_store_settings, "vector_store_url", "http://mockurl")
-    monkeypatch.setattr(vector_store_settings, "vector_store_port", "1234")
-    monkeypatch.setattr(vector_store_settings, "vector_store_dimension", "128")
-    monkeypatch.setattr(vector_store_settings, "vector_store_distance", "cosine")
-    monkeypatch.setattr(vector_store_settings, "vector_store_token", "mock_token")
+    monkeypatch.setattr(vector_store_settings.configs, "vector_store", "mock_store")
+    monkeypatch.setattr(vector_store_settings.configs, "vector_store_url", "http://mockurl")
+    monkeypatch.setattr(vector_store_settings.configs, "vector_store_port", "1234")
+    monkeypatch.setattr(vector_store_settings.configs, "vector_store_dimension", "128")
+    monkeypatch.setattr(vector_store_settings.configs, "vector_store_distance", "cosine")
+    monkeypatch.setattr(vector_store_settings.configs, "vector_store_token", "mock_token")
 
 
 @pytest.fixture(autouse=True)
@@ -32,11 +32,11 @@ def test_vector_store_context_initialization():
 
 def test_vector_store_context_invalid_store(monkeypatch):
     with pytest.raises(ValueError, match="Vector store not supported"):
-        monkeypatch.setattr(vector_store_settings, "vector_store", "invalid_store")
+        monkeypatch.setattr(vector_store_settings.configs, "vector_store", "invalid_store")
         VectorStoreContext()
 
 
 def test_vector_store_context_no_store_name(monkeypatch):
     with pytest.raises(ValueError, match="Set the Vector Store name"):
-        monkeypatch.setattr(vector_store_settings, "vector_store", None)
+        monkeypatch.setattr(vector_store_settings.configs, "vector_store", None)
         VectorStoreContext()
