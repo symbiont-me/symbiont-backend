@@ -2,6 +2,8 @@ import os
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.recipe import session, emailpassword
 
+import re
+
 
 def init_supertokens():
     """
@@ -27,7 +29,10 @@ def init_supertokens():
             )
     else:
         api_domain = "http://127.0.0.1:8000"
+
         website_domain = "http://localhost:3000"
+        if not re.match(r"^http://localhost:(300[0-9]|3010)$", website_domain):
+            raise ValueError("Port number must be between 3001 and 3010")
         connection_uri = "localhost:3567"
 
     init(
@@ -43,11 +48,11 @@ def init_supertokens():
         ),
         framework="fastapi",
         recipe_list=[
-            session.init(),  # initializes session features
-            emailpassword.init(),  # initializes emailpassword features
+            session.init(
+                expose_access_token_to_frontend_in_cookie_based_auth=True,
+                cookie_secure=True,
+            ),
+            emailpassword.init(),
         ],
-        mode="wsgi",  # use wsgi if you are running using gunicorn
+        mode="wsgi",
     )
-
-
-init_supertokens()

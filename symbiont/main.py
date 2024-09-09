@@ -15,6 +15,7 @@ from supertokens_python.recipe import session, emailpassword
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 from supertokens_python import get_all_cors_headers
 from supertokens_python.framework.fastapi import get_middleware
+from symbiont.supertokens import init_supertokens
 
 # NOTE: Make sure to update version when there is a major change in code!
 
@@ -23,31 +24,6 @@ WELCOME_MESSAGE = (
     "the frontend at https://symbiont.vercel.app "
     "and the source code on https://github.com/symbiont-me"
 )
-
-
-def init_supertokens():
-    init(
-        app_info=InputAppInfo(
-            app_name="symbiont",
-            api_domain="http://127.0.0.1:8000",
-            website_domain="http://localhost:3003",
-            api_base_path="/auth",
-            website_base_path="/auth",
-        ),
-        supertokens_config=SupertokensConfig(
-            connection_uri="localhost:3567",
-        ),
-        framework="fastapi",
-        recipe_list=[
-            session.init(
-                expose_access_token_to_frontend_in_cookie_based_auth=True,
-                # cookie_same_site="lax",  # Ensure SameSite attribute is set correctly
-                cookie_secure=True,  # Set to True if using HTTPS
-            ),  # initializes session features
-            emailpassword.init(),  # initializes emailpassword features
-        ],
-        mode="wsgi",  # use wsgi if you are running using gunicorn
-    )
 
 
 app = FastAPI()
