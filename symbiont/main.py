@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from .middleware.UserAuthVerify import AuthTokenMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from .routers import study as user_studies_router
@@ -10,6 +10,11 @@ from .routers import llm_settings as llm_settings_router
 from .routers import tests as tests_router
 from .routers import user as user_router
 from . import ENVIRONMENT, VERSION
+from supertokens_python import init, SupertokensConfig, InputAppInfo
+from supertokens_python.recipe import session, emailpassword
+from supertokens_python.recipe.session.framework.fastapi import verify_session
+from supertokens_python import get_all_cors_headers
+from supertokens_python.framework.fastapi import get_middleware
 
 # NOTE: Make sure to update version when there is a major change in code!
 
@@ -19,9 +24,37 @@ WELCOME_MESSAGE = (
     "and the source code on https://github.com/symbiont-me"
 )
 
-app = FastAPI()
 
-app.add_middleware(AuthTokenMiddleware)
+def init_supertokens():
+    init(
+        app_info=InputAppInfo(
+            app_name="symbiont",
+            api_domain="http://127.0.0.1:8000",
+            website_domain="http://localhost:3003",
+            api_base_path="/auth",
+            website_base_path="/auth",
+        ),
+        supertokens_config=SupertokensConfig(
+            connection_uri="localhost:3567",
+        ),
+        framework="fastapi",
+        recipe_list=[
+            session.init(
+                expose_access_token_to_frontend_in_cookie_based_auth=True,
+                # cookie_same_site="lax",  # Ensure SameSite attribute is set correctly
+                cookie_secure=True,  # Set to True if using HTTPS
+            ),  # initializes session features
+            emailpassword.init(),  # initializes emailpassword features
+        ],
+        mode="wsgi",  # use wsgi if you are running using gunicorn
+    )
+
+
+app = FastAPI()
+init_supertokens()
+app.add_middleware(get_middleware())
+
+# app.add_middleware(AuthTokenMiddleware)
 
 app.include_router(user_studies_router.router)
 app.include_router(text_router.router)
@@ -33,7 +66,7 @@ app.include_router(user_router.router)
 app.include_router(tests_router.router)  # This is for testing purposes only
 # Don't add a trailing forward slash to a url in origins! Will cause CORS issues
 origins = [
-    "http://localhost",
+    "http://localhost:3003",
     "http://localhost:3000",
     "https://symbiont.vercel.app",
     "https://staging-symbiont.vercel.app",
@@ -45,23 +78,31 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "X-Auth-Token",
-        "X-User-Identifier",
-    ],
+    allow_headers=["Content-Type", "Authorization", "rid", "anti-csrf", "st-auth-mode"],
 )
 
 
 @app.get("/status")
 async def status_check():
     status_response = {
-        "status": "up", 
+        "status": "up",
         "version": VERSION,
         "environemnt": ENVIRONMENT,
     }
     return status_response
+
+
+@app.get("/session-details/")
+async def session_details(
+    session: session.SessionContainer = Depends(verify_session()),
+):
+    session_data = {
+        "user_id": session.get_user_id(),
+        "session_handle": session.get_handle(),
+        "access_token_payload": session.get_access_token_payload(),
+    }
+    print(session_data)
+    return {"session_data": session_data}
 
 
 @app.get("/")
