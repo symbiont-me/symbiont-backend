@@ -149,6 +149,21 @@ files = [
 frozenlist = ">=1.1.0"
 
 [[package]]
+name = "aiosmtplib"
+version = "3.0.2"
+description = "asyncio SMTP client"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "aiosmtplib-3.0.2-py3-none-any.whl", hash = "sha256:8783059603a34834c7c90ca51103c3aa129d5922003b5ce98dbaa6d4440f10fc"},
+    {file = "aiosmtplib-3.0.2.tar.gz", hash = "sha256:08fd840f9dbc23258025dca229e8a8f04d2ccf3ecb1319585615bfc7933f7f47"},
+]
+
+[package.extras]
+docs = ["furo (>=2023.9.10)", "sphinx (>=7.0.0)", "sphinx-autodoc-typehints (>=1.24.0)", "sphinx-copybutton (>=0.5.0)"]
+uvloop = ["uvloop (>=0.18)"]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 description = "Reusable constraint types to use with typing.Annotated"
@@ -205,6 +220,23 @@ typing-extensions = {version = ">=4.1", markers = "python_version < \"3.11\""}
 doc = ["Sphinx (>=7)", "packaging", "sphinx-autodoc-typehints (>=1.2.0)", "sphinx-rtd-theme"]
 test = ["anyio[trio]", "coverage[toml] (>=7)", "exceptiongroup (>=1.2.0)", "hypothesis (>=4.0)", "psutil (>=5.9)", "pytest (>=7.0)", "pytest-mock (>=3.6.1)", "trustme", "uvloop (>=0.17)"]
 trio = ["trio (>=0.23)"]
+
+[[package]]
+name = "asgiref"
+version = "3.8.1"
+description = "ASGI specs, helper code, and adapters"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "asgiref-3.8.1-py3-none-any.whl", hash = "sha256:3e1e3ecc849832fe52ccf2cb6686b7a55f82bb1d6aee72a58826471390335e47"},
+    {file = "asgiref-3.8.1.tar.gz", hash = "sha256:c343bd80a0bec947a9860adb4c432ffa7db769836c64238fc34bdc3fec84d590"},
+]
+
+[package.dependencies]
+typing-extensions = {version = ">=4", markers = "python_version < \"3.11\""}
+
+[package.extras]
+tests = ["mypy (>=0.800)", "pytest", "pytest-asyncio"]
 
 [[package]]
 name = "async-timeout"
@@ -718,6 +750,23 @@ files = [
 ]
 
 [[package]]
+name = "deprecated"
+version = "1.2.13"
+description = "Python @deprecated decorator to deprecate old python classes, functions or methods."
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+files = [
+    {file = "Deprecated-1.2.13-py2.py3-none-any.whl", hash = "sha256:64756e3e14c8c5eea9795d93c524551432a0be75629f8f29e67ab8caf076c76d"},
+    {file = "Deprecated-1.2.13.tar.gz", hash = "sha256:43ac5335da90c31c24ba028af536a91d41d53f9e6901ddb021bcc572ce44e38d"},
+]
+
+[package.dependencies]
+wrapt = ">=1.10,<2"
+
+[package.extras]
+dev = ["PyTest", "PyTest (<5)", "PyTest-Cov", "PyTest-Cov (<2.6)", "bump2version (<1)", "configparser (<5)", "importlib-metadata (<3)", "importlib-resources (<4)", "sphinx (<2)", "sphinxcontrib-websupport (<2)", "tox", "zipp (<2)"]
+
+[[package]]
 name = "distlib"
 version = "0.3.8"
 description = "Distribution utilities"
@@ -1114,12 +1163,12 @@ files = [
 google-auth = ">=2.14.1,<3.0.dev0"
 googleapis-common-protos = ">=1.56.2,<2.0.dev0"
 grpcio = [
-    {version = ">=1.49.1,<2.0dev", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""},
     {version = ">=1.33.2,<2.0dev", optional = true, markers = "python_version < \"3.11\" and extra == \"grpc\""},
+    {version = ">=1.49.1,<2.0dev", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""},
 ]
 grpcio-status = [
-    {version = ">=1.49.1,<2.0.dev0", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""},
     {version = ">=1.33.2,<2.0.dev0", optional = true, markers = "python_version < \"3.11\" and extra == \"grpc\""},
+    {version = ">=1.49.1,<2.0.dev0", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""},
 ]
 proto-plus = ">=1.22.3,<2.0.0dev"
 protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<6.0.0.dev0"
@@ -1220,8 +1269,8 @@ google-api-core = {version = ">=1.34.0,<2.0.dev0 || >=2.11.dev0,<3.0.0dev", extr
 google-auth = ">=2.14.1,<2.24.0 || >2.24.0,<2.25.0 || >2.25.0,<3.0.0dev"
 google-cloud-core = ">=1.4.1,<3.0.0dev"
 proto-plus = [
-    {version = ">=1.22.2,<2.0.0dev", markers = "python_version >= \"3.11\""},
     {version = ">=1.22.0,<2.0.0dev", markers = "python_version < \"3.11\""},
+    {version = ">=1.22.2,<2.0.0dev", markers = "python_version >= \"3.11\""},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<6.0.0dev"
 
@@ -1672,13 +1721,13 @@ test = ["Cython (>=0.29.24,<0.30.0)"]
 
 [[package]]
 name = "httpx"
-version = "0.27.0"
+version = "0.26.0"
 description = "The next generation HTTP client."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "httpx-0.27.0-py3-none-any.whl", hash = "sha256:71d5465162c13681bff01ad59b2cc68dd838ea1f10e51574bac27103f00c91a5"},
-    {file = "httpx-0.27.0.tar.gz", hash = "sha256:a0cb88a46f32dc874e04ee956e4c2764aba2aa228f650b06788ba6bda2962ab5"},
+    {file = "httpx-0.26.0-py3-none-any.whl", hash = "sha256:8915f5a3627c4d47b73e8202457cb28f1266982d1159bd5779d86a80c0eab1cd"},
+    {file = "httpx-0.26.0.tar.gz", hash = "sha256:451b55c30d5185ea6b23c2c793abf9bb237d2a7dfb901ced6ff69ad37ec1dfaf"},
 ]
 
 [package.dependencies]
@@ -2661,17 +2710,6 @@ files = [
 ]
 
 [[package]]
-name = "nest-asyncio"
-version = "1.6.0"
-description = "Patch asyncio to allow nested event loops"
-optional = false
-python-versions = ">=3.5"
-files = [
-    {file = "nest_asyncio-1.6.0-py3-none-any.whl", hash = "sha256:87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c"},
-    {file = "nest_asyncio-1.6.0.tar.gz", hash = "sha256:6f172d5449aca15afd6c646851f4e31e02c598d553a667e38cafa997cfec55fe"},
-]
-
-[[package]]
 name = "networkx"
 version = "3.2.1"
 description = "Python package for creating and manipulating graphs and networks"
@@ -3080,8 +3118,8 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
     {version = ">=1.22.4", markers = "python_version < \"3.11\""},
+    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -3111,6 +3149,17 @@ spss = ["pyreadstat (>=1.2.0)"]
 sql-other = ["SQLAlchemy (>=2.0.0)", "adbc-driver-postgresql (>=0.8.0)", "adbc-driver-sqlite (>=0.8.0)"]
 test = ["hypothesis (>=6.46.1)", "pytest (>=7.3.2)", "pytest-xdist (>=2.2.0)"]
 xml = ["lxml (>=4.9.2)"]
+
+[[package]]
+name = "phonenumbers"
+version = "8.12.48"
+description = "Python version of Google's common library for parsing, formatting, storing and validating international phone numbers."
+optional = false
+python-versions = "*"
+files = [
+    {file = "phonenumbers-8.12.48-py2.py3-none-any.whl", hash = "sha256:429273b98966475d0c18ee293096eaf81c6b5727d0d55c7ba5ce9c60ec8c59ef"},
+    {file = "phonenumbers-8.12.48.tar.gz", hash = "sha256:af0681fbfe9fa0721376ad9b729e772e5d20bf2cf50d9dd8ca2f0bdd78e9f0ce"},
+]
 
 [[package]]
 name = "pillow"
@@ -3228,6 +3277,17 @@ urllib3 = {version = ">=1.26.0", markers = "python_version >= \"3.8\" and python
 
 [package.extras]
 grpc = ["googleapis-common-protos (>=1.53.0)", "grpc-gateway-protoc-gen-openapiv2 (==0.1.0)", "grpcio (>=1.44.0)", "grpcio (>=1.59.0)", "lz4 (>=3.1.3)", "protobuf (>=3.20.0,<3.21.0)"]
+
+[[package]]
+name = "pkce"
+version = "1.0.3"
+description = "PKCE Pyhton generator."
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "pkce-1.0.3-py3-none-any.whl", hash = "sha256:55927e24c7d403b2491ebe182b95d9dcb1807643243d47e3879fbda5aad4471d"},
+    {file = "pkce-1.0.3.tar.gz", hash = "sha256:9775fd76d8a743d39b87df38af1cd04a58c9b5a5242d5a6350ef343d06814ab6"},
+]
 
 [[package]]
 name = "platformdirs"
@@ -3450,6 +3510,45 @@ python-versions = ">=3.8"
 files = [
     {file = "pycparser-2.22-py3-none-any.whl", hash = "sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc"},
     {file = "pycparser-2.22.tar.gz", hash = "sha256:491c8be9c040f5390f5bf44a5b07752bd07f56edf992381b05c701439eec10f6"},
+]
+
+[[package]]
+name = "pycryptodome"
+version = "3.10.4"
+description = "Cryptographic library for Python"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+files = [
+    {file = "pycryptodome-3.10.4-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:91ba4215a1f37d0f371fe43bc88c5ff49c274849f3868321c889313787de7672"},
+    {file = "pycryptodome-3.10.4-cp27-cp27m-manylinux1_i686.whl", hash = "sha256:66301e4c42dee43ee2da256625d3fe81ef98cc9924c2bd535008cc3ad8ded77b"},
+    {file = "pycryptodome-3.10.4-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:8ec154ec445412df31acf0096e7f715e30e167c8f2318b8f5b1ab7c28f4c82f7"},
+    {file = "pycryptodome-3.10.4-cp27-cp27m-manylinux2010_i686.whl", hash = "sha256:8e82524e7c354033508891405574d12e612cc4fdd3b55d2c238fc1a3e300b606"},
+    {file = "pycryptodome-3.10.4-cp27-cp27m-manylinux2010_x86_64.whl", hash = "sha256:b217b4525e60e1af552d62bec01b4685095436d4de5ecde0f05d75b2f95ba6d4"},
+    {file = "pycryptodome-3.10.4-cp27-cp27m-manylinux2014_aarch64.whl", hash = "sha256:3a153658d97258ca20bf18f7fe31c09cc7c558b6f8974a6ec74e19f6c634bd64"},
+    {file = "pycryptodome-3.10.4-cp27-cp27m-win32.whl", hash = "sha256:c6469d1453f5864e3321a172b0aa671b938d753cbf2376b99fa2ab8841539bb8"},
+    {file = "pycryptodome-3.10.4-cp27-cp27m-win_amd64.whl", hash = "sha256:6b45fcace5a5d9c57ba87cf804b161adc62aa826295ce7f7acbcbdc0df74ed37"},
+    {file = "pycryptodome-3.10.4-cp27-cp27mu-manylinux1_i686.whl", hash = "sha256:b1daf251395af7336ddde6a0015ba5e632c18fe646ba930ef87402537358e3b4"},
+    {file = "pycryptodome-3.10.4-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:9a2312440057bf29b9582f72f14d79692044e63bfbc4b4bbea8559355f44f3dd"},
+    {file = "pycryptodome-3.10.4-cp27-cp27mu-manylinux2010_i686.whl", hash = "sha256:54d4e4d45f349d8c4e2f31c2734637ff62a844af391b833f789da88e43a8f338"},
+    {file = "pycryptodome-3.10.4-cp27-cp27mu-manylinux2010_x86_64.whl", hash = "sha256:97e7df67a4da2e3f60612bbfd6c3f243a63a15d8f4797dd275e1d7b44a65cb12"},
+    {file = "pycryptodome-3.10.4-cp27-cp27mu-manylinux2014_aarch64.whl", hash = "sha256:db15fa07d2a4c00beeb5e9acdfdbc1c79f9ccfbdc1a8f36c82c4aa44951b33c9"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-macosx_10_9_x86_64.whl", hash = "sha256:217dcc0c92503f7dd4b3d3b7d974331a4419f97f555c99a845c3b366fed7056b"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-manylinux1_i686.whl", hash = "sha256:a7471646d8cd1a58bb696d667dcb3853e5c9b341b68dcf3c3cc0893d0f98ca5f"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-manylinux1_x86_64.whl", hash = "sha256:d713dc0910e5ded07852a05e9b75f1dd9d3a31895eebee0668f612779b2a748c"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-manylinux2010_i686.whl", hash = "sha256:ac3012c36633564b2b5539bb7c6d9175f31d2ce74844e9abe654c428f02d0fd8"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-manylinux2010_x86_64.whl", hash = "sha256:3f9fb499e267039262569d08658132c9cd8b136bf1d8c56b72f70ed05551e526"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-manylinux2014_aarch64.whl", hash = "sha256:309529d2526f3fb47102aeef376b3459110a6af7efb162e860b32e3a17a46f06"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-win32.whl", hash = "sha256:7efec2418e9746ec48e264eea431f8e422d931f71c57b1c96ee202b117f58fa9"},
+    {file = "pycryptodome-3.10.4-cp35-abi3-win_amd64.whl", hash = "sha256:49e54f2245befb0193848c8c8031d8d1358ed4af5a1ae8d0a3ba669a5cdd3a72"},
+    {file = "pycryptodome-3.10.4-pp27-pypy_73-macosx_10_9_x86_64.whl", hash = "sha256:4e8fc4c48365ce8a542fe48bf1360da05bb2851df12f64fc94d751705e7cdbe7"},
+    {file = "pycryptodome-3.10.4-pp27-pypy_73-manylinux1_x86_64.whl", hash = "sha256:851e6d4930b160417235955322db44adbdb19589918670d63f4acd5d92959ac0"},
+    {file = "pycryptodome-3.10.4-pp27-pypy_73-manylinux2010_x86_64.whl", hash = "sha256:04e14c732c3693d2830839feed5129286ce47ffa8bfe90e4ae042c773e51c677"},
+    {file = "pycryptodome-3.10.4-pp27-pypy_73-win32.whl", hash = "sha256:cefe6b267b8e5c3c72e11adec35a9c7285b62e8ea141b63e87055e9a9e5f2f8c"},
+    {file = "pycryptodome-3.10.4-pp36-pypy36_pp73-macosx_10_9_x86_64.whl", hash = "sha256:24c1b7705d19d8ae3e7255431efd2e526006855df62620118dd7b5374c6372f6"},
+    {file = "pycryptodome-3.10.4-pp36-pypy36_pp73-manylinux1_x86_64.whl", hash = "sha256:c61ea053bd5d4c12a063d7e704fbe1c45abb5d2510dab55bd95d166ba661604f"},
+    {file = "pycryptodome-3.10.4-pp36-pypy36_pp73-manylinux2010_x86_64.whl", hash = "sha256:11d3164fb49fdee000fde05baecce103c0c698168ef1a18d9c7429dd66f0f5bb"},
+    {file = "pycryptodome-3.10.4-pp36-pypy36_pp73-win32.whl", hash = "sha256:3faa6ebd35c61718f3f8862569c1f38450c24f3ededb213e1a64806f02f584bc"},
+    {file = "pycryptodome-3.10.4.tar.gz", hash = "sha256:40083b0d7f277452c7f2dd4841801f058cc12a74c219ee4110d65774c6a58bef"},
 ]
 
 [[package]]
@@ -4354,18 +4453,18 @@ socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
-name = "requests-toolbelt"
-version = "1.0.0"
-description = "A utility belt for advanced users of python-requests"
+name = "requests-file"
+version = "2.1.0"
+description = "File transport adapter for Requests"
 optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+python-versions = "*"
 files = [
-    {file = "requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6"},
-    {file = "requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06"},
+    {file = "requests_file-2.1.0-py2.py3-none-any.whl", hash = "sha256:cf270de5a4c5874e84599fc5778303d496c10ae5e870bfa378818f35d21bda5c"},
+    {file = "requests_file-2.1.0.tar.gz", hash = "sha256:0f549a3f3b0699415ac04d167e9cb39bccfb730cb832b4d20be3d9867356e658"},
 ]
 
 [package.dependencies]
-requests = ">=2.0.1,<3.0.0"
+requests = ">=1.0.0"
 
 [[package]]
 name = "rsa"
@@ -4676,6 +4775,37 @@ typing-extensions = {version = ">=3.10.0", markers = "python_version < \"3.10\""
 full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7)", "pyyaml"]
 
 [[package]]
+name = "supertokens-python"
+version = "0.24.2"
+description = "SuperTokens SDK for Python"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "supertokens_python-0.24.2-py3-none-any.whl", hash = "sha256:a0454806e69006a1aeb8f7436a70671f81cebb82762bebb7923442bddc507bd4"},
+    {file = "supertokens_python-0.24.2.tar.gz", hash = "sha256:5873f6624ff69914124d3b092cb21fea76cc5a58fb3f3476721d1d06c62e9bf2"},
+]
+
+[package.dependencies]
+aiosmtplib = ">=1.1.6,<4.0.0"
+asgiref = ">=3.4.1,<4"
+Deprecated = "1.2.13"
+httpx = ">=0.15.0,<=0.26.0"
+phonenumbers = "8.12.48"
+pkce = "1.0.3"
+pycryptodome = "==3.10.*"
+PyJWT = {version = ">=2.5.0,<3.0.0", extras = ["crypto"]}
+tldextract = "3.1.0"
+twilio = "7.9.1"
+typing-extensions = ">=4.1.1,<5.0.0"
+
+[package.extras]
+django = ["django (>=3)", "django-cors-headers (==3.11.0)", "django-stubs (==1.9.0)", "python-dotenv (==0.19.2)", "uvicorn (==0.18.2)"]
+django2x = ["django (>=2,<3)", "django-cors-headers (==3.11.0)", "django-stubs (==1.9.0)", "gunicorn (==20.1.0)", "python-dotenv (==0.19.2)"]
+drf = ["adrf", "django (>=4)", "django-cors-headers (==3.11.0)", "django-stubs (==1.9.0)", "djangorestframework", "gunicorn (==20.1.0)", "python-dotenv (==0.19.2)", "tzdata (==2021.5)", "uvicorn (==0.18.2)"]
+fastapi = ["Fastapi", "python-dotenv (==0.19.2)", "respx (==0.19.2)", "uvicorn (==0.18.2)"]
+flask = ["Flask", "flask-cors", "python-dotenv (==0.19.2)"]
+
+[[package]]
 name = "sympy"
 version = "1.13.2"
 description = "Computer algebra system (CAS) in Python"
@@ -4772,6 +4902,23 @@ requests = ">=2.26.0"
 
 [package.extras]
 blobfile = ["blobfile (>=2)"]
+
+[[package]]
+name = "tldextract"
+version = "3.1.0"
+description = "Accurately separate the TLD from the registered domain and subdomains of a URL, using the Public Suffix List. By default, this includes the public ICANN TLDs and their exceptions. You can optionally support the Public Suffix List's private domains as well."
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "tldextract-3.1.0-py2.py3-none-any.whl", hash = "sha256:e57f22b6d00a28c21673d2048112f1bdcb6a14d4711568305f6bb96cf5bb53a1"},
+    {file = "tldextract-3.1.0.tar.gz", hash = "sha256:cfae9bc8bda37c3e8c7c8639711ad20e95dc85b207a256b60b0b23d7ff5540ea"},
+]
+
+[package.dependencies]
+filelock = ">=3.0.8"
+idna = "*"
+requests = ">=2.1.0"
+requests-file = ">=1.4"
 
 [[package]]
 name = "tokenizers"
@@ -5042,6 +5189,22 @@ tests = ["autopep8", "flake8", "isort", "llnl-hatchet", "numpy", "pytest", "scip
 tutorials = ["matplotlib", "pandas", "tabulate"]
 
 [[package]]
+name = "twilio"
+version = "7.9.1"
+description = "Twilio API client and TwiML generator"
+optional = false
+python-versions = ">=3.6.0"
+files = [
+    {file = "twilio-7.9.1-py2.py3-none-any.whl", hash = "sha256:9e9b7706b606474e3d6d208df0c40db9a0a387235e01071e8f75501af0949fb4"},
+    {file = "twilio-7.9.1.tar.gz", hash = "sha256:4b9c04dc45736cbfa6449351b9fb8a23b5738afc6bc79b1262256583983432c5"},
+]
+
+[package.dependencies]
+PyJWT = ">=2.0.0,<3.0.0"
+pytz = "*"
+requests = ">=2.0.0"
+
+[[package]]
 name = "twisted"
 version = "24.7.0"
 description = "An asynchronous networking framework written in Python"
@@ -5293,13 +5456,13 @@ xlsx = ["networkx", "openpyxl", "pandas", "xlrd"]
 
 [[package]]
 name = "unstructured-client"
-version = "0.25.7"
+version = "0.22.0"
 description = "Python Client SDK for Unstructured API"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "unstructured-client-0.25.7.tar.gz", hash = "sha256:6dffe9439469b37e0f38efe9d85551cfec93e42c10d3b42256b0a6d8fb2c68ca"},
-    {file = "unstructured_client-0.25.7-py3-none-any.whl", hash = "sha256:eedd90a562fe59bcd39f1cc917d6b25130bcdb2841299f7d70c6a00a1f6bc5bc"},
+    {file = "unstructured-client-0.22.0.tar.gz", hash = "sha256:d76351c456fcf4067f59135c09a35008a120103621a1ac94cf9448db28ef2e1e"},
+    {file = "unstructured_client-0.22.0-py3-none-any.whl", hash = "sha256:140f7dd8515cc9be3276f66d6fb08d235ea35a50d4eb38a6ef82b60fc3d2fea0"},
 ]
 
 [package.dependencies]
@@ -5307,24 +5470,21 @@ certifi = ">=2023.7.22"
 charset-normalizer = ">=3.2.0"
 dataclasses-json = ">=0.6.4"
 deepdiff = ">=6.0"
-httpx = ">=0.27.0"
 idna = ">=3.4"
 jsonpath-python = ">=1.0.6"
 marshmallow = ">=3.19.0"
 mypy-extensions = ">=1.0.0"
-nest-asyncio = ">=1.6.0"
 packaging = ">=23.1"
 pypdf = ">=4.0"
 python-dateutil = ">=2.8.2"
 requests = ">=2.31.0"
-requests-toolbelt = ">=1.0.0"
 six = ">=1.16.0"
 typing-extensions = ">=4.7.1"
 typing-inspect = ">=0.9.0"
 urllib3 = ">=1.26.18"
 
 [package.extras]
-dev = ["pylint (==3.1.0)"]
+dev = ["pylint (==2.16.2)"]
 
 [[package]]
 name = "uritemplate"
@@ -6000,4 +6160,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9.0,<3.12"
-content-hash = "4e4d630c75c34a5d814c71631072cea001f4b86369963d7b699c672a905f1e69"
+content-hash = "466e73126091ebc9b1f85357a63f83e9f497aae43b48f88ee4c79b1021df5770"
