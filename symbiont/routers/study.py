@@ -12,6 +12,7 @@ import uuid
 from supertokens_python.recipe import session, emailpassword
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -69,31 +70,32 @@ async def get_user_studies(request: Request):
         )
 
 
-@router.post("/create-study")
-async def create_study(
-    study: CreateStudyRequest,
-    session: session.SessionContainer = Depends(verify_session()),
-):
-    logger.debug(f"This is the Session: {session}")
-    # session_data = {
-    #     "user_id": session.get_user_id(),
-    #     "session_handle": session.get_handle(),
-    #     "access_token_payload": session.get_access_token_payload(),
-    # }
-    # logger.info(f"Session Data: {session_data}")
-    # user_uid = session_data["user_id"]
-    user_uid = "21312"
-    new_study = Study(
-        name=study.name,
-        description=study.description,
-        userId=user_uid,
-        image=study.image,
-        createdAt=datetime.now().isoformat(),  # Use ISO format for consistency
-        resources=[],
-        chat=[],
-    )
+async def user_exists(user_id: str):
+    user = users_collection.find_one({"_id": (user_id)})
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
+
+@router.post("/create-study")
+async def create_study(study: CreateStudyRequest, request: Request):
     try:
+        session_data = {
+            "user_id": request.state.session.get_user_id(),
+        }
+
+        user_uid = session_data["user_id"]
+
+        await user_exists(user_uid)
+        new_study = Study(
+            name=study.name,
+            description=study.description,
+            userId=user_uid,
+            image=study.image,
+            createdAt=datetime.now().isoformat(),  # Use ISO format for consistency
+            resources=[],
+            chat=[],
+        )
         s = time.time()
 
         result = studies_collection.insert_one(
@@ -102,8 +104,6 @@ async def create_study(
         study_data = studies_collection.find_one(result.inserted_id)
 
         # Add to users
-        user = users_collection.find_one({"_id": user_uid})
-        logger.info(f"User: {user}")
         result = users_collection.update_one(
             {"_id": user_uid}, {"$push": {"studies": study_data["_id"]}}
         )
@@ -130,19 +130,32 @@ class DeleteStudyResponse(BaseModel):
     studyId: str
 
 
-@router.delete("/delete-study")
-async def delete_study(studyId: str, request: Request):
-    s = time.time()
-    user_uid = request.state.verified_user["user_id"]
+def check_user_authorization(studyId: str, user_uid: str, studies_collection):
     try:
         studies = studies_collection.find_one({"_id": studyId})
+
+        if studies is None:
+            logger.error("Study not found")
+            raise HTTPException(detail="Study Not Found", status_code=404)
+
+        # Check if the user making the request is authorized
         if studies["userId"] != user_uid:
             logger.error("User is Not authorized to delete study")
             raise HTTPException(
                 detail="User Not Authorized to Delete Study",
-                status_code=404,
+                status_code=403,
             )
+    except Exception as e:
+        logger.exception("An error occurred while checking user authorization")
+        raise HTTPException(detail=str(e), status_code=500)
 
+
+@router.delete("/delete-study")
+async def delete_study(studyId: str, request: Request):
+    s = time.time()
+    try:
+        user_uid = request.state.verified_user["user_id"]
+        check_user_authorization(studyId, user_uid, studies_collection)
         studies_collection.delete_one({"_id": studyId})
         users_collection.update_one({"_id": user_uid}, {"$pull": {"studies": studyId}})
 
