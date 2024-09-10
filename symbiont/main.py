@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends
-from .middleware.UserAuthVerify import AuthTokenMiddleware
+
+# from .middleware.UserAuthVerify import AuthTokenMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from .routers import study as user_studies_router
 from .routers import text as text_router
@@ -15,7 +16,9 @@ from supertokens_python.recipe import session, emailpassword
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 from supertokens_python import get_all_cors_headers
 from supertokens_python.framework.fastapi import get_middleware
-from symbiont.supertokens import init_supertokens
+from symbionot.super_tokens import init_supertokens
+
+# from symbiont.supertokens import init_supertokens
 
 # NOTE: Make sure to update version when there is a major change in code!
 
@@ -53,8 +56,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "Authorization", "rid", "anti-csrf", "st-auth-mode"],
+    allow_methods=["GET", "PUT", "POST", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Accept-Language"] + get_all_cors_headers(),
 )
 
 
