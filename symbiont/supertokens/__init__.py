@@ -1,8 +1,60 @@
 import os
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.recipe import session, emailpassword
-
+from supertokens_python.recipe.emailpassword.interfaces import APIInterface, APIOptions
+from supertokens_python.recipe.emailpassword.interfaces import (
+    RecipeInterface,
+    SignUpOkResult,
+)
+from typing import Dict, Any
 import re
+
+from ..mongodb import users_collection
+from ..models import UserCollection
+from .. import logger
+
+
+def create_user_if_not_exists(user_uid):
+    try:
+        # Check if user already exists
+        user = users_collection.find_one({"_id": user_uid})
+        if user:
+            return False  # User already exists
+
+        # Create new user if not exists
+        new_user = UserCollection(studies=[], settings={})
+        users_collection.insert_one({"_id": user_uid, **new_user.model_dump()})
+        logger.info(f"User created in db with id {user_uid}")
+        return True  # User created successfully
+    except Exception as e:
+        logger.error(f"Error creating user: {str(e)}")
+        return False
+
+
+# Custom EmailPassword API implementation
+# Override emailpassword functions
+def override_emailpassword_functions(
+    original_implementation: RecipeInterface,
+) -> RecipeInterface:
+    original_sign_up = original_implementation.sign_up
+
+    async def sign_up(
+        email: str, password: str, tenant_id: str, user_context: Dict[str, Any]
+    ):
+        result = await original_sign_up(email, password, tenant_id, user_context)
+
+        if isinstance(result, SignUpOkResult):
+            user_uid = result.user.user_id
+            user_email = result.user.email
+
+            # Create user if not exists
+            create_user_if_not_exists(user_uid)
+
+        return result
+
+    original_implementation.sign_up = sign_up
+
+    return original_implementation
 
 
 def init_supertokens():
@@ -52,7 +104,11 @@ def init_supertokens():
                 expose_access_token_to_frontend_in_cookie_based_auth=True,
                 cookie_secure=True,
             ),
-            emailpassword.init(),
+            emailpassword.init(
+                override=emailpassword.InputOverrideConfig(
+                    functions=override_emailpassword_functions
+                ),
+            ),
         ],
         mode="wsgi",
     )
