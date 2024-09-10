@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from ..models import CreateStudyRequest
 from datetime import datetime
@@ -9,6 +9,9 @@ from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 from ..mongodb import studies_collection, users_collection
 import uuid
+from supertokens_python.recipe import session, emailpassword
+from supertokens_python.recipe.session.framework.fastapi import verify_session
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #       USER STUDIES
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -67,9 +70,19 @@ async def get_user_studies(request: Request):
 
 
 @router.post("/create-study")
-async def create_study(study: CreateStudyRequest, request: Request):
-    user_uid = request.state.verified_user["user_id"]
-
+async def create_study(
+    study: CreateStudyRequest,
+    session: session.SessionContainer = Depends(verify_session()),
+):
+    logger.debug(f"This is the Session: {session}")
+    # session_data = {
+    #     "user_id": session.get_user_id(),
+    #     "session_handle": session.get_handle(),
+    #     "access_token_payload": session.get_access_token_payload(),
+    # }
+    # logger.info(f"Session Data: {session_data}")
+    # user_uid = session_data["user_id"]
+    user_uid = "21312"
     new_study = Study(
         name=study.name,
         description=study.description,
@@ -83,17 +96,23 @@ async def create_study(study: CreateStudyRequest, request: Request):
     try:
         s = time.time()
 
-        result = studies_collection.insert_one({"_id": str(uuid.uuid4()), **new_study.model_dump()})
+        result = studies_collection.insert_one(
+            {"_id": str(uuid.uuid4()), **new_study.model_dump()}
+        )
         study_data = studies_collection.find_one(result.inserted_id)
 
         # Add to users
         user = users_collection.find_one({"_id": user_uid})
         logger.info(f"User: {user}")
-        result = users_collection.update_one({"_id": user_uid}, {"$push": {"studies": study_data["_id"]}})
+        result = users_collection.update_one(
+            {"_id": user_uid}, {"$push": {"studies": study_data["_id"]}}
+        )
 
         elapsed = time.time() - s
         logger.info(f"Creating study took {elapsed} seconds")
-        return StudyResponse(message="Study created successfully", status_code=200, studies=[study_data])
+        return StudyResponse(
+            message="Study created successfully", status_code=200, studies=[study_data]
+        )
     except Exception as e:
         logger.error(f"Error Creating New Study {e}")
         return JSONResponse(
@@ -129,7 +148,9 @@ async def delete_study(studyId: str, request: Request):
 
         elapsed = time.time() - s
         logger.info(f"Deleting study took {elapsed} seconds")
-        return DeleteStudyResponse(message="Study deleted successfully", status_code=200, studyId=studyId)
+        return DeleteStudyResponse(
+            message="Study deleted successfully", status_code=200, studyId=studyId
+        )
     except Exception as e:
         logger.error(f"Error Deleting Study {e}")
         raise HTTPException(
