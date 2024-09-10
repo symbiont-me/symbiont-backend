@@ -11,12 +11,12 @@ from .routers import llm_settings as llm_settings_router
 from .routers import tests as tests_router
 from .routers import user as user_router
 from . import ENVIRONMENT, VERSION
-from supertokens_python import init, SupertokensConfig, InputAppInfo
-from supertokens_python.recipe import session, emailpassword
+from supertokens_python.recipe import session
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 from supertokens_python import get_all_cors_headers
 from supertokens_python.framework.fastapi import get_middleware
-from symbionot.super_tokens import init_supertokens
+from symbiont.supertokens import init_supertokens
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # from symbiont.supertokens import init_supertokens
 
@@ -30,7 +30,18 @@ WELCOME_MESSAGE = (
 
 
 app = FastAPI()
+
+
+class SessionMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        session = await verify_session()(request)
+        request.state.session = session
+        return await call_next(request)
+
+
 init_supertokens()
+
+app.add_middleware(SessionMiddleware)
 app.add_middleware(get_middleware())
 
 # app.add_middleware(AuthTokenMiddleware)
