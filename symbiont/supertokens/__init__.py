@@ -103,6 +103,7 @@ def init_supertokens():
             session.init(
                 expose_access_token_to_frontend_in_cookie_based_auth=True,
                 cookie_secure=True,
+                cookie_same_site="lax",
             ),
             emailpassword.init(
                 override=emailpassword.InputOverrideConfig(
