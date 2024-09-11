@@ -175,13 +175,14 @@ async def get_file_from_storage(storage_ref: str):
 
 @router.post("/get-resources")
 async def get_resources(studyId: str, request: Request):
-    user_uid = request.state.verified_user["user_id"]
+    session_data = {
+        "user_id": request.state.session.get_user_id(),
+    }
+
+    user_uid = session_data["user_id"]
+    await user_exists(user_uid)
+    check_user_authorization(studyId, user_uid, studies_collection)
     studies = studies_collection.find({"_id": studyId})
-    if studies["userId"] != user_uid:
-        raise HTTPException(
-            status_code=404,
-            detail="User Not Authorized to Access Study",
-        )
     resources = studies["resources"]
     return ResourceResponse(
         resources=[StudyResource(**resource) for resource in resources],
@@ -199,10 +200,16 @@ async def add_yt_resource(
     if not video_resource.urls:
         raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
 
-    user_uid = request.state.verified_user["user_id"]
     logger.debug(f"Parsing {len(video_resource.urls)} YT Videos")
     yt_resources = []
     try:
+        session_data = {
+            "user_id": request.state.session.get_user_id(),
+        }
+
+        user_uid = session_data["user_id"]
+        await user_exists(user_uid)
+        check_user_authorization(video_resource.studyId, user_uid, studies_collection)
         for url in video_resource.urls:
             loader = YoutubeLoader.from_youtube_url(
                 str(url),
@@ -264,13 +271,17 @@ async def add_webpage_resource(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-    user_uid = request.state.verified_user["user_id"]
-    study_service = StudyService(user_uid, webpage_resource.studyId)
-
     if not webpage_resource.urls:
         raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
 
     try:
+        session_data = {
+            "user_id": request.state.session.get_user_id(),
+        }
+
+        user_uid = session_data["user_id"]
+        await user_exists(user_uid)
+        check_user_authorization(webpage_resource.studyId, user_uid, studies_collection)
         loader = AsyncHtmlLoader([str(url) for url in webpage_resource.urls])
         html_docs = loader.load()
         study_resources = []
@@ -345,7 +356,13 @@ async def add_plain_text_resource(
     request: Request,
     background_tasks: BackgroundTasks,
 ):
-    user_uid = request.state.verified_user["user_id"]
+    session_data = {
+        "user_id": request.state.session.get_user_id(),
+    }
+
+    user_uid = session_data["user_id"]
+    await user_exists(user_uid)
+    check_user_authorization(plain_text_resource.studyId, user_uid, studies_collection)
 
     study_resource = StudyResource(
         studyId=plain_text_resource.studyId,
