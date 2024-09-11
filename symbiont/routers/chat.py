@@ -96,14 +96,12 @@ async def chat(
     background_tasks: BackgroundTasks,
     api_key: Annotated[str | None, Cookie()] = None,
 ):
-    logger.critical("Starting chat")
     s = time.time()
 
     session_data = {
         "user_id": request.state.session.get_user_id(),
     }
 
-    logger.critical(f"Session data: {request.state.session}")
     user_uid = session_data["user_id"]
     await user_exists(user_uid)
     check_user_authorization(chat.study_id, user_uid, studies_collection)
@@ -251,7 +249,7 @@ async def get_chat_messages(studyId: str):
     if study is None:
         raise HTTPException(status_code=404, detail="Study not found")
     chats = study.get("chat", [])
-    logger.debug(chats)
+
     return {"chat": chats}
 
 
