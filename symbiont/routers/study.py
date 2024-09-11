@@ -8,9 +8,8 @@ import time
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 from ..mongodb import studies_collection, users_collection
+from symbiont.mongodb.utils import user_exists, check_user_authorization
 import uuid
-from supertokens_python.recipe import session, emailpassword
-from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -49,10 +48,14 @@ async def get_current_study(studyId: str, request: Request):
 
 @router.get("/get-user-studies")
 async def get_user_studies(request: Request):
-    user_uid = request.state.verified_user["user_id"]
-
     try:
         s = time.time()
+
+        session_data = {
+            "user_id": request.state.session.get_user_id(),
+        }
+        user_uid = session_data["user_id"]
+        await user_exists(user_uid)
         study_ids = users_collection.find_one({"_id": user_uid})["studies"]
         studies_data = list(studies_collection.find({"_id": {"$in": study_ids}}))
 
@@ -68,13 +71,6 @@ async def get_user_studies(request: Request):
             detail=str(e),
             status_code=500,
         )
-
-
-async def user_exists(user_id: str):
-    user = users_collection.find_one({"_id": (user_id)})
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
 
 
 @router.post("/create-study")
@@ -110,6 +106,7 @@ async def create_study(study: CreateStudyRequest, request: Request):
 
         elapsed = time.time() - s
         logger.info(f"Creating study took {elapsed} seconds")
+        logger.info(f"Study Details: {study_data}")
         return StudyResponse(
             message="Study created successfully", status_code=200, studies=[study_data]
         )
@@ -130,31 +127,16 @@ class DeleteStudyResponse(BaseModel):
     studyId: str
 
 
-def check_user_authorization(studyId: str, user_uid: str, studies_collection):
-    try:
-        studies = studies_collection.find_one({"_id": studyId})
-
-        if studies is None:
-            logger.error("Study not found")
-            raise HTTPException(detail="Study Not Found", status_code=404)
-
-        # Check if the user making the request is authorized
-        if studies["userId"] != user_uid:
-            logger.error("User is Not authorized to delete study")
-            raise HTTPException(
-                detail="User Not Authorized to Delete Study",
-                status_code=403,
-            )
-    except Exception as e:
-        logger.exception("An error occurred while checking user authorization")
-        raise HTTPException(detail=str(e), status_code=500)
-
-
 @router.delete("/delete-study")
 async def delete_study(studyId: str, request: Request):
     s = time.time()
     try:
-        user_uid = request.state.verified_user["user_id"]
+        session_data = {
+            "user_id": request.state.session.get_user_id(),
+        }
+
+        user_uid = session_data["user_id"]
+        await user_exists(user_uid)
         check_user_authorization(studyId, user_uid, studies_collection)
         studies_collection.delete_one({"_id": studyId})
         users_collection.update_one({"_id": user_uid}, {"$pull": {"studies": studyId}})
