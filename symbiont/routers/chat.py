@@ -22,7 +22,7 @@ import asyncio
 from ..mongodb import studies_collection
 
 from symbiont.vector_dbs.chat_context_service import ChatContextService
-
+from symbiont.mongodb.utils import user_exists, check_user_authorization
 
 ####################################################
 #                   CHAT                           #
@@ -96,8 +96,17 @@ async def chat(
     background_tasks: BackgroundTasks,
     api_key: Annotated[str | None, Cookie()] = None,
 ):
+    logger.critical("Starting chat")
     s = time.time()
-    user_uid = request.state.verified_user["user_id"]
+
+    session_data = {
+        "user_id": request.state.session.get_user_id(),
+    }
+
+    logger.critical(f"Session data: {request.state.session}")
+    user_uid = session_data["user_id"]
+    await user_exists(user_uid)
+    check_user_authorization(chat.study_id, user_uid, studies_collection)
 
     if api_key is None:
         raise HTTPException(status_code=404, detail="No API key found!")
@@ -210,13 +219,13 @@ async def chat(
             llm_response += chunk
             yield chunk
 
-    save_chat_message_to_db(
-        chat_message=llm_response,
-        citations=citations,
-        studyId=study_id,
-        role="bot",
-        user_uid=user_uid,
-    )
+    # save_chat_message_to_db(
+    #     chat_message=llm_response,
+    #     citations=citations,
+    #     studyId=study_id,
+    #     role="bot",
+    #     user_uid=user_uid,
+    # )
 
     elasped_time = time.time() - s
     logger.info(f"It took {elasped_time} to start the chat ")
@@ -247,7 +256,7 @@ async def get_chat_messages(studyId: str):
 
 
 @router.delete("/delete-chat-messages")
-async def delete_chat_messages(studyId: str):
+async def delete_chat_messages(studyId: str, request: Request):
     """
     Deletes all chat messages for a specific study identified by studyId.
 
@@ -257,13 +266,26 @@ async def delete_chat_messages(studyId: str):
     Returns:
     - dict: A dictionary containing a status message and code indicating the success of deleting the chat messages.
     """
+
+    session_data = {
+        "user_id": request.state.session.get_user_id(),
+    }
+
+    user_uid = session_data["user_id"]
+    await user_exists(user_uid)
+    check_user_authorization(studyId, user_uid, studies_collection)
     studies_collection.update_one({"_id": studyId}, {"$set": {"chat": []}})
     logger.info("Chat messages deleted!")
     return {"message": "Chat messages deleted!", "status_code": 200}
 
 
-
-def save_chat_message_to_db(chat_message: str, studyId: str, role: str, user_uid: str, citations: List[Citation] = []):
+def save_chat_message_to_db(
+    chat_message: str,
+    studyId: str,
+    role: str,
+    user_uid: str,
+    citations: List[Citation] = [],
+):
     """
     Saves a chat message to the database.
 
