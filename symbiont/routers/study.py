@@ -27,35 +27,39 @@ class StudyResponse(BaseModel):
 
 
 @router.get("/get-current-study")
-async def get_current_study(studyId: str, request: Request):
-    logger.info(studyId)
-    s = time.time()
-    logger.info("Getting current study")
-    user_uid = request.state.verified_user["user_id"]
-    study = studies_collection.find_one({"_id": studyId})
+async def get_current_study(studyId: str, request: Request) -> StudyResponse:
+    try:
+        s = time.time()
+        logger.info("Getting current study")
+        session_data = {
+            "user_id": request.state.session.get_user_id(),
+        }
+        user_uid = session_data["user_id"]
+        await user_exists(user_uid)
+        check_user_authorization(studyId, user_uid, studies_collection)
+        study = studies_collection.find_one({"_id": studyId})
+        elapsed = time.time() - s
+        logger.info(f"Getting current study took {elapsed} seconds")
+        return StudyResponse(message="", status_code=200, studies=[study])
 
-    if study["userId"] != user_uid:
-        logger.error("User is Not authorized to access study")
-        raise HTTPException(
-            detail="User Not Authorized to Access Study",
-            status_code=404,
-        )
-
-    elapsed = time.time() - s
-    logger.info(f"Getting current study took {elapsed} seconds")
-    return StudyResponse(message="", status_code=200, studies=[study])
+    except HTTPException as http_exc:
+        logger.error(f"HTTP Exception: {http_exc.detail}")
+        raise http_exc
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise HTTPException(detail="An internal error occurred.", status_code=500)
 
 
 @router.get("/get-user-studies")
 async def get_user_studies(request: Request):
     try:
         s = time.time()
-
         session_data = {
             "user_id": request.state.session.get_user_id(),
         }
         user_uid = session_data["user_id"]
         await user_exists(user_uid)
+        # We get all study ids for the user
         study_ids = users_collection.find_one({"_id": user_uid})["studies"]
         studies_data = list(studies_collection.find({"_id": {"$in": study_ids}}))
 
@@ -79,9 +83,7 @@ async def create_study(study: CreateStudyRequest, request: Request):
         session_data = {
             "user_id": request.state.session.get_user_id(),
         }
-
         user_uid = session_data["user_id"]
-
         await user_exists(user_uid)
         new_study = Study(
             name=study.name,
