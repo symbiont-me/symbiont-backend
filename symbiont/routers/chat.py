@@ -3,7 +3,7 @@ from ..models import ChatRequest, ChatMessage, Citation
 
 from fastapi.responses import StreamingResponse
 import datetime
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Annotated, List
 
 
 from ..llms import (
@@ -17,7 +17,6 @@ from ..llms import (
 from ..pinecone.pc import PineconeService
 from .. import logger
 import time
-from typing import Annotated, List
 import asyncio
 from ..mongodb import studies_collection
 
@@ -144,16 +143,18 @@ async def chat(
         user_query=user_query,
     )
 
-    chat_context_service = ChatContextService(study_id=study_id, resource_identifier=resource_identifier)
+    chat_context_service = ChatContextService(
+        study_id=study_id, resource_identifier=resource_identifier
+    )
 
     if chat.combined:
         logger.info("GETTING CONTEXT FOR COMBINED RESOURCES")
-        chat_context_results = chat_context_service.get_combined_chat_context(user_query)
+        chat_context_results = chat_context_service.get_combined_chat_context(
+            user_query
+        )
         if chat_context_results is None:
             logger.debug("No context found, retuning no context response")
-            no_context_response = (
-                "I am sorry, there is no information available in the documents to answer your question."
-            )
+            no_context_response = "I am sorry, there is no information available in the documents to answer your question."
             save_chat_message_to_db(
                 chat_message=no_context_response,
                 citations=citations,
@@ -177,9 +178,7 @@ async def chat(
         # result = await pc_service.get_single_chat_context()
         if result is None:
             logger.debug("No context found, retuning no context response")
-            no_context_response = (
-                "I am sorry, there is no information available in the documents to answer your question."
-            )
+            no_context_response = "I am sorry, there is no information available in the documents to answer your question."
             save_chat_message_to_db(
                 chat_message=no_context_response,
                 citations=citations,
@@ -195,7 +194,9 @@ async def chat(
         context = result[0]
         citations = result[1]
         context_elapsed_time = time.time() - context_start_time
-        logger.debug(f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}")
+        logger.debug(
+            f"fetched context in {str(datetime.timedelta(seconds=context_elapsed_time))}"
+        )
 
     llm_response = ""
 
@@ -304,7 +305,9 @@ def save_chat_message_to_db(
         citations=citations,
         createdAt=datetime.datetime.now(),
     ).model_dump()
-    studies_collection.find_one_and_update({"_id": studyId}, {"$push": {"chat": new_chat_message}})
+    studies_collection.find_one_and_update(
+        {"_id": studyId}, {"$push": {"chat": new_chat_message}}
+    )
     if role == "bot":
         logger.info("Bot message saved to db")
     else:
