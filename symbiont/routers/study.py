@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from ..models import CreateStudyRequest
 from datetime import datetime
@@ -96,22 +96,16 @@ async def create_study(study: CreateStudyRequest, request: Request):
         )
         s = time.time()
 
-        result = studies_collection.insert_one(
-            {"_id": str(uuid.uuid4()), **new_study.model_dump()}
-        )
+        result = studies_collection.insert_one({"_id": str(uuid.uuid4()), **new_study.model_dump()})
         study_data = studies_collection.find_one(result.inserted_id)
 
         # Add to users
-        result = users_collection.update_one(
-            {"_id": user_uid}, {"$push": {"studies": study_data["_id"]}}
-        )
+        result = users_collection.update_one({"_id": user_uid}, {"$push": {"studies": study_data["_id"]}})
 
         elapsed = time.time() - s
         logger.info(f"Creating study took {elapsed} seconds")
         logger.info(f"Study Details: {study_data}")
-        return StudyResponse(
-            message="Study created successfully", status_code=200, studies=[study_data]
-        )
+        return StudyResponse(message="Study created successfully", status_code=200, studies=[study_data])
     except Exception as e:
         logger.error(f"Error Creating New Study {e}")
         return JSONResponse(
@@ -145,9 +139,7 @@ async def delete_study(studyId: str, request: Request):
 
         elapsed = time.time() - s
         logger.info(f"Deleting study took {elapsed} seconds")
-        return DeleteStudyResponse(
-            message="Study deleted successfully", status_code=200, studyId=studyId
-        )
+        return DeleteStudyResponse(message="Study deleted successfully", status_code=200, studyId=studyId)
     except Exception as e:
         logger.error(f"Error Deleting Study {e}")
         raise HTTPException(

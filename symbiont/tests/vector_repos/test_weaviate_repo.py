@@ -1,7 +1,9 @@
 import pytest
-import weaviate
-from unittest.mock import patch, MagicMock
-from symbiont.vector_dbs.vector_store_repos.weaviate_repo import upsert_vectors, init_weaviate, DocumentPage
+from unittest.mock import patch
+from symbiont.vector_dbs.vector_store_repos.weaviate_repo import (
+    upsert_vectors,
+    init_weaviate,
+)
 from symbiont.vector_dbs.vector_store_repos.weaviate_repo import search_vectors
 import torch
 
@@ -62,7 +64,10 @@ def docs():
 query = "Give me some content about the ocean"
 
 
-@patch("symbiont.vector_dbs.vector_store_repos.weaviate_repo.embedding", new_callable=MockEmbedding)
+@patch(
+    "symbiont.vector_dbs.vector_store_repos.weaviate_repo.embedding",
+    new_callable=MockEmbedding,
+)
 def test_upsert_vectors(mock_embedding, weaviate_client, docs):
     namespace = "DocumentSearch"
 

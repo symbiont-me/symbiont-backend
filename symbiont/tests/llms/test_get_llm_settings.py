@@ -1,12 +1,9 @@
-from fastapi import FastAPI, HTTPException, Request, status, Cookie
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
-from bson import ObjectId
 import pytest
 import mongomock
 from unittest.mock import patch
 import logging
-from symbiont.routers.llm_settings import get_llm_settings
 
 
 # Assuming users_collection is used instead of setting up a config
@@ -58,7 +55,6 @@ async def add_request_attributes(request: Request, call_next):
 
 
 def test_get_llm_settings_user_not_found(mock_mongo):
-    user_uid = "valid_user_id"
     response = client.get("/get-llm-settings", cookies={"api_key": "test_api_key"})
 
     assert response.status_code == 404

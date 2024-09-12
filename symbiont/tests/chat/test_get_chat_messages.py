@@ -1,7 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
 from symbiont.routers.chat import router
-from symbiont.mongodb import studies_collection
 from unittest.mock import patch
 import mongomock
 

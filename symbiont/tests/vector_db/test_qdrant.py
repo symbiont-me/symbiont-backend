@@ -2,8 +2,6 @@ import pytest
 from unittest.mock import MagicMock, patch
 from symbiont.vector_dbs.chat_context_service import (
     VectorStoreContext,
-    create_vec_refs_in_db,
-    get_vec_refs_from_db,
     DocumentPage,
 )
 from symbiont.vector_dbs.vector_store_repos.qdrant_repo import QdrantRepository

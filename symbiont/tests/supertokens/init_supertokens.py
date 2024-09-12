@@ -57,6 +57,9 @@ def test_init_supertokens_production_missing_values(mock_getenv, mock_init):
     mock_getenv.side_effect = lambda key: "production" if key == "AUTH" else None
     with pytest.raises(
         ValueError,
-        match="Production environment variables PROD_API_DOMAIN, PROD_WEBSITE_DOMAIN, and PROD_CONNECTION_URI must be set",
+        match=(
+            "Production environment variables PROD_API_DOMAIN, "
+            "PROD_WEBSITE_DOMAIN, and PROD_CONNECTION_URI must be set"
+        ),
     ):
         init_supertokens()

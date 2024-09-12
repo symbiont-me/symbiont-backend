@@ -1,10 +1,3 @@
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from typing import Callable, Optional
-from starlette.middleware.base import BaseHTTPMiddleware
-from supertokens_python.recipe.session.framework.fastapi import verify_session
-
-
 # class AuthTokenMiddleware(BaseHTTPMiddleware):
 #     """
 #     Middleware for verifying and extracting user authentication token from the Authorization header.

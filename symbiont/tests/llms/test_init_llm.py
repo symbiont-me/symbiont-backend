@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 from symbiont.llms import init_llm, UsersLLMSettings
 from symbiont.llms import isOpenAImodel, isAnthropicModel, isGoogleModel
 
