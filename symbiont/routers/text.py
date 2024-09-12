@@ -10,16 +10,6 @@ from symbiont.mongodb.utils import user_exists, check_user_authorization
 router = APIRouter()
 
 
-@router.get("/get-text")
-async def get_text(study_id: str, request: Request):
-    user_uid = request.state.verified_user["user_id"]
-    study_service = StudyService(user_uid, study_id)
-    study_dict = study_service.get_document_dict()
-    if study_dict is None:
-        raise HTTPException(status_code=404, detail="Study not found")
-    return {"text": study_dict.get("text", "")}
-
-
 @router.post("/update-text")
 async def update_text(text_request: TextUpdateRequest, request: Request):
     session_data = {

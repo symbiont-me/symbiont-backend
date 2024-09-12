@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from io import BytesIO
-from firebase_admin import storage
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, Request
 from fastapi.responses import StreamingResponse
 
@@ -10,8 +9,6 @@ from ..models import (
     AddWebpageResourceRequest,
     ResourceTypes,
 )
-from ..pinecone.pc import PineconeService
-from ..utils.db_utils import StudyService
 from ..utils.helpers import make_file_identifier
 from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
@@ -83,7 +80,9 @@ async def save_summary(study_id: str, study_resource: StudyResource, content: st
     return {"message": "Summary added."}
 
 
-async def upload_to_storage(file_bytes, file_identifier: str, content_type: str | None = None):
+async def upload_to_storage(
+    file_bytes, file_identifier: str, content_type: str | None = None
+):
     try:
         # Create a temporary file to store the uploaded contents
         with tempfile.NamedTemporaryFile(delete=True) as temp_file:
@@ -93,7 +92,9 @@ async def upload_to_storage(file_bytes, file_identifier: str, content_type: str 
 
             # Store the file in GridFS
             with open(temp_file.name, "rb") as f:
-                file_id = grid_fs.put(f, filename=file_identifier, content_type=content_type)
+                file_id = grid_fs.put(
+                    f, filename=file_identifier, content_type=content_type
+                )
 
         return {"file_id": str(file_id)}
     except Exception as e:
@@ -121,8 +122,9 @@ async def add_resource(
 
         file_bytes = await file.read()
 
-        upload_result = await upload_to_storage(file_bytes, unique_file_identifier, file.content_type)
-        # upload_result = upload_to_firebase_storage(file, user_uid)
+        upload_result = await upload_to_storage(
+            file_bytes, unique_file_identifier, file.content_type
+        )
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
         # logger.debug(f"File uploaded to storage: {upload_result}")
         study_resource = StudyResource(
@@ -130,7 +132,9 @@ async def add_resource(
             identifier=unique_file_identifier,
             name=file.filename,
             url="",  # NOTE for other file types this may still be needed
-            storage_ref=upload_result["file_id"],  # NOTE: this is the _id from GridFS, used for retrieval
+            storage_ref=upload_result[
+                "file_id"
+            ],  # NOTE: this is the _id from GridFS, used for retrieval
             category=file_extension,
         )
 
@@ -147,14 +151,20 @@ async def add_resource(
         chat_context_service.add_resource()
         logger.info("Trying ChatContextService for PDF upload")
 
-        study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=studyId)
+        study_resources_repo = StudyResourceRepo(
+            study_resource, user_id=user_uid, study_id=studyId
+        )
         study_resources_repo.add_study_resource_to_db()
 
-        return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
+        return ResourceResponse(
+            status_code=200, message="Resource added.", resources=[study_resource]
+        )
     except Exception as e:
         # TODO delete from storage if it fails
         logger.error(f"Error occur while adding resource: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to add resource. Try Again.")
+        raise HTTPException(
+            status_code=500, detail="Failed to add resource. Try Again."
+        )
 
 
 @router.get("/get-file-from-storage")
@@ -163,7 +173,9 @@ async def get_file_from_storage(storage_ref: str):
     file = grid_fs.get(ObjectId(storage_ref))
     file_content = file.read()
     # logger.debug(file_content)
-    return StreamingResponse(BytesIO(file_content), media_type="application/octet-stream")
+    return StreamingResponse(
+        BytesIO(file_content), media_type="application/octet-stream"
+    )
     # try:
     #     file = grid_fs.get(storage_ref)
     #     file_content = file.read()
@@ -198,7 +210,9 @@ async def add_yt_resource(
     background_tasks: BackgroundTasks,
 ):
     if not video_resource.urls:
-        raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
+        raise HTTPException(
+            status_code=400, detail="Invalid URL. Please provide a valid URL."
+        )
 
     logger.debug(f"Parsing {len(video_resource.urls)} YT Videos")
     yt_resources = []
@@ -245,13 +259,15 @@ async def add_yt_resource(
             )
             chat_context_service.add_resource()
             # mongodb
-            # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
-            study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=video_resource.studyId)
+            # NOTE should only be added to the db if the resource is successfully uploaded to VectorDB
+            study_resources_repo = StudyResourceRepo(
+                study_resource, user_id=user_uid, study_id=video_resource.studyId
+            )
             study_resources_repo.add_study_resource_to_db()
 
             yt_resources.append(study_resource)
 
-            logger.info(f"Youtube video added to Pinecone {study_resource}")
+            logger.info(f"Youtube video added to Vector DB {study_resource}")
             background_tasks.add_task(
                 save_summary,
                 study_resource.studyId,
@@ -259,7 +275,9 @@ async def add_yt_resource(
                 doc.page_content,
             )
 
-        return ResourceResponse(status_code=200, message="Resource added.", resources=[yt_resources])
+        return ResourceResponse(
+            status_code=200, message="Resource added.", resources=[yt_resources]
+        )
     except Exception as e:
         logger.error(f"Error processing youtube video: {e}")
         raise HTTPException(status_code=500, detail="Error processing youtube video")
@@ -272,7 +290,9 @@ async def add_webpage_resource(
     background_tasks: BackgroundTasks,
 ):
     if not webpage_resource.urls:
-        raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid URL.")
+        raise HTTPException(
+            status_code=400, detail="Invalid URL. Please provide a valid URL."
+        )
 
     try:
         session_data = {
@@ -298,15 +318,14 @@ async def add_webpage_resource(
                 category="webpage",
                 summary="",
             )
-            pc_service = PineconeService(
-                study_id=webpage_resource.studyId,
-                resource_identifier=unique_identifier,
-                user_uid=user_uid,
-            )
             study_resources.append(study_resource)
             bs_transformer = BeautifulSoupTransformer()
-            docs_transformed = bs_transformer.transform_documents([doc], tags_to_extract=["p", "li", "span", "div"])
-            transformed_docs_contents.append((study_resource, docs_transformed[0].page_content))
+            docs_transformed = bs_transformer.transform_documents(
+                [doc], tags_to_extract=["p", "li", "span", "div"]
+            )
+            transformed_docs_contents.append(
+                (study_resource, docs_transformed[0].page_content)
+            )
             # TODO this exception is not returning the correct status code
             if docs_transformed[0].page_content is None:
                 raise HTTPException(
@@ -323,7 +342,6 @@ async def add_webpage_resource(
                 study_id=study_resource.studyId,
             )
             chat_context_service.add_resource()
-            await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
             # mongodb
             study_resources_repo = StudyResourceRepo(
                 study_resource, user_id=user_uid, study_id=webpage_resource.studyId
@@ -338,7 +356,9 @@ async def add_webpage_resource(
                 docs_transformed[0].page_content,
             )
 
-        return ResourceResponse(status_code=200, message="Resource added.", resources=study_resources)
+        return ResourceResponse(
+            status_code=200, message="Resource added.", resources=study_resources
+        )
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail="Error processing webpage")
@@ -350,6 +370,7 @@ class AddPlainTextResourceRequest(BaseModel):
     content: str
 
 
+# TODO fix Add Plain Text Resource
 @router.post("/add-plain-text-resource")
 async def add_plain_text_resource(
     plain_text_resource: AddPlainTextResourceRequest,
@@ -372,16 +393,12 @@ async def add_plain_text_resource(
         category="text",
         summary="",
     )
-    pc_service = PineconeService(
-        study_id=plain_text_resource.studyId,
-        user_uid=user_uid,
-        resource_identifier=study_resource.identifier,
-    )
 
     # TODO rename the method as used for both plain text and webpage
-    await pc_service.upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
 
-    study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=plain_text_resource.studyId)
+    study_resources_repo = StudyResourceRepo(
+        study_resource, user_id=user_uid, study_id=plain_text_resource.studyId
+    )
     study_resources_repo.add_study_resource_to_db()
 
     background_tasks.add_task(
@@ -390,7 +407,9 @@ async def add_plain_text_resource(
         study_resource,
         plain_text_resource.content,
     )
-    return ResourceResponse(status_code=200, message="Resource added.", resources=[study_resource])
+    return ResourceResponse(
+        status_code=200, message="Resource added.", resources=[study_resource]
+    )
 
 
 class DeleteResourceRequest(BaseModel):
@@ -406,7 +425,9 @@ class DeleteResourceResponse(BaseModel):
 
 # TODO this needs to be refactored thoroughly
 @router.post("/delete-resource-from-study")
-async def delete_resource_from_study(delete_request: DeleteResourceRequest, request: Request):
+async def delete_resource_from_study(
+    delete_request: DeleteResourceRequest, request: Request
+):
     try:
         s = time.time()
 
@@ -430,7 +451,9 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
             {"resources": {"$elemMatch": {"identifier": resource_identifier}}},
         )["resources"][0]["storage_ref"]
 
-        chat_context_service = ChatContextService(resource_identifier=resource_identifier, study_id=study_id)
+        chat_context_service = ChatContextService(
+            resource_identifier=resource_identifier, study_id=study_id
+        )
         # TODO this should handle the vector and resource deletion from db
         chat_context_service.delete_context()
 
@@ -451,7 +474,9 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
             {"$pull": {"resources": {"identifier": resource_identifier}}},
         )
         # # remove vecotor refs from db
-        studies_collection.update_one({"_id": study_id}, {"$unset": {"vectors." + resource_identifier: ""}})
+        studies_collection.update_one(
+            {"_id": study_id}, {"$unset": {"vectors." + resource_identifier: ""}}
+        )
         elapsed = time.time() - s
         logger.info(f"Resource deleted in {elapsed} seconds")
         #

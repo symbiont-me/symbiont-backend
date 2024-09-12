@@ -50,10 +50,7 @@ app.include_router(user_studies_router.router)
 app.include_router(text_router.router)
 app.include_router(chat_router.router)
 app.include_router(resource_handling_router.router)
-app.include_router(summary_router.router)
 app.include_router(llm_settings_router.router)
-app.include_router(user_router.router)
-app.include_router(tests_router.router)  # This is for testing purposes only
 # Don't add a trailing forward slash to a url in origins! Will cause CORS issues
 origins = [
     "http://localhost:3003",
