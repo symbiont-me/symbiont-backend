@@ -10,3 +10,4 @@ database/
 symbiont/tmp/*
 qdrant-storage/
 qdrant_storage/
+data/
