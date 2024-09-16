@@ -5,7 +5,7 @@ from typing import Annotated
 from .. import logger
 from ..mongodb import users_collection
 
-from symbiont.mongodb.utils import user_exists, check_user_authorization
+from symbiont.mongodb.utils import user_exists
 
 router = APIRouter()
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from ..models import CreateStudyRequest
 from datetime import datetime

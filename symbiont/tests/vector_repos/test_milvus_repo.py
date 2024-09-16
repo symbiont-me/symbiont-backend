@@ -1,13 +1,8 @@
 import pytest
 from pymilvus import MilvusClient
-from symbiont.models import DocumentPage
-import numpy as np
 
 from symbiont.vector_dbs.vector_store_repos.milvus_repo import (
     init_milvus,
-    create_collection,
-    upsert_vectors,
-    dummy_data,
     vectors,
     data,
 )

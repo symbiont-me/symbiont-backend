@@ -6,10 +6,7 @@ from .routers import study as user_studies_router
 from .routers import text as text_router
 from .routers import chat as chat_router
 from .routers import resource as resource_handling_router
-from .routers import summary as summary_router
 from .routers import llm_settings as llm_settings_router
-from .routers import tests as tests_router
-from .routers import user as user_router
 from . import ENVIRONMENT, VERSION
 from supertokens_python.recipe import session
 from supertokens_python.recipe.session.framework.fastapi import verify_session
@@ -52,10 +49,7 @@ app.include_router(user_studies_router.router)
 app.include_router(text_router.router)
 app.include_router(chat_router.router)
 app.include_router(resource_handling_router.router)
-app.include_router(summary_router.router)
 app.include_router(llm_settings_router.router)
-app.include_router(user_router.router)
-app.include_router(tests_router.router)  # This is for testing purposes only
 # Don't add a trailing forward slash to a url in origins! Will cause CORS issues
 
 FASTAPI_ENV = os.getenv("FASTAPI_ENV", "production")

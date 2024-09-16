@@ -1,6 +1,4 @@
-from datetime import datetime, timedelta
 from io import BytesIO
-from firebase_admin import storage
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, Request
 from fastapi.responses import StreamingResponse
 
@@ -10,8 +8,6 @@ from ..models import (
     AddWebpageResourceRequest,
     ResourceTypes,
 )
-from ..pinecone.pc import PineconeService
-from ..utils.db_utils import StudyService
 from ..utils.helpers import make_file_identifier
 from langchain_community.document_loaders import YoutubeLoader, AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
@@ -39,23 +35,6 @@ class ResourceResponse(BaseModel):
     status_code: int
     message: str
     resources: list
-
-
-def delete_resource_from_storage(user_uid: str, identifier: str):
-    bucket = storage.bucket()
-    storage_url = f"userFiles/{user_uid}/{identifier}"
-    blob = bucket.blob(storage_url)
-    blob.delete()
-    logger.info(f"Resource deleted from storage: userFiles/userId/{identifier}")
-
-
-# Generates a signed URL is a URL that includes a signature, allowing access to a resource for a limited time period.
-# This is useful for providing short-term access to a resource that would otherwise require authentication.
-def generate_signed_url(identifier: str) -> str:
-    blob = storage.bucket().blob(identifier)
-    expiration_time = datetime.now() + timedelta(hours=1)
-    url = blob.generate_signed_url(expiration=expiration_time, method="GET")
-    return url
 
 
 # TODO handle file types
@@ -122,7 +101,6 @@ async def add_resource(
         file_bytes = await file.read()
 
         upload_result = await upload_to_storage(file_bytes, unique_file_identifier, file.content_type)
-        # upload_result = upload_to_firebase_storage(file, user_uid)
         file_extension = file.filename.split(".")[-1] if "." in file.filename else ""
         # logger.debug(f"File uploaded to storage: {upload_result}")
         study_resource = StudyResource(
@@ -245,13 +223,13 @@ async def add_yt_resource(
             )
             chat_context_service.add_resource()
             # mongodb
-            # NOTE should only be added to the db if the resource is successfully uploaded to Pinecone
+            # NOTE should only be added to the db if the resource is successfully uploaded to VectorDB
             study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=video_resource.studyId)
             study_resources_repo.add_study_resource_to_db()
 
             yt_resources.append(study_resource)
 
-            logger.info(f"Youtube video added to Pinecone {study_resource}")
+            logger.info(f"Youtube video added to Vector DB {study_resource}")
             background_tasks.add_task(
                 save_summary,
                 study_resource.studyId,
@@ -298,11 +276,6 @@ async def add_webpage_resource(
                 category="webpage",
                 summary="",
             )
-            pc_service = PineconeService(
-                study_id=webpage_resource.studyId,
-                resource_identifier=unique_identifier,
-                user_uid=user_uid,
-            )
             study_resources.append(study_resource)
             bs_transformer = BeautifulSoupTransformer()
             docs_transformed = bs_transformer.transform_documents([doc], tags_to_extract=["p", "li", "span", "div"])
@@ -323,7 +296,6 @@ async def add_webpage_resource(
                 study_id=study_resource.studyId,
             )
             chat_context_service.add_resource()
-            await pc_service.upload_webpage_to_pinecone(study_resource, docs_transformed[0].page_content)
             # mongodb
             study_resources_repo = StudyResourceRepo(
                 study_resource, user_id=user_uid, study_id=webpage_resource.studyId
@@ -350,6 +322,7 @@ class AddPlainTextResourceRequest(BaseModel):
     content: str
 
 
+# TODO fix Add Plain Text Resource
 @router.post("/add-plain-text-resource")
 async def add_plain_text_resource(
     plain_text_resource: AddPlainTextResourceRequest,
@@ -372,14 +345,8 @@ async def add_plain_text_resource(
         category="text",
         summary="",
     )
-    pc_service = PineconeService(
-        study_id=plain_text_resource.studyId,
-        user_uid=user_uid,
-        resource_identifier=study_resource.identifier,
-    )
 
     # TODO rename the method as used for both plain text and webpage
-    await pc_service.upload_webpage_to_pinecone(study_resource, plain_text_resource.content)
 
     study_resources_repo = StudyResourceRepo(study_resource, user_id=user_uid, study_id=plain_text_resource.studyId)
     study_resources_repo.add_study_resource_to_db()
@@ -442,7 +409,6 @@ async def delete_resource_from_study(delete_request: DeleteResourceRequest, requ
         resource_to_delete = resources["resources"][0]
         # logger.debug(f"REsource to delete: {resource_to_delete}")
         if resource_to_delete["category"] in ["pdf", "audio", "image"]:
-            # delete_resource_from_storage(user_uid, resource_identifier)
             grid_fs_bucket.delete(file_id=ObjectId(storage_ref))
             logger.info(f"Resource {resource_identifier } deleted from storage")
         # remove from db

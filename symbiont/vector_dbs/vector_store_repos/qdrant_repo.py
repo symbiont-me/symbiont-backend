@@ -21,7 +21,8 @@ class QdrantRepository(BaseVectorRepository):
         )
 
         logger.info(
-            f"Connected to Qdrant at {vector_store_settings.configs.vector_store_url}:{vector_store_settings.configs.vector_store_port}"
+            f"Connected to Qdrant at {vector_store_settings.configs.vector_store_url}:"
+            f"{vector_store_settings.configs.vector_store_port}"
         )
 
     def create_collection(self, collection_name: str, vector_size: int, distance: str) -> None:

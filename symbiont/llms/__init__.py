@@ -1,7 +1,7 @@
 import re
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
-from pydantic import BaseModel, SecretStr, ValidationError
+from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from fastapi import HTTPException, status
@@ -102,7 +102,10 @@ def init_llm(settings: UsersLLMSettings, api_key: str):
 
         else:
             logger.error(f"Couldn't find the llm provider, {settings.llm_name}")
-            raise HTTPException(status_code=400, detail="Couldn't find the llm provider or unsupported model")
+            raise HTTPException(
+                status_code=400,
+                detail="Couldn't find the llm provider or unsupported model",
+            )
     except Exception as e:
         logger.error(f"Error initializing LLM: {e}")
         raise HTTPException(status_code=400, detail="Error initializing LLM")

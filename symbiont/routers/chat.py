@@ -14,7 +14,6 @@ from ..llms import (
     ChatAnthropic,
     ChatGoogleGenerativeAI,
 )
-from ..pinecone.pc import PineconeService
 from .. import logger
 import time
 from typing import Annotated, List
@@ -137,12 +136,6 @@ async def chat(
         raise HTTPException(status_code=404, detail="Please select a resource")
 
     logger.debug("Initializing pc service")
-    pc_service = PineconeService(
-        study_id=study_id,
-        resource_identifier=resource_identifier,
-        user_uid=user_uid,
-        user_query=user_query,
-    )
 
     chat_context_service = ChatContextService(study_id=study_id, resource_identifier=resource_identifier)
 
@@ -152,7 +145,7 @@ async def chat(
         if chat_context_results is None:
             logger.debug("No context found, retuning no context response")
             no_context_response = (
-                "I am sorry, there is no information available in the documents to answer your question."
+                "I am sorry, there is no information available in the documents to " "answer your question."
             )
             save_chat_message_to_db(
                 chat_message=no_context_response,
@@ -178,7 +171,7 @@ async def chat(
         if result is None:
             logger.debug("No context found, retuning no context response")
             no_context_response = (
-                "I am sorry, there is no information available in the documents to answer your question."
+                "I am sorry, there is no information available in the documents to " "answer your question."
             )
             save_chat_message_to_db(
                 chat_message=no_context_response,

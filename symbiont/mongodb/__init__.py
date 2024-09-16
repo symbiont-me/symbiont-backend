@@ -10,8 +10,8 @@ import time
 def init_db_collections(db):
     studies_collection = db["studies"]
     users_collection = db["users"]
-    resources_collection = db["resources"]  # NOTE we'll use these after restructuring the database
-    vectors_collection = db["vectors"]
+    # resources_collection = db["resources"]  # NOTE we'll use these after restructuring the database
+    # vectors_collection = db["vectors"]
     return studies_collection, users_collection
 
 
