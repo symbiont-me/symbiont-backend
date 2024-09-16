@@ -16,9 +16,9 @@ def init_db_collections(db):
 
 
 def init_mongo_db():
-    mongo_uri = os.getenv("MONGO_URI")
+    mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost")
     mongo_port = os.getenv("MONGO_PORT", 27017)
-    mongo_db_name = os.getenv("MONGO_DB_NAME")
+    mongo_db_name = os.getenv("MONGO_DB_NAME", "symbiont-local")
 
     if not all([mongo_uri, mongo_port, mongo_db_name]):
         raise Exception("MONGO_URI, MONGO_PORT, MONGO_DB_NAME environment variables are not set")
@@ -55,4 +55,11 @@ def init_mongo_db():
     return client, db, studies_collection, users_collection, grid_fs, grid_fs_bucket
 
 
-client, db, studies_collection, users_collection, grid_fs, grid_fs_bucket = init_mongo_db()
+(
+    client,
+    db,
+    studies_collection,
+    users_collection,
+    grid_fs,
+    grid_fs_bucket,
+) = init_mongo_db()
