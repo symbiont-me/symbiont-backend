@@ -10,26 +10,25 @@ import time
 def init_db_collections(db):
     studies_collection = db["studies"]
     users_collection = db["users"]
-    resources_collection = db[
-        "resources"
-    ]  # NOTE we'll use these after restructuring the database
+    resources_collection = db["resources"]  # NOTE we'll use these after restructuring the database
     vectors_collection = db["vectors"]
     return studies_collection, users_collection
 
 
 def init_mongo_db():
-    mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost")
+    mongo_uri = os.getenv("MONGO_URI")
     mongo_port = os.getenv("MONGO_PORT", 27017)
-    mongo_db_name = os.getenv("MONGO_DB_NAME", "symbiont-local-mongodb")
+    mongo_db_name = os.getenv("MONGO_DB_NAME")
+
+    if mongo_uri is None or mongo_db_name is None:
+        raise Exception("MONGO_URI and MONGO_DB_NAME must be set in the environment variables")
 
     client = None
     db = None
     try:
         logger.debug(f"Connecting to MongoDB at {mongo_uri}")
         if os.getenv("FASTAPI_ENV") == "development" and mongo_uri == "localhost":
-            client = MongoClient(
-                mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000
-            )
+            client = MongoClient(mongo_uri, int(mongo_port), serverSelectionTimeoutMS=5000)
         elif os.getenv("FASTAPI_ENV") == "development":
             client = MongoClient(mongo_uri, server_api=ServerApi("1"))
         elif os.getenv("FASTAPI_ENV") == "production":
