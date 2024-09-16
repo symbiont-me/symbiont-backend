@@ -17,6 +17,8 @@ from supertokens_python import get_all_cors_headers
 from supertokens_python.framework.fastapi import get_middleware
 from symbiont.supertokens import init_supertokens
 from starlette.middleware.base import BaseHTTPMiddleware
+import os
+
 
 # from symbiont.supertokens import init_supertokens
 
@@ -55,13 +57,13 @@ app.include_router(llm_settings_router.router)
 app.include_router(user_router.router)
 app.include_router(tests_router.router)  # This is for testing purposes only
 # Don't add a trailing forward slash to a url in origins! Will cause CORS issues
-origins = [
-    "http://localhost:3003",
-    "http://localhost:3000",
-    "https://symbiont.vercel.app",
-    "https://staging-symbiont.vercel.app",
-]
 
+FASTAPI_ENV = os.getenv("FASTAPI_ENV", "production")
+origins = None
+if FASTAPI_ENV == "development":
+    origins = [f"http://localhost:300{i}" for i in range(11)]
+else:
+    origins = [os.getenv("FRONTEND_URL", "http://localhost:3000")]
 
 app.add_middleware(
     CORSMiddleware,
