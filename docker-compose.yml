@@ -1,5 +1,15 @@
+version: "3.8"
 
 services:
+  mongodb:
+    image: mongodb/mongodb-community-server:${MONGODB_VERSION:-latest} # Default to 'latest' if MONGODB_VERSION is not set
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: symbiont-local-mongodb
+
   fastapi-dev:
     build:
       context: .
@@ -10,7 +20,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env.dev
+      - .env.development
     command: "uvicorn symbiont.main:app --host 0.0.0.0 --port 8000 --reload"
     profiles: ["dev"]
 
